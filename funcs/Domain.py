@@ -3,7 +3,7 @@ import requests
 from requests import Response
 import time
 import string
-
+from .Session import Session
 from .Logger import Logger
 from typing import TYPE_CHECKING
 import os
@@ -20,6 +20,7 @@ class Domain:
         self.zone_id:str=zone_id
 
     @l.time
+    @staticmethod
     def is_domain_valid(domain_: str) -> bool:
         """Checks if domain is vlaid
 
@@ -36,10 +37,10 @@ class Domain:
         return valid
 
     @l.time
-    def __add_domain_to_user(self,token: 'Token', domain: str, content: str=None,  type_: str=None, domain_id: str=None,proxied:bool=False) -> bool:
-        l.info(f"`__add_domain_to_user` adding domain {domain} to {token.username}. Called with domain {domain} and id {domain_id}")
+    def __add_domain_to_user(self,session: Session, domain: str, content: str=None,  type_: str=None, domain_id: str=None,proxied:bool=False) -> bool:
+        l.info(f"`__add_domain_to_user` adding domain {domain} to {session.username}. Called with domain {domain} and id {domain_id}")
         domain = domain.replace(".","[dot]")
-        data = self.db.get_data(token)
+        data = self.db.get_data(session)
         l.trace(f"User domains: {data['domains']}")
         if(domain.replace("[dot]",".") not in data["domains"] and domain_id is not None):
             l.info(f"`__add_domain_to_user` registering domain {domain}")
@@ -50,7 +51,7 @@ class Domain:
                 "id":domain_id,
                 "proxy":proxied
             }
-            self.db.add_domain(token,domain,domain_data)
+            self.db.add_domain(session,domain,domain_data)
             return True
         l.info(f"`__add_domain_to_user` modifying domain {domain}")
 
@@ -65,7 +66,7 @@ class Domain:
         if(proxied is not None):
             domain_data["proxy"]=proxied
             l.trace("`__add_domain_to_user` updating proxy since one is specified")
-        self.db.modify_domain(token,domain,domain_data)
+        self.db.modify_domain(session,domain,domain_data)
         return True
 
     def __add_dommain_to_user_api(self,api:'Api', domain:str, content:str=None, type_:str=None, domain_id:str=None) -> bool:
@@ -89,18 +90,16 @@ class Domain:
         return True
 
     @l.time
-    def delete_domain(self,token:'Token', domain: str) -> int:
+    @Session.requires_auth
+    def delete_domain(self,session:Session, domain: str) -> int:
         """Deletes specified domain
 
         Returns:
             int: -1 not owning domain, 0 passowrd or user not correct, 1 succeed
         """
-        if(not token.password_correct(self.db)):
-            l.info("`delete_domain` password not correct")
-            return 0
-        domains: dict = self.get_user_domains(self.db,token)
+        domains: dict = self.get_user_domains(self.db,session)
         if(domain not in domains):
-            l.info(f"Domain {domain} not in domains of user {token.username}")
+            l.info(f"Domain {domain} not in domains of user {session.username}")
             return -1
         headers: dict = {
             "Content-Type": "application/json",
@@ -118,15 +117,15 @@ class Domain:
         except KeyError:
             l.error(f"Could not delete domain {domain} (KeyError)")
         l.info(f"`delete_domain` succesfully deleted {domain}")
-        self.db.update_data(username=token.username,key="domains",value=domains)
+        self.db.update_data(username=session.username,key="domains",value=domains)
 
         if response.status_code != 200:
             l.warn(f"`delete_domain` response status was not 200 ({response.json()})")
 
         return 1
 
-    @l.time
-    def get_user_domains(self,database:'Database', token:'Token') -> dict:
+    @Session.requires_auth
+    def get_user_domains(self,database, session:Session) -> dict:
         """Get user domains
 
         Args:
@@ -145,16 +144,14 @@ class Domain:
         NOTE: Subdomains will be returned as a.b.c, not a[dot]b[dot]c
 
         """
-        if(not token.password_correct(database)):
-            l.info(f"`get_user_domains` incorrect password for user {token.username}")
-            return {"Error":True,"code":"1001","message":"Username or password is invalid."}
-        data = self.db.get_data(token)
+        data = self.db.get_data(session=session)
+        print(self.db.get_data(session=session))
         if(data.get("domains",[]).__len__()!=0):
             domains = data["domains"]
             for domain in list(domains.keys()):
                 domains[domain.replace("[dot]",".")] = domains.pop(domain)
             return domains
-        l.trace(f"User {token.username} has no domains")
+        l.trace(f"User {session.username} has no domains")
         return {"Error":True,"code":"1002","message":"No domains"}
 
     def check_domain(self,domain: str, domains:dict={}, type_: str = "A") -> int:
@@ -195,7 +192,8 @@ class Domain:
         return 1
 
 
-    def modify(self,database: 'Database', domain: str, token:'Token', new_content: str, type_:str, proxied:bool=False) -> dict:
+    @Session.requires_auth
+    def modify(self,database: 'Database', domain: str, session:Session, new_content: str, type_:str, proxied:bool=False) -> dict:
         """Modify a domain
 
         Args:
@@ -217,11 +215,8 @@ class Domain:
                 1xxx: Cloudflare api issue
         """
         l.trace(f"Modifying {domain} with type {type_} and content of {new_content}")
-        if(not token.password_correct(database)):
-            l.info("`modify` Invalid password")
-            return {"Error":True,"message":"Invalid credentials", "code":1004}
-        data: dict = self.db.get_data(token)
-        domains:dict = self.get_user_domains(self.db,token)
+        data: dict = self.db.get_data(session)
+        domains:dict = self.get_user_domains(self.db,session=session)
         l.trace(f"Requested domain {domain.replace('[dot]','.')}")
         if(domain.replace("[dot]",".") not in domains):
             l.warn(f"User does not own {domain}")
@@ -245,8 +240,8 @@ class Domain:
         }
         response:Response = requests.patch(f"https://api.cloudflare.com/client/v4/zones/{self.zone_id}/dns_records/{domains[domain.replace('[dot]','.')]['id']}",json=data_,headers=headers,timeout=20)
         if(response.status_code==200):
-            self.__add_domain_to_user(token=token,domain=domain,content=new_content,domain_id=None,type_=type_,proxied=proxied)
-            l.info(f"Modified {domain} for user {token.username}")
+            self.__add_domain_to_user(session=session,domain=domain,content=new_content,domain_id=None,type_=type_,proxied=proxied)
+            l.info(f"Modified {domain} for user {session.username}")
             return {"Error":False,"message":"Succesfully modified domain"}
         else:
             l.warn(f"`modify` CloudFlare didn't respond with a 200. Id used: {domains[domain.replace('[dot]','.')]['id']} ({response.json()})")
@@ -282,7 +277,8 @@ class Domain:
         l.info(f"Modified domain {domain} with API")
         return {"Error":False,"code":1000,"message":"Succesfully changed domain"}
 
-    def register(self,domain: str, content: str, token: 'Token', type_: str, proxied:bool) -> dict:
+    @Session.requires_auth
+    def register(self,domain: str, content: str, session: Session, type_: str, proxied:bool) -> dict:
         """Registers a domain
 
         Args:
@@ -303,24 +299,17 @@ class Domain:
                 1003: domain limit
                 10x4: Domain is not valid where `x*-1` is the reason (refer to `self.check_domain()`)
         """
-        if(not token.password_correct(self.db)):
-            l.info(f"`register` Cannot register domain {domain}: Invalid credentials")
-            return {"Error":True,"code":1000,"message":"Wrong credentials"}
 
         if(type_.lower() not in ["a","cname","txt","ns"]):
             l.info(f"{type_} is not a valid type")
             return {"Error":True,"code":1001,"message":f"Invalid type: {type_}"}
 
-        if(not self.db.is_verified(token)):
-            l.info(f"`register` User {token.username} is not verified")
-            return {"Error":True,"code":1002,"message":"Please verify your account."}
-
-        amount_of_domains: int = self.get_user_domains(self.db,token).__len__()
-        if(amount_of_domains > self.db.get_permission(token,"max-domains",4)):
+        amount_of_domains: int = self.get_user_domains(self.db,session=session).__len__()
+        if(amount_of_domains > self.db.get_data(session).get("permissions",{}).get("max-domains",4)):
             l.info(f"`register` maximum domain limit reached")
             return {"Error":True,"code":1003,"message":"You have reached your domain limit"}
 
-        domain_check:int=self.check_domain(domain,self.get_user_domains(self.db,token),type_)
+        domain_check:int=self.check_domain(domain,self.get_user_domains(self.db,session=session),type_)
         if(domain_check!=1):
             l.info(f"`regster` failed: {domain} is invalid (reason no {domain_check})")
             return {"Error":True,"code":int(f"10{domain_check*-1}4"),"message":f"Domain is not valid. Reason No. {domain_check}"}
@@ -337,13 +326,13 @@ class Domain:
             "name": domain.replace("[dot]","."), # because 'domain' is *only* the subdomain (example.frii.site->example)
             "proxied": proxied, # so cloudflare doesn't proxy the content
             "type": type_.strip(), # the type of the record.
-            "comment": "Issued by "+(self.db.fernet.decrypt(str.encode(self.db.get_data(token)["display-name"]))).decode("utf-8"), # just a handy-dandy lil feature that shows the admin (me) who registered the domain
+            "comment": "Issued by "+(self.db.fernet.decrypt(str.encode(self.db.get_data(session)["display-name"]))).decode("utf-8"), # just a handy-dandy lil feature that shows the admin (me) who registered the domain
             "ttl": 1 # auto ttl
         }
         response = requests.post(f"https://api.cloudflare.com/client/v4/zones/{self.zone_id}/dns_records",headers=headers,json=data_)
         if(response.status_code==200):
             l.info(f"Registered domain {domain} succesfully")
-            self.__add_domain_to_user(token,domain,content,type_,response.json().get("result",{}).get("id"), proxied)
+            self.__add_domain_to_user(session,domain,content,type_,response.json().get("result",{}).get("id"), proxied)
         else:
             l.error(f"Registering domain cloudflare returned {response.status_code}")
             return {"Error":True,"code":1030,"message":"Cloudflare did not accept domain"}

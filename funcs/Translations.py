@@ -1,7 +1,7 @@
 import requests
 import time
 from .Logger import Logger
-from .Token import Token
+from .Session import Session
 from .Database import Database
 import os
 from dotenv import load_dotenv
@@ -66,7 +66,8 @@ class Translations:
     def get_keys(self,language:str) -> dict:
         return self.keys[language]
 
-    def contribute(self, lang:str, keys: list,token:Token) -> bool:
+    @Session.requires_auth
+    def contribute(self, lang:str, keys: list,session:Session) -> bool:
         """Contributes to a specified language
 
         Args:
@@ -79,10 +80,6 @@ class Translations:
 
         language = {}
 
-        if(not token.password_correct(self.db)):
-            l.info(f"Not adding translations for language {lang} because username and password are not correct")
-            return False
-
         for translation in keys:
             if(translation["val"]!=""):
                 try:
@@ -91,7 +88,7 @@ class Translations:
                     l.warn(f"Got a value error trying to delete key {translation['key']}")
                 language["keys."+translation["key"]] = {}
                 language["keys."+translation["key"]]["val"] = translation["val"]
-                language["keys."+translation["key"]]["contributor"] = token.username
+                language["keys."+translation["key"]]["contributor"] = session.username
 
         self.db.translation_collection.update_one(
             {"_id":lang},

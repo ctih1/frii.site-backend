@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from hashlib import sha256
 # pylint: disable=relative-beyond-top-level
 from .Utils import generate_random_string
-from .Token import Token
+from .Session import Session
 if TYPE_CHECKING:
     from Database import Database
 
@@ -17,7 +17,7 @@ class Permission(Enum):
 
 class Api:
     @staticmethod
-    def create(token:Token, permissions_: list, domains: list, comment: str, database:Database) -> str:
+    def create(session:Session, permissions_: list, domains: list, comment: str, database:Database) -> str:
         """Creates an API Key
 
         Args:
@@ -30,8 +30,7 @@ class Api:
             str: API Key
         """
         api_key:str="$APIV1="+generate_random_string(32)
-        user_domains = database.get_data(token).get("domains",{})
-        print(database.get_data(token))
+        user_domains = database.get_data(session).get("domains",{})
         for domain in domains:
             if(domain not in list(user_domains.keys())):
                 raise PermissionError("User does not own domain")
@@ -44,7 +43,7 @@ class Api:
         }
 
         encrypted_api_key:str = sha256((api_key+"frii.site").encode("utf-8")).hexdigest()
-        database.collection.update_one({"_id":token.username},{"$set":{f"api-keys.{encrypted_api_key}":key}})
+        database.collection.update_one({"_id":session.username},{"$set":{f"api-keys.{encrypted_api_key}":key}})
         return api_key
     def __init__(self,key:str,database:Database)->None:
         self.key:str=key
@@ -112,8 +111,8 @@ class Api:
             if(permission=="delete"):  permissions_list.append(Permission.DELETE)
         return permissions_list
 
-    def delete(self,auth:Token) -> bool:
-        if(not auth.password_correct(self.db)): raise PermissionError()
+    @Session.requires_auth
+    def delete(self,session:Session) -> bool:
         self.db.collection.update_one({f"api-keys.{self.__search_key}":{"$exists":True}},{"$unset":{f"api-keys.{self.__search_key}":""}})
         return True
 
@@ -127,13 +126,14 @@ class Api:
     def __get_affected_domains(self) -> list:
         return self.db.collection.find_one({f"api-keys.{self.__search_key}":{"$exists":True}}).get("api-keys",{}).get(self.__search_key,{}).get("domains")
     @staticmethod
-    def get_keys(user:Token,db:Database) -> list:
+    @Session.requires_auth
+    def get_keys(session:Session,db:Database) -> list:
         """Returns the users api keys
         Returns:
             `[{key:string, domains:string[], perms:string[], comment:string}]`
         """
         user_keys:list = []
-        keys = db.get_data(user).get("api-keys",{})
+        keys = db.get_data(session).get("api-keys",{})
         for key in keys:
             api_key = db.fernet.decrypt(str.encode(keys[key]["string"])).decode("utf-8")
             user_keys.append({"key":api_key,"domains":keys[key]["domains"], "perms":keys[key]["perms"], "comment":keys[key]["comment"]})

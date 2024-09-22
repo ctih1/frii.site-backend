@@ -11,7 +11,7 @@ from pymongo.database import Database as _Database
 
 # pylint: disable=relative-beyond-top-level
 from .Email import Email
-from .Token import Token
+from .Session import Session
 from .Logger import Logger
 import os
 from dotenv import load_dotenv
@@ -32,6 +32,7 @@ class Database:
         self.translation_collection: Collection = self.db["translations"]
         self.status_collection: Collection = self.db["status"]
         self.blog_collection:Collection = self.db["blog"]
+        self.session_collection:Collection = self.db["sessions"]
         self.codes: Collection = self.db["codes"]
         self.api_collection:Collection = self.db["api"]
         self.verif_codes:dict={}
@@ -66,55 +67,54 @@ class Database:
             upsert=False
         )
 
-    def user_logged_in(self,user:Token):
-        self.update_data(username=user.username,key="last-login",value=time.time())
-
     @l.time
-    def __delete_user_from_db(self,user:Token) -> bool:
-        if(not user.password_correct(self)): return False
-        self.remove_from_cache(user)
-        self.collection.delete_one({"_id":user.username})
+    @Session.requires_auth
+    def __delete_user_from_db(self,session:Session) -> bool:
+        self.remove_from_cache(session.username)
+        self.collection.delete_one({"_id":session.username})
         return True
 
     @l.time
-    def add_domain(self,user: Token, domain_name:str, domain:dict) -> bool:
+    @Session.requires_auth
+    def add_domain(self,session: Session, domain_name:str, domain:dict) -> bool:
         l.info(f"Adding domain {domain_name} to user")
-        if(not user.password_correct(self)): return False
-        self.remove_from_cache(user)
-        self.collection.update_one({"_id":user.username},{"$set":{f"domains.{domain_name}":domain}})
+        self.remove_from_cache(session.username)
+        self.collection.update_one({"_id":session.username},{"$set":{f"domains.{domain_name}":domain}})
         return True
 
     @l.time
-    def modify_domain(self,user:Token,domain: str, domain_data:dict) -> bool:
+    @Session.requires_auth
+    def modify_domain(self,session:Session,domain: str, domain_data:dict) -> bool:
         domain = domain.replace(".","[dot]")
         l.info(f"Modifying domain {domain}")
-        if(not user.password_correct(self)): return False
         assert(domain!=None)
-        self.modify_cache_domain(user,domain,domain_data)
-        self.collection.update_one({"_id":user.username},{"$set":{f"domains.{domain}":domain_data}})
+        self.modify_cache_domain(session.username,domain,domain_data)
+        self.collection.update_one({"_id":session.username},{"$set":{f"domains.{domain}":domain_data}})
+        return True
 
     @l.time
-    def get_data(self,user:Token) -> dict:
-        if(self.__get_cache(user) is not None):
-            l.trace(f"Found user {user.username} in cache")
-            return self.__get_cache(user)
+    @Session.requires_auth
+    def get_data(self,session:Session) -> dict:
+        if(self.__get_cache(session) is not None):
+            l.trace(f"Found user {session.username} in cache")
+            return self.__get_cache(session)
         cursor: Cursor
         results_found: list = []
-        cursor = self.collection.find({"_id":user.username})
+        cursor = self.collection.find({"_id":session.username})
         for result in cursor:
             results_found.append(result)
-        self.__add_to_cache(results_found[0],user)
-        self.user_logged_in(user)
+        self.__add_to_cache(results_found[0],session.username)
         if(results_found.__len__()!=0):
             return results_found[0]
         else:
-            l.warn(f"`get_data` no matches for username {user.username}")
+            l.warn(f"`get_data` no matches for username {session.username}")
             raise IndexError("No matches for username.")
+
     @l.time
-    def __user_exists(self,user: str) -> bool:
+    def __user_exists(self,username: str) -> bool:
         cursor:Cursor
         results:int=0
-        cursor = self.collection.find({"_id":user})
+        cursor = self.collection.find({"_id":username})
         for _ in cursor:
             results+=1
         return results!=0
@@ -130,13 +130,9 @@ class Database:
             results +=1
         return results != 0
 
-    def admin_get_basic_data(self,token:Token,id:str) -> dict:
-        if(not token.password_correct(self)):
-            l.permission(f"User {token.username} tried to access `admin_get_basic_data` (invalid password)")
-            return {"Error":True,"code":1000}
-        if(not self.get_data(token).get("permissions").get("userdetails",False)):
-            l.permission(f"User {token.username} tried to access `admin_get_basic_data` (no permissions)")
-            return {"Error":True,"code":1001,"message":"Token does not have permissions"}
+    @Session.requires_auth
+    @Session.requires_permission(perm="userdetails")
+    def admin_get_basic_data(self,session:Session,id:str) -> dict:
         raw_data:dict = self.collection.find_one(id)
         return {
             "Error":False,
@@ -148,15 +144,9 @@ class Database:
             "permissions": raw_data.get("permissions")
         }
 
-    def admin_get_emails(self,token:Token,condition:dict) -> dict:
-        if(not token.password_correct(self)):
-            l.permission(f"User {token.username} tried to access `admin_get_basic_data` (invalid password)")
-            return {"Error":True,"code":1000}
-
-        if(not self.get_data(token).get("permissions").get("userdetails",False)):
-            l.permission(f"User {token.username} tried to access `admin_get_basic_data` (no permissions)")
-            return {"Error":True,"code":1001,"message":"Token does not have permissions"}
-
+    @Session.requires_auth
+    @Session.requires_permission(perm="userdetails")
+    def admin_get_emails(self,session:Session,condition:dict) -> dict:
         results = self.collection.find(condition)
         emails:list=[]
         for result in results:
@@ -214,21 +204,19 @@ class Database:
         data["api-keys"] = {}
         data["credits"] = 15
         self.__save_data(data)
-        if(not emailInstance.send_verification(Token(Token.generate(username,password)),email,original_username)):
+        if(not emailInstance.send_verification(username,email,original_username)):
             l.warn("`create_user` Invalid email")
             return {"Error":True,"code":1003,"message":"Invalid email"}
-
         return {"Error":False}
 
-    def get_gpdr(self,token:Token):
-        if(not token.password_correct(self)):
-            l.info("`get_gpdr` Password not correct")
-            return {"Error":"Invalid credentials","code":"1001"}
-        a = self.get_data(token)
+    @Session.requires_auth
+    def get_gpdr(self,session:Session):
+        a = self.get_data(session)
         return {"user_id":a["_id"],"location":a["country"],"creation_date":a["created"],"domains":a["domains"],"lang":a["lang"],"last_login":a["last-login"],"permissions":a["permissions"],"verified":a["verified"]}
 
     @l.time
-    def get_basic_user_data(self,token:Token) -> dict:
+    @Session.requires_auth
+    def get_basic_user_data(self,session:Session) -> dict:
         """Gets the basic userdate
 
         Args:
@@ -242,10 +230,7 @@ class Database:
             codes:
                 1001 - Invalid credentials
         """
-        if(not token.password_correct(self)):
-            l.info("`get_basic_user_data` Invalid credentials")
-            return {"Error":True,"code":1001,"message":"Invalid credentials"}
-        data = self.get_data(token)
+        data = self.get_data(session)
         return {
             "username": (self.fernet.decrypt(str.encode(data["display-name"]))).decode("utf-8"),
             "email": (self.fernet.decrypt(str.encode(data["email"]))).decode("utf-8"),
@@ -256,27 +241,18 @@ class Database:
             "permissions":data["permissions"]
         }
 
-    @l.time
-    def is_verified(self,token:Token) -> bool:
-        data = self.get_basic_user_data(token)
-        l.info(f"is user {token.username} verified: {data.get('verified',None)}")
-        return (data.get("verified",False))
 
     @l.time
-    def get_permission(self, token:Token,permission:str,default:any)->any:
-        return self.get_data(token).get("permissions",{}).get(permission,default)
-
-    @l.time
-    def remove_from_cache(self,token:Token) -> None:
+    def remove_from_cache(self,username:str) -> None:
         try:
-            del self.data_cache[token.string_token]
-            l.trace(f"Deleted user {token.username} from cache")
+            del self.data_cache[username]
+            l.trace(f"Deleted user {username} from cache")
         except KeyError:
-            l.warn(f"Couldn't delete {token.username} from cache")
+            l.warn(f"Couldn't delete {username} from cache")
             pass
 
     @l.time
-    def __add_to_cache(self,data:list,token:Token) -> list:
+    def __add_to_cache(self,data:list,username:str) -> list:
         """Adds cache item
 
         Args:
@@ -286,15 +262,16 @@ class Database:
         Returns:
             list: given data
         """
-        l.trace(f"Adding {token.username} to cache")
-        self.data_cache[token.string_token] = {
+        l.trace(f"Adding {username} to cache")
+        self.data_cache[username] = {
             "expire": time.time()+30,
             "data": data
         }
         return data
 
     @l.time
-    def __get_cache(self,token:Token) -> list:
+    @Session.requires_auth
+    def __get_cache(self,session:Session) -> list:
         """Gets data from cache
 
         Args:
@@ -303,32 +280,33 @@ class Database:
         Returns:
             list: Cached user data
         """
-        if(token.string_token not in self.data_cache):
-            l.trace(f"User {token.username} not found in cache")
+        if(session.username not in self.data_cache):
+            l.trace(f"User {session.username} not found in cache")
             return None
-        if(self.data_cache.get(token.string_token,{}).get("expire",0) < time.time()):
-            l.info(f"Cache for user {token.username} has expired")
-            self.remove_from_cache(token)
+        if(self.data_cache.get(session.username,{}).get("expire",0) < time.time()):
+            l.info(f"Cache for user {session.username} has expired")
+            self.remove_from_cache(session.username)
             return None
-        return self.data_cache.get(token.string_token,{}).get("data")
+        return self.data_cache.get(session.username,{}).get("data")
 
-    def modify_cache(self,token: Token, key: any, value: any):
-        l.trace(f"Modifying cache for user {token.username}")
-        if(token.string_token not in self.data_cache):
-            l.trace(f"User {token.username} not found in cache")
+    def modify_cache(self,username: str, key: any, value: any):
+        l.trace(f"Modifying cache for user {username}")
+        if(username not in self.data_cache):
+            l.trace(f"User {username} not found in cache")
             return None
-        self.data_cache[token.string_token]["data"][key] = value
+        self.data_cache[username]["data"][key] = value
         return True
 
-    def modify_cache_domain(self, token:Token, key: any, value:dict):
+    def modify_cache_domain(self, username, key: any, value:dict):
         l.trace(f"Modifying domain {key} from cache")
-        if(token.string_token not in self.data_cache):
-            l.trace(f"User {token.username} not found in cache")
+        if(username not in self.data_cache):
+            l.trace(f"User {username} not found in cache")
             return None
-        self.data_cache[token.string_token]["data"]["domains"][key] = value
+        self.data_cache[username]["data"]["domains"][key] = value
         return True
 
-    def delete_account(self,token:Token, domain:'Domain') -> dict:
+    @Session.requires_auth
+    def delete_account(self,username:Session, domain:'Domain') -> dict:
         """Deletes account and domains associated WARNING: INNER FUNCTION. Call with `email.delete_user()`
 
         Args:
@@ -341,39 +319,37 @@ class Database:
             success:
                 `{"Error":False}`
         """
-        if(not token.password_correct(self)):
-            l.info("`delete_account` password incorrect")
-            return {"Error":True,"code":1001}
+
         failed:dict={}
-        user_domains:dict=self.get_data(token)["domains"]
+        user_domains:dict=self.get_data(session)["domains"]
         for key, _ in  user_domains.items():
-            status=domain.delete_domain(token,key)
+            status=domain.delete_domain(session,key)
             if(status!=1):
                 failed[key]=status
 
-        deletion_status= self.__delete_user_from_db(token)
+        deletion_status= self.__delete_user_from_db(session)
         if(deletion_status!=1):
             failed["user"]=deletion_status
 
         response:dict={"Error":False}
         if(failed.__len__()!=0):
-            l.warn(f"Account deletion for user {token.username} failed ({failed})")
+            l.warn(f"Account deletion for user {session.username} failed ({failed})")
             response["Error"]=True,
             response["Errors"]=failed
         return response
 
     @l.time
-    def join_beta(self,token:Token) -> bool:
-        if(not token.password_correct(self)): return False
-        self.collection.update_one({"_id":token.username},{"$set":{"beta-enroll":True}})
-        self.collection.update_one({"_id":token.username},{"$set":{"beta-updated":time.time()}})
+    @Session.requires_auth
+    def join_beta(self,session:Session) -> bool:
+        self.collection.update_one({"_id":session.username},{"$set":{"beta-enroll":True}})
+        self.collection.update_one({"_id":session.username},{"$set":{"beta-updated":time.time()}})
         return True
 
     @l.time
-    def leave_beta(self, token:Token) -> bool:
-        if(not token.password_correct(self)): return False
-        self.collection.update_one({"_id":token.username},{"$set":{"beta-enroll":False}})
-        self.collection.update_one({"_id":token.username},{"$set":{"beta-updated":time.time()}})
+    @Session.requires_auth
+    def leave_beta(self, session:Session) -> bool:
+        self.collection.update_one({"_id":session.username},{"$set":{"beta-enroll":False}})
+        self.collection.update_one({"_id":session.username},{"$set":{"beta-updated":time.time()}})
         return True
 
     def __get_status_data(self):
