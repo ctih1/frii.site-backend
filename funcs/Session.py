@@ -5,6 +5,8 @@ import time
 import datetime
 import bcrypt
 import threading
+from typing import TypedDict
+from typing import List
 from typing import TYPE_CHECKING
 from .Utils import generate_random_string, days_to_seconds
 if TYPE_CHECKING:
@@ -14,6 +16,16 @@ class SessionError(Exception):
     pass
 
 SESSION_TOKEN_LENGTH:int = 32
+
+SessionType = TypedDict(
+    "SessionType",
+    {
+        "user-agent":str,
+        "ip": str,
+        "expire": int,
+        "hash":str
+    }
+)
 
 class UserManager(threading.Thread):
     def __init__(self, db:Database, ip, username):
@@ -138,6 +150,21 @@ class Session:
             return []
         return list(self.user_cache_data.get("feature-flags",{}).keys()) # type: ignore
 
+    def get_active(self) -> List[SessionType]:
+        if not self.valid:
+            return []
+        session_list:List[SessionType] = []
+        owner_hash = sha256((self.username+"frii.site").encode("utf-8")).hexdigest()
+        cursor = self.db.session_collection.find({"owner-hash":owner_hash})
+        for session in cursor:
+            session_list.append({
+                "user-agent": session["user-agent"],
+                "ip": session["ip"],
+                "expire": session["expire"].timestamp(),
+                "hash": session["_id"]
+            })
+        return session_list
+
 
     @staticmethod
     def create(username:str, ip:str, user_agent:str, database:Database) -> str:
@@ -154,6 +181,7 @@ class Session:
             "username": database.fernet.encrypt(bytes(username, "utf-8")).decode(encoding="utf-8")
         }
         database.session_collection.create_index("expire",expireAfterSeconds=1)
+        database.session_collection.create_index("owner-hash") # optimize lookup times on get_active
         database.session_collection.insert_one(session)
         UserManager(database,ip,username).start()
         return session_id

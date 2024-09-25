@@ -342,3 +342,6 @@ def blog_get_all(n:int,content:int=0) -> Response:
         l.warn(f"ValueError while runniing blog.get_list(), aborting. {e}")
         return Response(status=412)
     return Response(status=200,response=json.dumps(blogs), mimetype="application/json", headers={"Cache-Control":"public,max-age=0, s-maxage=1800","Access-Control-Allow-Origin": "*"})
+
+def get_active_sessions(session_id:str, ip:str) -> Response:
+    return Response(status=200, mimetype="application/json", response=json.dumps(Session(session_id, ip, database).get_active()))

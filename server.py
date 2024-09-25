@@ -232,5 +232,10 @@ def blog_get_all_():
     return blog_get_all(int(request.args.get("n")), content)
 
 
+@app.route("/session/get", methods=["GET"])
+def get_active_sessions_():
+    return get_active_sessions(request.headers.get("X-Auth-Token"), request.access_route[-1])
+
+
 if(__name__=="__main__"):
   app.run(port=5123,debug=True)
