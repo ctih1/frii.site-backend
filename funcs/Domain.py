@@ -145,14 +145,13 @@ class Domain:
 
         """
         data = self.db.get_data(session=session)
-        print(self.db.get_data(session=session))
         if(data.get("domains",[]).__len__()!=0):
             domains = data["domains"]
             for domain in list(domains.keys()):
                 domains[domain.replace("[dot]",".")] = domains.pop(domain)
             return domains
         l.trace(f"User {session.username} has no domains")
-        return {"Error":True,"code":"1002","message":"No domains"}
+        return {"Error":True,"code":1002,"message":"No domains"}
 
     def check_domain(self,domain: str, domains:dict={}, type_: str = "A") -> int:
         """Checks if domain is valid, and not in use

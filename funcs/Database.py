@@ -1,7 +1,7 @@
 import time
 from hashlib import sha256
 from typing import TYPE_CHECKING
-
+import re
 import bcrypt
 from cryptography.fernet import Fernet
 from pymongo import MongoClient
@@ -121,7 +121,10 @@ class Database:
 
     @l.time
     def __email_taken(self,email:str) -> bool:
-        email_hash = str(sha256((email+"supahcool").encode("utf-8")).hexdigest())
+        p_email = email.replace("+","@")
+        p_email = p_email.split("@")
+        p_email = f"{p_email[0]}@{p_email[-1]}" # to avoid duplicate domains (test@tld, test+5@tld...)
+        email_hash = str(sha256((p_email+"supahcool").encode("utf-8")).hexdigest())
         l.info(f"Checking if email {email_hash} is in use")
         cursor:Cursor
         results:int=0

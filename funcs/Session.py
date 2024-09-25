@@ -4,6 +4,7 @@ from hashlib import sha256
 import time
 import datetime
 import bcrypt
+import threading
 from typing import TYPE_CHECKING
 from .Utils import generate_random_string, days_to_seconds
 if TYPE_CHECKING:
@@ -13,6 +14,22 @@ class SessionError(Exception):
     pass
 
 SESSION_TOKEN_LENGTH:int = 32
+
+class UserManager(threading.Thread):
+    def __init__(self, db:Database, ip, username):
+        super(UserManager,self).__init__()
+        self.db:Database = db
+        self.daemon = True
+        self.ip = ip
+        self.username = username
+    def start(self):
+        self.db.collection.update_one(
+            {"_id":self.username},
+            {
+                "$push":{"accessed-from":self.ip},
+                "$set": {"last-login": time.time()}
+            }
+        )
 
 class Session:
     @staticmethod
@@ -56,9 +73,16 @@ class Session:
     def requires_flag(flag:str):
         def decorator(func):
             def inner(*args,**kwargs):
-                if not kwargs["session"].valid:
+                target:Session = None
+                if kwargs.get("session") is not None:
+                    target = kwargs.get("session") # type: ignore
+                else:
+                    for arg in args:
+                        if(type(arg) is Session):
+                            target = arg
+                if not target.valid:
                     raise SessionError("Session is not valid")
-                if flag not in kwargs["session"].flags:
+                if flag not in target.flags:
                     raise PermissionError("User does not have correct flags")
                 func(*args,**kwargs)
             return inner
@@ -131,4 +155,5 @@ class Session:
         }
         database.session_collection.create_index("expire",expireAfterSeconds=1)
         database.session_collection.insert_one(session)
+        UserManager(database,ip,username).start()
         return session_id
