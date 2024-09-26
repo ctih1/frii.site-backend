@@ -345,3 +345,17 @@ def blog_get_all(n:int,content:int=0) -> Response:
 
 def get_active_sessions(session_id:str, ip:str) -> Response:
     return Response(status=200, mimetype="application/json", response=json.dumps(Session(session_id, ip, database).get_active()))
+
+def create_2fa(session_id:str, ip:str) -> Response:
+    session = Session(session_id,ip,database)
+    code = session.create_2fa()
+    return Response(status=200, mimetype="text/plain", response=code)
+
+def verify_2fa(userid, code:str):
+    if(Session.verify_2fa(code,userid,database)) == True:
+        return Response(status=200)
+    else:
+        return Response(status=401)
+
+def delete_session(session_id, ip:str, session) -> Response:
+    return Response(status=200, response=Session(session_id,ip,database).delete(session))

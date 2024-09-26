@@ -1,14 +1,17 @@
 from __future__ import annotations
 from pymongo.cursor import Cursor
-from hashlib import sha256
+from hashlib import sha256, sha1
 import time
 import datetime
+import pyotp
 import bcrypt
+import base64
 import threading
 from typing import TypedDict
 from typing import List
 from typing import TYPE_CHECKING
-from .Utils import generate_random_string, days_to_seconds
+from .Logger import Logger
+from .Utils import generate_random_string, days_to_seconds, generate_password
 if TYPE_CHECKING:
     from Database import Database
 
@@ -100,7 +103,7 @@ class Session:
             return inner
         return decorator
 
-    def __init__(self,session_id:str, ip:str, database:Database) -> bool:
+    def __init__(self,session_id:str, ip:str, database:Database) -> None:
         self.db:Database = database
         self.id:str = session_id
         self.ip:str = ip
@@ -185,3 +188,58 @@ class Session:
         database.session_collection.insert_one(session)
         UserManager(database,ip,username).start()
         return session_id
+
+    def create_2fa(self):
+        if not self.valid:
+            raise SessionError()
+        key_for_user = base64.b32encode(
+            generate_password(16).encode("utf-8")
+        ).decode("utf-8")
+        self.db.collection.update_one(
+            {"_id":self.username},
+            {
+                "$set":{
+                    "totp-key": self.db.fernet.encrypt(key_for_user.encode("utf-8")).decode("utf-8")
+                }
+            },
+            upsert=False
+        )
+        return pyotp.totp.TOTP(key_for_user).provisioning_uri(
+            self.username,
+            "frii.site"
+        )
+
+    @staticmethod
+    def verify_2fa(code:str,userid:str, database:Database):
+        """ Verify's 2FA TOTP code (as used in google authenticator)
+        Returns boolean if code is correct
+        """
+        key = database.collection.find_one({"_id":userid}).get("totp-key")
+        decrypted_key = database.fernet.decrypt(
+            key.encode("utf-8")
+        ).decode("utf-8")
+
+        return pyotp.totp.TOTP(decrypted_key).verify(code)
+
+
+    def clear_sessions(self):
+        if not self.valid:
+            return False
+        self.db.session_collection.delete_many({
+            "owner-hash":sha256((self.username+"frii.site").encode("utf-8")).hexdigest()
+        })
+        return True
+
+    def delete(self,id):
+        if not self.valid:
+            return False
+        data = self.db.session_collection.find_one({"_id":id})
+
+        session_username = self.db.fernet.decrypt(
+            data["username"].encode("utf-8")
+        ).decode("utf-8")
+
+        if self.username != session_username:
+            return False
+        self.db.session_collection.delete_one({"_id":id})
+        return True

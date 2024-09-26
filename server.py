@@ -236,6 +236,17 @@ def blog_get_all_():
 def get_active_sessions_():
     return get_active_sessions(request.headers.get("X-Auth-Token"), request.access_route[-1])
 
+@app.route("/session/delete", methods=["DELETE"])
+def delete_session_():
+    return delete_session(request.headers.get("X-Auth-Token"), request.access_route[-1])
+
+@app.route("/2fa/create", methods=["POST"])
+def create_2fa_():
+    return create_2fa(request.headers.get("X-Auth-Token"), request.access_route[-1])
+
+@app.route("/2fa/verify", methods=["POST"])
+def check_2fa_():
+    return verify_2fa(request.headers.get("X-Auth-Username"), request.json.get("code"))
 
 if(__name__=="__main__"):
   app.run(port=5123,debug=True)
