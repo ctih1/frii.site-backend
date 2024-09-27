@@ -4,6 +4,7 @@ from .Session import Session
 from .Logger import Logger
 import time
 import resend
+import .Session
 from hashlib import sha256
 import bcrypt
 from typing import TYPE_CHECKING
@@ -201,5 +202,6 @@ class Email:
         new_password = str(sha256(new_password.encode("utf-8")).hexdigest())
         password = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode(encoding='utf-8')
         self.db.collection.update_one({"_id":self.pass_codes[code]["account"]},{"$set":{"password":password}})
+
         del self.pass_codes[code]
         return True

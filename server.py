@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, url_for
+from apiflask import APIFlask
 from flask import render_template
 from connector import *
 import ipinfo
@@ -9,7 +10,7 @@ from flask_limit import RateLimiter
 from dotenv import load_dotenv
 
 load_dotenv()
-app = Flask(__name__)
+app = APIFlask(__name__, spec_path='/spec')
 app.config['CORS_HEADERS'] = 'Content-Type'
 limiter = RateLimiter(app)
 CORS(app)

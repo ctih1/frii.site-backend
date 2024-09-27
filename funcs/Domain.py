@@ -56,7 +56,6 @@ class Domain:
         l.info(f"`__add_domain_to_user` modifying domain {domain}")
 
         domain_data = data["domains"][domain.replace("[dot]",".")] # for some reason, get_data returns domains marked as [dot] as .
-        l.info(f"Domain data: {data['domains'][domain.replace('[dot]','.')]}")
         if(content!=None):
             domain_data["ip"]=content
             l.trace("`__add_domain_to_user` updating ip since one is specified")
@@ -272,7 +271,7 @@ class Domain:
         if(response.status_code!=200):
             l.warn(f"`modify_with_api` resulted in a status code of {response.status_code}")
             return {"Error":True,"code":1003,"message":"Backend refused to accept domain change"}
-        self.__add_dommain_to_user_api(apiKey,domain,new_content,type_,None)
+        self.__add_dommain_to_user_api(apiKey,domain,new_content,type_,response.json().get("result",{}).get("id"))
         l.info(f"Modified domain {domain} with API")
         return {"Error":False,"code":1000,"message":"Succesfully changed domain"}
 
