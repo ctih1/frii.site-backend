@@ -44,6 +44,7 @@ class Api:
 
         encrypted_api_key:str = sha256((api_key+"frii.site").encode("utf-8")).hexdigest()
         database.collection.update_one({"_id":session.username},{"$set":{f"api-keys.{encrypted_api_key}":key}})
+        database.modify_cache(session.username,f"api-keys.{encrypted_api_key}", key)
         return api_key
     def __init__(self,key:str,database:Database)->None:
         self.key:str=key
