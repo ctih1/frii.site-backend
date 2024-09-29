@@ -4,7 +4,7 @@ from .Session import Session
 from .Logger import Logger
 import time
 import resend
-import .Session
+from .Session import Session
 from hashlib import sha256
 import bcrypt
 from typing import TYPE_CHECKING

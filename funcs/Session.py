@@ -18,6 +18,12 @@ if TYPE_CHECKING:
 class SessionError(Exception):
     pass
 
+class SessionPermissonError(Exception):
+    pass
+
+class SessionFlagError(Exception):
+    pass
+
 SESSION_TOKEN_LENGTH:int = 32
 
 SessionType = TypedDict(
@@ -78,7 +84,7 @@ class Session:
                 if not target.valid:
                     raise SessionError("Session is not valid")
                 if perm not in target.permissions:
-                    raise PermissionError("User does not have correct permissions")
+                    raise SessionPermissonError("User does not have correct permissions")
                 a = func(*args,**kwargs)
                 return a
             return inner
@@ -98,7 +104,7 @@ class Session:
                 if not target.valid:
                     raise SessionError("Session is not valid")
                 if flag not in target.flags:
-                    raise PermissionError("User does not have correct flags")
+                    raise SessionFlagError("User does not have correct flags")
                 func(*args,**kwargs)
             return inner
         return decorator
@@ -161,7 +167,7 @@ class Session:
         cursor = self.db.session_collection.find({"owner-hash":owner_hash})
         for session in cursor:
             session_list.append({
-                "user-agent": session["user-agent"],
+                "user_agent": session["user-agent"],
                 "ip": session["ip"],
                 "expire": session["expire"].timestamp(),
                 "hash": session["_id"]

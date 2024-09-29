@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, url_for
+from flask import Flask, request, jsonify, url_for, Response
 from apiflask import APIFlask
 from flask import render_template
 from connector import *
@@ -9,6 +9,8 @@ import time
 from flask_limit import RateLimiter
 from dotenv import load_dotenv
 
+from funcs.Session import SessionError, SessionFlagError, SessionPermissonError
+
 load_dotenv()
 app = APIFlask(__name__, spec_path='/spec')
 app.config['CORS_HEADERS'] = 'Content-Type'
@@ -16,9 +18,18 @@ limiter = RateLimiter(app)
 CORS(app)
 handler = ipinfo.getHandler(os.getenv('IPINFO_KEY'))
 
-@app.errorhandler(AssertionError)
-def handle_assert_error(error):
-  return Response(status=403,response="Invalid token",mimetype="text/plain")
+@app.errorhandler(SessionError)
+def handle_session(error):
+  return Response(status=403,response="Invalid session",mimetype="text/plain")
+
+@app.errorhandler(SessionPermissonError)
+def handle_session_permission(error):
+  return Response(status=401, response="User permission error" ,mimetype="text/plain")
+
+@app.errorhandler(SessionFlagError)
+def handle_session_flag(error):
+  return Response(status=412, response="User beta feature required" ,mimetype="text/plain")
+
 
 @app.route("/")
 @cross_origin()
@@ -239,7 +250,7 @@ def get_active_sessions_():
 
 @app.route("/session/delete", methods=["DELETE"])
 def delete_session_():
-    return delete_session(request.headers.get("X-Auth-Token"), request.access_route[-1])
+    return delete_session(request.headers.get("X-Auth-Token"), request.access_route[-1], request.json.get("id"))
 
 @app.route("/2fa/create", methods=["POST"])
 def create_2fa_():

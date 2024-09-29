@@ -16,7 +16,6 @@ import os
 from dotenv import load_dotenv
 import json
 import time
-import requests
 
 Database = _Database.Database
 Domain = _Domain.Domain
@@ -41,9 +40,10 @@ l = _Logger.Logger("connector.py", os.getenv("DC_WEBHOOK"),os.getenv("DC_TRACE")
 
 
 def login(username_hash:str, password_hash:str, ip:str, user_agent:str) -> Response:
-    db_password = database.collection.find_one({"_id":username_hash})["password"].encode("utf-8")
+    data = database.collection.find_one({"_id":username_hash})
+    db_password = data["password"].encode("utf-8")
     if not bcrypt.checkpw(password_hash.encode("utf-8"),db_password): return Response(status=401)
-    if not database.collection.find_one({"_id":username_hash}).get("verified",False): return Response(status=412)
+    if not data.get("verified",False): return Response(status=412)
     return Response(status=200, response=Session.create(username_hash,ip,user_agent, database))
 
 #/sign-up
@@ -358,4 +358,4 @@ def verify_2fa(userid, code:str):
         return Response(status=401)
 
 def delete_session(session_id, ip:str, session) -> Response:
-    return Response(status=200, response=Session(session_id,ip,database).delete(session))
+    return Response(status=200, response=str(Session(session_id,ip,database).delete(session)))
