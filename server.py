@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify, url_for, Response
-from apiflask import APIFlask
 from flask import render_template
 from connector import *
 import ipinfo
