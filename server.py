@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from funcs.Session import SessionError, SessionFlagError, SessionPermissonError
 
 load_dotenv()
-app = Flask(__name__)
+app = APIFlask(__name__, spec_path='/spec')
 app.config['CORS_HEADERS'] = 'Content-Type'
 limiter = RateLimiter(app)
 CORS(app)
