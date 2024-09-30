@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify, url_for, Response
-from apiflask import APIFlask
 from flask import render_template
 from connector import *
 import ipinfo
@@ -12,7 +11,7 @@ from dotenv import load_dotenv
 from funcs.Session import SessionError, SessionFlagError, SessionPermissonError
 
 load_dotenv()
-app = APIFlask(__name__, spec_path='/spec')
+app = Flask(__name__)
 app.config['CORS_HEADERS'] = 'Content-Type'
 limiter = RateLimiter(app)
 CORS(app)
