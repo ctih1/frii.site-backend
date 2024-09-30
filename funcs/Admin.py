@@ -1,16 +1,15 @@
 from .Database import Database
-from .Token import Token
+from .Session import Session
 
 class Admin:
-    def __init__(self,auth:Token, db:Database) -> bool:
-        self.token = auth
-        if not self.token.password_correct(db): return False
-        if(db.get_data(self.token).get("permissions",{}).get("admin")): return False
+    @Session.requires_auth
+    @Session.requires_permission("admin")
+    def __init__(self,session:Session, db:Database) -> None:
         self.db = db
-        return True
+        self.session = session
     def add_permission(self, perm:str, target=None):
         """
             target: username of reciever
             perm: Permission to give
         """
-        if target is None: target = self.token.username
+        if target is None: target = self.session.username

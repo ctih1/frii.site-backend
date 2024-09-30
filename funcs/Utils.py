@@ -14,6 +14,9 @@ def generate_random_pin(lenght: int) -> str:
 def generate_random_string(lenght:int) -> str:
   return str(''.join(random.choice(string.ascii_letters+string.digits) for i in range(lenght)))
 
+def days_to_seconds(days:int) -> int:
+    return ((days*24)*60)*60
+
 class CredentialError(Exception):
   def __init__(self,message,errors):
     super().__init__(message)

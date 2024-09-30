@@ -1,4 +1,5 @@
-from flask import Flask, request, jsonify, url_for
+from flask import Flask, request, jsonify, url_for, Response
+from apiflask import APIFlask
 from flask import render_template
 from connector import *
 import ipinfo
@@ -8,16 +9,27 @@ import time
 from flask_limit import RateLimiter
 from dotenv import load_dotenv
 
+from funcs.Session import SessionError, SessionFlagError, SessionPermissonError
+
 load_dotenv()
-app = Flask(__name__)
+app = APIFlask(__name__, spec_path='/spec')
 app.config['CORS_HEADERS'] = 'Content-Type'
 limiter = RateLimiter(app)
 CORS(app)
 handler = ipinfo.getHandler(os.getenv('IPINFO_KEY'))
 
-@app.errorhandler(AssertionError)
-def handle_assert_error(error):
-  return Response(status=403,response="Invalid token",mimetype="text/plain")
+@app.errorhandler(SessionError)
+def handle_session(error):
+  return Response(status=403,response="Invalid session",mimetype="text/plain")
+
+@app.errorhandler(SessionPermissonError)
+def handle_session_permission(error):
+  return Response(status=401, response="User permission error" ,mimetype="text/plain")
+
+@app.errorhandler(SessionFlagError)
+def handle_session_flag(error):
+  return Response(status=412, response="User beta feature required" ,mimetype="text/plain")
+
 
 @app.route("/")
 @cross_origin()
@@ -26,7 +38,13 @@ def index():
 
 @app.route('/login', methods=['POST'])
 def login_():
-  return login(request.headers.get("X-Auth-Token"))
+    login_request = request.headers.get("X-Auth-Request").split("|")
+    return login(
+        login_request[0],
+        login_request[1],
+        request.access_route[-1],
+        request.headers.get("User-Agent","Unknown")
+    )
 
 @limiter.rate_limit(limit=1,period=120*60)
 @app.route('/sign-up', methods=['POST'])
@@ -58,7 +76,7 @@ def register_domain_():
   ip = request.json.get("content")
   type_ = request.json.get("type")
   proxied = request.json.get("proxy",False)
-  return register_domain(domain_,ip,token_,type_, proxied)
+  return register_domain(domain_,ip,token_,type_, proxied,request.access_route[-1])
 
 @app.route("/modify-domain",methods=["PATCH"])
 @limiter.rate_limit(limit=12,period=10*60)
@@ -68,7 +86,7 @@ def modify_domain_():
   content = request.json.get("content")
   type_ = request.json.get("type")
   proxied = request.json.get("proxy",False)
-  return modify_domain(domain_,token_,content,type_,proxied)
+  return modify_domain(domain_,token_,content,type_,proxied,request.access_route[-1])
 
 @limiter.rate_limit(limit=5,period=15*60)
 @app.route("/verification/<string:Code>", methods=["GET"])
@@ -79,38 +97,38 @@ def verification_(Code):
 @app.route("/gdpr-get",methods=["GET"])
 def gpdr_get_():
   token_=request.headers.get("X-Auth-Token")
-  return gpdr_get(token_)
+  return gpdr_get(token_,request.access_route[-1])
 
 @limiter.rate_limit(limit=12,period=60)
 @app.route("/get-user-info",methods=["GET"])
 def get_user_info_():
   token_ = request.headers.get("X-Auth-Token")
-  return get_user_info(token_)
+  return get_user_info(token_,request.access_route[-1])
 
 @limiter.rate_limit(limit=25,period=3*60)
 @app.route("/get-domains", methods=["GET"])
 def get_domains_():
   token_ = request.headers.get("X-Auth-Token")
-  return get_domains(token_)
+  return get_domains(token_,request.access_route[-1])
 
 @limiter.rate_limit(limit=9,period=120)
 @app.route("/is-verified", methods=["GET"])
 def is_verified_():
   token_ = request.headers.get("X-Auth-Token")
-  return is_verified(token_)
+  return is_verified(token_,request.access_route[-1])
 
 @limiter.rate_limit(limit=9,period=120)
 @app.route("/delete-domain",methods=["DELETE"])
 def delete_domain_():
   token = request.headers.get("X-Auth-Token")
   domain = request.json.get("domain")
-  return delete_domain(token, domain)
+  return delete_domain(token, domain,request.access_route[-1])
 
 @limiter.rate_limit(limit=3,period=10*60)
 @app.route("/delete-user",methods=["DELETE"])
 def delete_user_():
   token_ = request.headers.get("X-Auth-Token")
-  return delete_user(token_)
+  return delete_user(token_,request.access_route[-1])
 
 @app.route("/account-deletion/<string:Code>")
 def account_deletion_(Code):
@@ -133,7 +151,7 @@ def vulnerability_get_():
 
 @app.route("/vulnerability/progress",methods=["PATCH"])
 def add_progress():
-  return vulnerability_progress(request.json.get("id"),request.json.get("progress"),request.json.get("time"),request.headers.get("X-Auth-Token"))
+  return vulnerability_progress(request.json.get("id"),request.json.get("progress"),request.json.get("time"),request.headers.get("X-Auth-Token"),request.access_route[-1])
 
 @app.route("/vulnerability/status",methods=["PATCH"])
 def update_status():
@@ -226,5 +244,21 @@ def blog_get_all_():
     return blog_get_all(int(request.args.get("n")), content)
 
 
+@app.route("/session/get", methods=["GET"])
+def get_active_sessions_():
+    return get_active_sessions(request.headers.get("X-Auth-Token"), request.access_route[-1])
+
+@app.route("/session/delete", methods=["DELETE"])
+def delete_session_():
+    return delete_session(request.headers.get("X-Auth-Token"), request.access_route[-1], request.json.get("id"))
+
+@app.route("/2fa/create", methods=["POST"])
+def create_2fa_():
+    return create_2fa(request.headers.get("X-Auth-Token"), request.access_route[-1])
+
+@app.route("/2fa/verify", methods=["POST"])
+def check_2fa_():
+    return verify_2fa(request.headers.get("X-Auth-Username"), request.json.get("code"))
+
 if(__name__=="__main__"):
-  app.run(port=5000,debug=True)
+  app.run(port=5123,debug=True)
