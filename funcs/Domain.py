@@ -97,7 +97,7 @@ class Domain:
             int: -1 not owning domain, 0 passowrd or user not correct, 1 succeed
         """
         domains: dict = self.get_user_domains(self.db,session)
-        if(domain not in domains):
+        if(domain.replace("[dot]",".") not in domains):
             l.info(f"Domain {domain} not in domains of user {session.username}")
             return -1
         headers: dict = {
