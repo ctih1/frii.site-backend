@@ -53,9 +53,8 @@ class UserManager(threading.Thread):
 
 
 class Session:
-
     @staticmethod
-    def find_session_instance(args:tuple, kwargs:dict) -> Session
+    def find_session_instance(args:tuple, kwargs:dict) -> Session:
         """Finds session from args or kwargs.
         """
         target: Session = None
