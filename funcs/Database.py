@@ -371,4 +371,4 @@ class Database:
 
     def delete_domain(self,domain:str, username:str) -> None:
         l.info(f"Deleting domain {domain} from user {username} from the database")
-        self.collection.update_one({"_id":username}, {"$unset":{f"domains.{domain}":""}})
+        self.collection.update_one({"_id":username}, {"$unset":{f"domains.{domain.replace('.','[dot]')}":""}})
