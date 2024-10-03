@@ -116,7 +116,6 @@ class Domain:
         l.info(f"Succesfully deleted domain {domain}")
         if response.status_code != 200:
             l.warn(f"`delete_domain` response status was not 200 ({response.json()})")
-
         return 1
 
     @Session.requires_auth
