@@ -112,13 +112,8 @@ class Domain:
             if(response.json().get("errors",[{}])[0].get("code") == 81044): record_not_exist = True
         if(record_not_exist):
             l.warn("Record does not exist on CloudFlare, but does on Database. Ignoring...")
-        try:
-            del domains[domain]
-        except KeyError:
-            l.error(f"Could not delete domain {domain} (KeyError)")
-        l.info(f"`delete_domain` succesfully deleted {domain}")
-        self.db.update_data(username=session.username,key="domains",value=domains)
-
+        self.db.delete_domain(domain.replace("[dot]","."), session.username)
+        l.info(f"Succesfully deleted domain {domain}")
         if response.status_code != 200:
             l.warn(f"`delete_domain` response status was not 200 ({response.json()})")
 

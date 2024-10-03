@@ -368,3 +368,6 @@ class Database:
         data = self.__get_status_data()
         if(data is None): return {"reports":False}
         else: return {"reports":True, "message":data.get("message","We are experiencing heavy traffic. Features may not work correctly")}
+
+    def delete_domain(self,domain:str, username:str) -> None:
+        self.collection.update_one({"_id":username}, {"$unset":{f"domains.{domain}":""}})
