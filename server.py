@@ -19,15 +19,15 @@ handler = ipinfo.getHandler(os.getenv('IPINFO_KEY'))
 
 @app.errorhandler(SessionError)
 def handle_session(error):
-  return Response(status=403,response="Invalid session",mimetype="text/plain")
+  return Response(status=460,response="Invalid session",mimetype="text/plain")
 
 @app.errorhandler(SessionPermissonError)
 def handle_session_permission(error):
-  return Response(status=401, response="User permission error" ,mimetype="text/plain")
+  return Response(status=461, response="User permission error" ,mimetype="text/plain")
 
 @app.errorhandler(SessionFlagError)
 def handle_session_flag(error):
-  return Response(status=412, response="User beta feature required" ,mimetype="text/plain")
+  return Response(status=462, response="User beta feature required" ,mimetype="text/plain")
 
 
 @app.route("/")
