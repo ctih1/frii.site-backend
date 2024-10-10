@@ -139,9 +139,13 @@ class Domain:
 
         """
         data = self.db.get_data(session=session)
+        ran_repair: bool = False
         if(data.get("domains",[]).__len__()!=0):
             domains = data["domains"]
             for domain in list(domains.keys()):
+                if "." in domain and not ran_repair:
+                    self.db.repair_domains(session)
+                    ran_repair = True
                 domains[domain.replace("[dot]",".")] = domains.pop(domain)
             return domains
         l.trace(f"User {session.username} has no domains")

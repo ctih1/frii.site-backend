@@ -372,3 +372,30 @@ class Database:
     def delete_domain(self,domain:str, username:str) -> None:
         l.info(f"Deleting domain {domain} from user {username} from the database")
         self.collection.update_one({"_id":username}, {"$unset":{f"domains.{domain.replace('.','[dot]')}":""}})
+
+    @Session.requires_auth
+    def repair_domains(self, session:Session) -> bool:
+        l.info("Starting domain repair..")
+        user_data:dict = self.get_data(session)
+        updated_domains = {}
+        fixed_domains:int = 0
+
+        for domain in user_data["domains"]:
+            if "." in domain:
+                updated_domains[domain.replace(".","[dot]")] = user_data["domains"][domain]
+                fixed_domains += 1
+            else:
+                updated_domains[domain] = user_data["domains"][domain]
+
+        if fixed_domains == 0:
+            l.info("Didn't fix any domains")
+            return False
+
+        l.info(f"Fixed {fixed_domains} domains")
+
+        if len(updated_domains) != len(user_data["domains"]):
+            l.error(f"`repair_domains` updated lenght is not same as original ({list(updated_domains.keys())} vs {list(user_data['domains'].keys())}), aborting")
+            return False
+
+        self.update_data(username=session.username,key="domains",value=updated_domains)
+        return True

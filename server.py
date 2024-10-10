@@ -28,7 +28,7 @@ def handle_exception(error:Exception):
         return Response(status=461, response="User permission error" ,mimetype="text/plain")
     if isinstance(error,SessionFlagError):
         return Response(status=462, response="User beta feature required" ,mimetype="text/plain")
-    l.error(f"Unhandled error {type(error)} occured. ```{error.__traceback__}```")
+    l.error(f"Unhandled error {type(error)} occured. ```{traceback.format_exc()}```")
     return Response(status=500)
 
 @app.route("/")
