@@ -18,6 +18,7 @@ class LogManager(threading.Thread):
          self.message = message
 
      def start(self):
+        return
         try:
              if(self.importance in ["warning","permission","error","critical"]):
                  url = self.webhook.main
