@@ -17,7 +17,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-l = Logger("Database.py",os.getenv("DC_WEBHOOK"),os.getenv("DC_TRACE"))
+l = Logger("Database.py",os.getenv("DC_WEBHOOK"),os.getenv("DC_TRACE")) # type: ignore
 
 if TYPE_CHECKING:
     from Domain import Domain

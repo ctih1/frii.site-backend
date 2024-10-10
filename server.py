@@ -7,8 +7,11 @@ from flask_cors import CORS, cross_origin
 import time
 from flask_limit import RateLimiter
 from dotenv import load_dotenv
-
+from funcs import Logger as L
 from funcs.Session import SessionError, SessionFlagError, SessionPermissonError
+import traceback
+
+l = L.Logger("server.py", os.getenv("DC_WEBHOOK"), os.getenv("DC_TRACE")) # type: ignore
 
 load_dotenv()
 app = Flask(__name__)
@@ -17,18 +20,16 @@ limiter = RateLimiter(app)
 CORS(app)
 handler = ipinfo.getHandler(os.getenv('IPINFO_KEY'))
 
-@app.errorhandler(SessionError)
-def handle_session(error):
-  return Response(status=460,response="Invalid session",mimetype="text/plain")
-
-@app.errorhandler(SessionPermissonError)
-def handle_session_permission(error):
-  return Response(status=461, response="User permission error" ,mimetype="text/plain")
-
-@app.errorhandler(SessionFlagError)
-def handle_session_flag(error):
-  return Response(status=462, response="User beta feature required" ,mimetype="text/plain")
-
+@app.errorhandler(Exception)
+def handle_exception(error:Exception):
+    if isinstance(error, SessionError):
+        return Response(status=460,response="Invalid session",mimetype="text/plain")
+    if isinstance(error,SessionPermissonError):
+        return Response(status=461, response="User permission error" ,mimetype="text/plain")
+    if isinstance(error,SessionFlagError):
+        return Response(status=462, response="User beta feature required" ,mimetype="text/plain")
+    l.error(f"Unhandled error {type(error)} occured. ```{error.__traceback__}```")
+    return Response(status=500)
 
 @app.route("/")
 @cross_origin()

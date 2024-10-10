@@ -3,8 +3,13 @@ from .Session import Session
 from .Database import Database
 from .Utils import CredentialError
 import time
-l = Logger("blog.py","","")
 
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+
+l = Logger("blog.py",os.getenv("DC_WEBHOOK"),os.getenv("DC_TRACE")) # type: ignore
 class Blog:
     def __init__(self,db:Database):
         self.db = db
