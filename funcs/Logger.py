@@ -72,6 +72,7 @@ class Logger:
         self.trace(message)
 
     def trace(self,message:str) -> None:
+        return
         print(f"{self.filename} - TRACE: {message}")
         self.send_to_webhook("trace",message)
 

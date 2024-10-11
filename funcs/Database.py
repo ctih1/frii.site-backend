@@ -66,6 +66,7 @@ class Database:
             {"$set":{key:value},},
             upsert=False
         )
+        self.remove_from_cache(username)
 
     @l.time
     @Session.requires_auth
@@ -88,7 +89,7 @@ class Database:
         domain = domain.replace(".","[dot]")
         l.info(f"Modifying domain {domain}")
         assert(domain!=None)
-        self.modify_cache_domain(session.username,domain,domain_data)
+        self.remove_from_cache(session.username)
         self.collection.update_one({"_id":session.username},{"$set":{f"domains.{domain}":domain_data}})
         return True
 
@@ -374,9 +375,14 @@ class Database:
         self.collection.update_one({"_id":username}, {"$unset":{f"domains.{domain.replace('.','[dot]')}":""}})
 
     @Session.requires_auth
-    def repair_domains(self, session:Session) -> bool:
+    def repair_domains(self, domainInstance:'Domain', session:Session) -> bool:
         """Repairs domains (.) in the database, and converts them to [dot]
-        Non destructive action
+        Non destructive action.
+
+        self: instance of Database
+        domain: instance of Domain class
+        session: instance of Session class
+
         """
         l.info("Starting domain repair..")
         user_data:dict = self.get_data(session)
@@ -392,9 +398,22 @@ class Database:
             if "." in domain:
                 updated_domains[domain.replace(".","[dot]")] = user_data["domains"][domain]
                 fixed_domains += 1
-
             else:
                 updated_domains[domain] = user_data["domains"][domain]
+
+            if updated_domains[domain.replace(".","[dot]")]["id"] is None:
+                resp = domainInstance.repair_domain_id(
+                    session,
+                    domain,
+                    updated_domains[domain.replace(".","[dot]")]["type"],
+                    updated_domains[domain.replace(".","[dot]")]["ip"] # content of the domain, stupid db schema
+                )
+
+                if resp["success"]:
+                    edited_stats = updated_domains[domain.replace(".","[dot]")]
+                    edited_stats["id"] = resp["domain"]["id"] # type: ignore
+                    edited_stats["ip"] = resp["domain"]["content"] # type: ignore
+                    updated_domains[domain.replace(".","[dot]")]["id"] = edited_stats
 
         if fixed_domains == 0:
             l.info("Didn't fix any domains")

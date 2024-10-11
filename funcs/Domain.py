@@ -7,8 +7,27 @@ from .Session import Session
 from .Logger import Logger
 from typing import TYPE_CHECKING
 import os
+from typing import TypedDict, NotRequired
 from dotenv import load_dotenv
 load_dotenv()
+
+DomainType = TypedDict(
+    "DomainType", {"name":str, "type":str}
+)
+
+RepairDomainType = TypedDict(
+    "RepairDomainType", {
+        "id":str, "content":str
+    }
+)
+
+RepairDomainStatus = TypedDict(
+    "RepairDomainStatus", {
+        "success":bool,
+        "json":NotRequired[dict],
+        "domain": NotRequired[RepairDomainType]
+    }
+)
 
 l:Logger = Logger("Domain.py", os.getenv("DC_WEBHOOK"),os.getenv("DC_TRACE"))
 class Domain:
@@ -119,7 +138,7 @@ class Domain:
         return 1
 
     @Session.requires_auth
-    def get_user_domains(self,database, session:Session) -> dict:
+    def get_user_domains(self,database, session:Session, skip_fix:bool=False) -> dict:
         """Get user domains
 
         Args:
@@ -143,8 +162,8 @@ class Domain:
         if(data.get("domains",[]).__len__()!=0):
             domains = data["domains"]
             for domain in list(domains.keys()):
-                if "." in domain and not ran_repair:
-                    self.db.repair_domains(session)
+                if "." in domain and not ran_repair and not skip_fix:
+                    self.db.repair_domains(self,session)
                     ran_repair = True
                 domains[domain.replace("[dot]",".")] = domains.pop(domain)
             return domains
@@ -242,6 +261,13 @@ class Domain:
             return {"Error":False,"message":"Succesfully modified domain"}
         else:
             l.warn(f"`modify` CloudFlare didn't respond with a 200. Id used: {domains[domain.replace('[dot]','.')]['id']} ({response.json()})")
+            if response.json()["errors"][0].get("code") == 10000:
+                resp = self.repair_domain_id(session,domain.replace("[dot]","."),type_,new_content)
+                if resp["success"]:
+                    cleaned = domains[domain.replace('[dot]','.')]
+                    cleaned["id"] = resp["domain"]["id"]
+                    cleaned["ip"] = resp["domain"]["content"]
+                    self.db.modify_domain(session,domain,cleaned)
             return {"Error":True,"code":int(f"1{response.status_code}"),"message":"Backend api failed to respond with a valid status code."}
 
     def modify_with_api(self,database: 'Database', domain: str, apiKey:'Api', new_content:str, type_: str)->dict:
@@ -250,7 +276,7 @@ class Domain:
         for perm in required_permissions:
             if(perm not in apiKey.permissions):
                 l.info("`modify_with_api` API Key does not have the correct permissions")
-                return {"Error":True,"code":1001,"message":"API key does not have sufficent permissions"}
+                return {"Error":True,"code":1001,"message":f"API key does not have sufficent permissions ({perm})"}
 
         domain_stauts = self.check_domain(domain,apiKey.domains,type_)
         if(domain_stauts!=1): return {"Error":True,"code":1002,"message":f"Invalid domain ({domain_stauts})"}
@@ -301,12 +327,12 @@ class Domain:
             l.info(f"{type_} is not a valid type")
             return {"Error":True,"code":1001,"message":f"Invalid type: {type_}"}
 
-        amount_of_domains: int = self.get_user_domains(self.db,session=session).__len__()
+        amount_of_domains: int = self.get_user_domains(self.db,session=session,skip_fix=True).__len__()
         if(amount_of_domains > self.db.get_data(session).get("permissions",{}).get("max-domains",4)):
             l.info(f"`register` maximum domain limit reached")
             return {"Error":True,"code":1003,"message":"You have reached your domain limit"}
 
-        domain_check:int=self.check_domain(domain,self.get_user_domains(self.db,session=session),type_)
+        domain_check:int=self.check_domain(domain,self.get_user_domains(self.db,session=session,skip_fix=True),type_)
         if(domain_check!=1):
             l.info(f"`regster` failed: {domain} is invalid (reason no {domain_check})")
             return {"Error":True,"code":int(f"10{domain_check*-1}4"),"message":f"Domain is not valid. Reason No. {domain_check}"}
@@ -333,4 +359,39 @@ class Domain:
         else:
             l.error(f"Registering domain cloudflare returned {response.status_code}")
             return {"Error":True,"code":1030,"message":"Cloudflare did not accept domain"}
-        return {"Error":False,"code":0,"message":"Succesfully registered"}
+        return {"Error":False,"code":0,"message":"Succesfully registered", "id":response.json().get("result",{}).get("id")}
+
+    @Session.requires_auth
+    def repair_domain_id(self,session:Session, domain:str, type_:str, content:str) -> RepairDomainStatus:
+        # https://developers.cloudflare.com/api/operations/dns-records-for-a-zone-list-dns-records
+        #
+        response = requests.get(
+            f"https://api.cloudflare.com/client/v4/zones/{self.zone_id}/dns_records?name={domain.replace('[dot]','.') + '.frii.site'}",
+            headers={
+                "Authorization": "Bearer "+self.cf_key_w,
+                "X-Auth-Email": self.email
+            }
+        )
+
+        if not response.ok or response.json()["result_info"]["total_count"] == 0:
+            l.error(f"Failed to recover id of {domain}, trying to register...")
+            status = self.register(domain,content,session,type_,False)
+            if not status["Error"]:
+                return RepairDomainStatus(
+                    success=True,
+                    domain=RepairDomainType(
+                        id=status["id"], content=content
+                    )
+                )
+            return RepairDomainStatus(
+                success=False,
+                json={"error":"Failed to regsiter domain"}
+            )
+
+        l.info(f"Succesfully repaired domain {domain}")
+        domain_result = response.json()["result"][0]
+
+        return RepairDomainStatus(
+            success=True,
+            domain=RepairDomainType(id=domain_result["id"], content=domain_result["content"])
+        )
