@@ -10,6 +10,7 @@ import threading
 from typing import TypedDict
 from typing import List
 from typing import TYPE_CHECKING
+from enum import Enum
 from .Logger import Logger
 from .Utils import generate_random_string, days_to_seconds, generate_password
 
@@ -26,8 +27,11 @@ class SessionPermissonError(Exception):
 
 
 class SessionFlagError(Exception):
-    pass
+    success:bool
 
+SessionCreateStatus = TypedDict(
+    "SessionCreateStatus", { "success":bool, "mfa_required":bool, "code":str|None }
+)
 
 SESSION_TOKEN_LENGTH: int = 32
 
@@ -83,7 +87,7 @@ class Session:
 
                 or
 
-                `get_user_domains(domain="domain", session=a, content="1.2.3.4")`
+                `get_user_domains(domain="domain", session=a, content="1.2.3.4") # note the "session" must be the keyword if you use keyword args`
         To create:
             ```
             @Session.requires_auth
@@ -244,7 +248,7 @@ class Session:
         return session_list
 
     @staticmethod
-    def create(username: str, ip: str, user_agent: str, database: Database) -> str:
+    def create(username: str, ip: str, user_agent: str, database: Database) -> SessionCreateStatus:
         """Does NOT check password validity. Creates a new session for user.
 
         Arguements:
@@ -253,10 +257,15 @@ class Session:
             user_agent: the user agent of the request
             database: instance of database class
         """
+        if database.collection.find_one({"_id":username}).get("totp-key") is not None: # type: ignore ; user has set up 2FA
+            return SessionCreateStatus(
+                success=False,mfa_required=True,code=None
+            )
+
         session_id = generate_random_string(SESSION_TOKEN_LENGTH)
         session = {
             "_id": sha256(session_id.encode("utf-8")).hexdigest(),
-            "expire": datetime.datetime.now() + datetime.timedelta(days=14),
+            "expire": datetime.datetime.now() + datetime.timedelta(days=7),
             "ip": ip,
             "user-agent": user_agent,
             "owner-hash": sha256(
@@ -272,7 +281,9 @@ class Session:
         )  # optimize lookup times on get_active
         database.session_collection.insert_one(session) # places session into the database
         UserManager(database, ip, username).start() # updates `last-login` and `accessed-from` fields of user
-        return session_id
+        return SessionCreateStatus(
+            success=True, mfa_required=False, code=session_id
+        )
 
     def create_2fa(self):
         if not self.valid:

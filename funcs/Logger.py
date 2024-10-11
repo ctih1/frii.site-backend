@@ -18,7 +18,7 @@ class LogManager(threading.Thread):
          self.message = message
 
      def start(self):
-        return
+        return # Using this function causes the backend to become unresponsive for how long the request lasts
         try:
              if(self.importance in ["warning","permission","error","critical"]):
                  url = self.webhook.main

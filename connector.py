@@ -42,9 +42,17 @@ l = _Logger.Logger("connector.py", os.getenv("DC_WEBHOOK"),os.getenv("DC_TRACE")
 def login(username_hash:str, password_hash:str, ip:str, user_agent:str) -> Response:
     data = database.collection.find_one({"_id":username_hash})
     db_password = data["password"].encode("utf-8")
+
     if not bcrypt.checkpw(password_hash.encode("utf-8"),db_password): return Response(status=401)
     if not data.get("verified",False): return Response(status=412)
-    return Response(status=200, response=Session.create(username_hash,ip,user_agent, database))
+
+    session_create_status:_Session.SessionCreateStatus = Session.create(username_hash,ip,user_agent, database)
+    if session_create_status["mfa_required"]:
+        return Response(status=403)
+    elif not session_create_status["success"]:
+        return Response(status=500)
+
+    return Response(status=200, response=session_create_status["code"])
 
 #/sign-up
 def sign_up(username:str,password:str,email_:str,language:str,country:str) -> Response:

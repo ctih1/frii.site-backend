@@ -375,15 +375,24 @@ class Database:
 
     @Session.requires_auth
     def repair_domains(self, session:Session) -> bool:
+        """Repairs domains (.) in the database, and converts them to [dot]
+        Non destructive action
+        """
         l.info("Starting domain repair..")
         user_data:dict = self.get_data(session)
         updated_domains = {}
         fixed_domains:int = 0
+        domain_offset:int = 0 # duplicate domains that a hashmap will purge
 
         for domain in user_data["domains"]:
+            if domain.replace(".","[dot]") in updated_domains:
+                l.warn(f"Duplicate domain found {domain}")
+                domain_offset += 1
+                continue
             if "." in domain:
                 updated_domains[domain.replace(".","[dot]")] = user_data["domains"][domain]
                 fixed_domains += 1
+
             else:
                 updated_domains[domain] = user_data["domains"][domain]
 
@@ -393,7 +402,7 @@ class Database:
 
         l.info(f"Fixed {fixed_domains} domains")
 
-        if len(updated_domains) != len(user_data["domains"]):
+        if len(updated_domains) != (len(user_data["domains"] - domain_offset)):
             l.error(f"`repair_domains` updated lenght is not same as original ({list(updated_domains.keys())} vs {list(user_data['domains'].keys())}), aborting")
             return False
 
