@@ -30,7 +30,7 @@ class SessionFlagError(Exception):
     success:bool
 
 SessionCreateStatus = TypedDict(
-    "SessionCreateStatus", { "success":bool, "mfa_required":bool, "code":str|None }
+    "SessionCreateStatus", { "success":bool, "mfa_required":bool, "code":str }
 )
 
 SESSION_TOKEN_LENGTH: int = 32
