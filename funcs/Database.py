@@ -402,7 +402,7 @@ class Database:
 
         l.info(f"Fixed {fixed_domains} domains")
 
-        if len(updated_domains) != (len(user_data["domains"] - domain_offset)):
+        if len(updated_domains) != (len(user_data["domains"]) - domain_offset):
             l.error(f"`repair_domains` updated lenght is not same as original ({list(updated_domains.keys())} vs {list(user_data['domains'].keys())}), aborting")
             return False
 
