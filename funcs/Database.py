@@ -1,7 +1,6 @@
 import time
 from hashlib import sha256
 from typing import TYPE_CHECKING
-import re
 import bcrypt
 from cryptography.fernet import Fernet
 from pymongo import MongoClient
@@ -386,7 +385,7 @@ class Database:
         """
         l.info("Starting domain repair..")
         user_data:dict = self.get_data(session)
-        updated_domains = {}
+        updated_domains = {} # map of updated domains, same schema as in db
         fixed_domains:int = 0
         domain_offset:int = 0 # duplicate domains that a hashmap will purge
 
@@ -395,6 +394,7 @@ class Database:
                 l.warn(f"Duplicate domain found {domain}")
                 domain_offset += 1
                 continue
+
             if "." in domain:
                 updated_domains[domain.replace(".","[dot]")] = user_data["domains"][domain]
                 fixed_domains += 1

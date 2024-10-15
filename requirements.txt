@@ -13,3 +13,4 @@ resend==0.7.2
 pymongo==4.6.3
 typeddict==0.3.0
 pyotp==2.9.0
+sentry-sdk==2.16.0

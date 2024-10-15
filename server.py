@@ -10,6 +10,13 @@ from dotenv import load_dotenv
 from funcs import Logger as L
 from funcs.Session import SessionError, SessionFlagError, SessionPermissonError
 import traceback
+import sentry_sdk
+
+sentry_sdk.init(
+    dsn=os.getenv("SENTRY_URL"),
+    traces_sample_rate=1.0,
+    profiles_sample_rate=1.0
+)
 
 l = L.Logger("server.py", os.getenv("DC_WEBHOOK"), os.getenv("DC_TRACE")) # type: ignore
 
@@ -35,6 +42,11 @@ def handle_exception(error:Exception):
 @cross_origin()
 def index():
   return "OK",200
+
+@app.route("/test/err")
+def test_err():
+    a = [0][1]
+    return Response(status=200)
 
 @app.route('/login', methods=['POST'])
 def login_():
@@ -175,7 +187,7 @@ def create_api_():
 
 @app.route("/get-api-keys",methods=["GET"])
 def get_api_keys_():
-  return get_api_keys(request.headers.get("X-Auth-Token"))
+  return get_api_keys(request.headers.get("X-Auth-Token"), request.access_route[-1])
 
 @app.route("/api-delete", methods=["DELETE"])
 def api_delete_():
