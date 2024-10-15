@@ -227,15 +227,15 @@ def translation_missing_(Code):
 
 @app.route("/translations/<string:Code>/contribute",methods=["POST"])
 def translation_contribute_(Code):
-  return translation_contribute(request.headers.get("X-Auth-Token"),Code,request.json.get("contributions"))
+  return translation_contribute(request.headers.get("X-Auth-Token"),Code,request.json.get("contributions"), request.access_route[-1])
 
 @app.route("/credits/convert",methods=["POST"])
 def credits_convert_():
-  return credits_convert(request.headers.get("X-Auth-Token"))
+  return credits_convert(request.headers.get("X-Auth-Token"), request.access_route[-1])
 
 @app.route("/credits/get",methods=["GET"])
 def credits_get_():
-  return credits_get(request.headers.get("X-Auth-Token"))
+  return credits_get(request.headers.get("X-Auth-Token"), request.access_route[-1])
 
 @app.route("/status", methods=["GET"])
 def status_():
