@@ -83,8 +83,8 @@ def domain_is_available(__domain:str) -> Response:
 def register_domain(__domain:str,content:str,token_:str,type_:str, proxy:bool, request_ip) -> Response:
     __domain = __domain.replace(".","[dot]")
     if(token_.startswith("$API")):
-        domain.register()
-
+        status = domain.register_with_api(__domain,content,Api(token_,database),type_)
+        return Response(status=200, response=json.dumps(status), mimetype="application/json")
     else:
         session = Session(token_,request_ip,database)
         domain_register_status: dict = domain.register(domain=__domain,content=content,session=session,type_=type_,proxied=proxy)

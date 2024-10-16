@@ -5,6 +5,8 @@ import time
 import string
 from .Session import Session
 from .Logger import Logger
+from .Api import Permission
+from .DNS import DNS, ModifyError, RegisterError
 from typing import TYPE_CHECKING
 import os
 from typing import TypedDict, NotRequired
@@ -34,9 +36,9 @@ class Domain:
     def __init__(self,db:'Database',email:str,cf_key_w:str, cf_key_r,zone_id):
         self.db:'Database'=db
         self.email = email
-        self.cf_key_w = cf_key_w
         self.cf_key_r = cf_key_r
-        self.zone_id:str=zone_id
+        self.zone_id = zone_id
+        self.dns = DNS(cf_key_w, zone_id, email)
 
 
     @staticmethod
@@ -173,6 +175,11 @@ class Domain:
     def check_domain(self,domain: str, domains:dict={}, type_: str = "A") -> int:
         """Checks if domain is valid, and not in use
 
+        Checks:
+            * Is domain syntaxically valid (punnycode)
+            * Subdomain verification
+            * User does not own domain
+
         Args:
             domain (str): specified domain (**without** .frii.site suffix)
             domains (dict, optional): domains that user has (`get_data()["domains]`). if is None, the domain is considered invalid if there is another domain linked to it (secondary.primary.frii.site) since the server cannot verify if user owns primary.frii...
@@ -183,8 +190,12 @@ class Domain:
             int: 0 - domain is not valid
             int: -1 - does not own a part of the domain (ex: mydomain.another.frii.site, where user does NOT own another.frii.site)
             int: -2 - domain is already in use
+            int: -3 - not valid type
         """
         domain = domain.replace("[dot]",".")
+        if type_.lower() not in ["a","cname","txt","ns"]:
+            return -3
+
         headers = {
             "X-Auth-Email": self.email,
             "Authorization": "Bearer "+self.cf_key_r
@@ -230,75 +241,97 @@ class Domain:
                 10x1: Invalid domain (x being reason, consult `self.check_domain()`)
                 1xxx: Cloudflare api issue
         """
-        l.trace(f"Modifying {domain} with type {type_} and content of {new_content}")
-        data: dict = self.db.get_data(session)
-        domains:dict = self.get_user_domains(self.db,session=session)
+
+        domains:dict = self.db.get_data(session)["domains"]
         l.trace(f"Requested domain {domain.replace('[dot]','.')}")
-        if(domain.replace("[dot]",".") not in domains):
+
+        if domain not in domains:
             l.warn(f"User does not own {domain}")
             return {"Error":True,"message":"No permissions","code":1005}
 
         check_domain_status=self.check_domain(domain,domains,type_)
-        if(check_domain_status!=1):
+
+        if check_domain_status!=1:
             l.info(f"Domain check resulted in code {check_domain_status}")
-            return {"Error":True, "message":f"Invalid domain ({int(f'10{check_domain_status*-1}1')})", "code":int(f"10{check_domain_status*-1}1")}
-        data_ = {
-            "content": new_content,
-            "name": domain.replace("[dot]",".") ,
-            "proxied": proxied,
-            "type": type_, # from Dan: i added the type so you can add more records lol
-            "comment": "Changed by "+(self.db.fernet.decrypt(str.encode(data['display-name']))).decode("utf-8") # a handy dandy lil message
-        }
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer "+self.cf_key_w,
-            "X-Auth-Email": self.email
-        }
-        response:Response = requests.patch(f"https://api.cloudflare.com/client/v4/zones/{self.zone_id}/dns_records/{domains[domain.replace('[dot]','.')]['id']}",json=data_,headers=headers,timeout=20)
-        if(response.status_code==200):
-            self.__add_domain_to_user(session=session,domain=domain,content=new_content,domain_id=None,type_=type_,proxied=proxied)
-            l.info(f"Modified {domain} for user {session.username}")
-            return {"Error":False,"message":"Succesfully modified domain"}
-        else:
-            l.warn(f"`modify` CloudFlare didn't respond with a 200. Id used: {domains[domain.replace('[dot]','.')]['id']} ({response.json()})")
-            if response.json()["errors"][0].get("code") == 10000:
-                resp = self.repair_domain_id(session,domain.replace("[dot]","."),type_,new_content)
-                if resp["success"]:
-                    cleaned = domains[domain.replace('[dot]','.')]
-                    cleaned["id"] = resp["domain"]["id"]
-                    cleaned["ip"] = resp["domain"]["content"]
-                    self.db.modify_domain(session,domain,cleaned)
-            return {"Error":True,"code":int(f"1{response.status_code}"),"message":"Backend api failed to respond with a valid status code."}
+
+            check_domain_reason_int = int(f'10{check_domain_status*-1}1')
+            return {"Error":True, "message":f"Invalid domain ({check_domain_reason_int})", "code":check_domain_reason_int}
+
+        try:
+            dns_status = self.dns.modify_domain(
+                domains[domain]["id"],
+                new_content,
+                type_,
+                domain,
+                f"Updated with Session based auth ({session.username})"
+            )
+
+            self.__add_domain_to_user(
+                session,
+                domain,
+                new_content,
+                type_,
+                dns_status["id"],
+                proxied
+            )
+            return {"Error":False, "code":0, "message":"Domain modified"}
+
+        except ModifyError as e:
+            l.error(f"Failed to register domain ({e.json})")
+            if not e.json["errors"][0]["code"] == 10000:
+                return {"Error":True,"code":1400,"message":"Backend api failed to respond with a valid status code."}
+
+            resp = self.repair_domain_id(session,domain.replace("[dot]","."),type_,new_content)
+            if not resp["success"]:
+                l.error("Failed to repair domains")
+                return {"Error":True,"code":1401,"message":"Fixing domain failed"}
+
+
+            cleaned = domains[domain]
+            cleaned["ip"] = resp["domain"]["id"] # type: ignore
+            cleaned["ip"] = resp["domain"]["content"] # type: ignore
+
+            self.db.modify_domain( # retry after fixing domain
+                session, domain, cleaned
+            )
+
 
     def modify_with_api(self,database: 'Database', domain: str, apiKey:'Api', new_content:str, type_: str)->dict:
+        domain = domain.replace(".","[dot]")
         required_permissions = apiKey.required_permissions(domain,type_,new_content)
-        if(domain not in apiKey.affected_domains): return {"Error":True,"code":1001,"message":"API key does not have sufficent permissions"}
+
+        if domain not in apiKey.affected_domains:
+            return {"Error":True,"code":1001,"message":"API key does not have sufficent permissions for this domain"}
+
         for perm in required_permissions:
-            if(perm not in apiKey.permissions):
+            if perm not in apiKey.permissions:
                 l.info("`modify_with_api` API Key does not have the correct permissions")
-                return {"Error":True,"code":1001,"message":f"API key does not have sufficent permissions ({perm})"}
+                return {"Error":True,"code":1001,"message":f"API is missing permission(s) ({perm})"}
 
         domain_stauts = self.check_domain(domain,apiKey.domains,type_)
-        if(domain_stauts!=1): return {"Error":True,"code":1002,"message":f"Invalid domain ({domain_stauts})"}
-        data_ = {
-            "content": new_content,
-            "name": domain.replace("[dot]",".") ,
-            "proxied": False,
-            "type": type_,
-            "comment": "Changed with api key"
-        }
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer "+self.cf_key_w,
-            "X-Auth-Email": self.email
-        }
-        response = requests.patch(f"https://api.cloudflare.com/client/v4/zones/{self.zone_id}/dns_records/{apiKey.get_domain_id(domain)}",json=data_,headers=headers,timeout=20)
-        if(response.status_code!=200):
-            l.warn(f"`modify_with_api` resulted in a status code of {response.status_code}")
-            return {"Error":True,"code":1003,"message":"Backend refused to accept domain change"}
-        self.__add_dommain_to_user_api(apiKey,domain,new_content,type_,response.json().get("result",{}).get("id"))
-        l.info(f"Modified domain {domain} with API")
-        return {"Error":False,"code":1000,"message":"Succesfully changed domain"}
+        if domain_stauts!=1:
+            return {"Error":True,"code":1002,"message":f"Invalid domain ({domain_stauts})"}
+
+
+        try:
+            dns_status = self.dns.modify_domain(
+                apiKey.domains[domain]["id"],
+                new_content,
+                type_,
+                domain,
+                f"Updated with Session based auth ({apiKey.username})"
+            )
+
+            self.__add_dommain_to_user_api(
+                apiKey,
+                domain,
+                new_content,
+                type_,
+                dns_status["id"],
+            )
+            return {"Error":False,"code":1000,"message":"Succesfully changed domain"}
+        except ModifyError as e:
+            return {"Error":True, "code": 1003, "message": "DNS Server refused to accept changes"}
 
     @Session.requires_auth
     def register(self,domain: str, content: str, session: Session, type_: str, proxied:bool) -> dict:
@@ -323,43 +356,106 @@ class Domain:
                 10x4: Domain is not valid where `x*-1` is the reason (refer to `self.check_domain()`)
         """
 
-        if(type_.lower() not in ["a","cname","txt","ns"]):
-            l.info(f"{type_} is not a valid type")
-            return {"Error":True,"code":1001,"message":f"Invalid type: {type_}"}
-
         amount_of_domains: int = self.get_user_domains(self.db,session=session,skip_fix=True).__len__()
-        if(amount_of_domains > self.db.get_data(session).get("permissions",{}).get("max-domains",4)):
-            l.info(f"`register` maximum domain limit reached")
+        user_max_domains:int = self.db.get_data(session).get("permissions",{}).get("max-domains",4)
+
+        if amount_of_domains > user_max_domains:
+            l.info("`register` maximum domain limit reached")
             return {"Error":True,"code":1003,"message":"You have reached your domain limit"}
 
-        domain_check:int=self.check_domain(domain,self.get_user_domains(self.db,session=session,skip_fix=True),type_)
-        if(domain_check!=1):
+        domain_check:int=self.check_domain(
+            domain,
+            self.get_user_domains(
+                self.db,
+                session=session,
+                skip_fix=True
+            ),
+            type_
+        )
+
+        if domain_check!=1:
             l.info(f"`regster` failed: {domain} is invalid (reason no {domain_check})")
             return {"Error":True,"code":int(f"10{domain_check*-1}4"),"message":f"Domain is not valid. Reason No. {domain_check}"}
 
-        headers = {
-            "Content-Type":"application/json",
-            "Authorization": "Bearer "+self.cf_key_w,
-            "X-Auth-Email": self.email
-        }
+        try:
+            result = self.dns.register_domain(
+                domain,
+                content,
+                type_,
+                comment=f"Registered through Sessions {session.username}"
+            )
+        except RegisterError as e:
+            l.error(f"Registering domain failed {e.json}")
+            return {"Error":True,"code":1030,"message":"DNS denied request"}
 
-        if(type_=="CNAME" or type_=="NS"): l.info(f"Changing content to example.com since domain is {type_} type"); content="example.com"
-        data_ = {
-            "content": content,
-            "name": domain.replace("[dot]","."), # because 'domain' is *only* the subdomain (example.frii.site->example)
-            "proxied": proxied, # so cloudflare doesn't proxy the content
-            "type": type_.strip(), # the type of the record.
-            "comment": "Issued by "+(self.db.fernet.decrypt(str.encode(self.db.get_data(session)["display-name"]))).decode("utf-8"), # just a handy-dandy lil feature that shows the admin (me) who registered the domain
-            "ttl": 1 # auto ttl
-        }
-        response = requests.post(f"https://api.cloudflare.com/client/v4/zones/{self.zone_id}/dns_records",headers=headers,json=data_)
-        if(response.status_code==200):
-            l.info(f"Registered domain {domain} succesfully")
-            self.__add_domain_to_user(session,domain,content,type_,response.json().get("result",{}).get("id"), proxied)
-        else:
-            l.error(f"Registering domain cloudflare returned {response.status_code}")
-            return {"Error":True,"code":1030,"message":"Cloudflare did not accept domain"}
-        return {"Error":False,"code":0,"message":"Succesfully registered", "id":response.json().get("result",{}).get("id")}
+
+        l.info(f"Registered domain {domain} succesfully")
+        self.__add_domain_to_user(
+            session,
+            domain,
+            content,
+            type_,
+            result["id"],
+            proxied
+        )
+
+        return {"Error":False,"code":0,"message":"Succesfully registered", "id":result["id"]}
+
+
+
+    def register_with_api(self,domain:str, content: str, apiKey: 'Api', type_: str):
+        domain = domain.replace(".","[dot]")
+
+        if "".join(domain.split("[dot]")[1:]) not in apiKey.affected_domains:
+            return {"Error":True,"code":1001,"message":f"API key does not have sufficent permissions for this domain {domain.split('[dot]')[1:]}"}
+
+        if Permission.CREATE not in apiKey.permissions:
+            l.info("`modify_with_api` API Key does not have the correct permissions")
+            return {"Error":True,"code":1001,"message":"API is missing permission(s) (create subdomains)"}
+
+        data = self.db.collection.find_one({"_id":apiKey.username})
+
+
+        amount_of_domains: int = data["domains"].__len__()
+        user_max_domains:int = data.get("permissions",{}).get("max-domains",4)
+
+        if amount_of_domains > user_max_domains:
+            l.info("`register` maximum domain limit reached")
+            return {"Error":True,"code":1003,"message":"You have reached your domain limit"}
+
+        domain_check:int=self.check_domain(
+            domain,
+            apiKey.affected_domains,
+            type_
+        )
+
+        if domain_check!=1:
+            l.info(f"`regster` failed: {domain} is invalid (reason no {domain_check})")
+            return {"Error":True,"code":int(f"10{domain_check*-1}4"),"message":f"Domain is not valid. Reason No. {domain_check}"}
+
+        try:
+            result = self.dns.register_domain(
+                domain,
+                content,
+                type_,
+                comment=f"Registered through API {apiKey.username}"
+            )
+
+        except RegisterError as e:
+            l.error(f"Registering domain failed {e.json}")
+            return {"Error":True,"code":1030,"message":"DNS denied request"}
+
+        l.info(f"Registered domain {domain} succesfully")
+        self.__add_dommain_to_user_api(
+            apiKey,
+            domain,
+            content,
+            type_,
+            result["id"],
+        )
+
+        return {"Error":False,"code":0,"message":"Succesfully registered", "id":result["id"]}
+
 
     @Session.requires_auth
     def repair_domain_id(self,session:Session, domain:str, type_:str, content:str) -> RepairDomainStatus:
