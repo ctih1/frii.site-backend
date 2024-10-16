@@ -149,7 +149,7 @@ def account_deletion_(Code):
 @limiter.rate_limit(limit=1,period=30)
 @app.route("/resend-email", methods=["GET"])
 def resend_email_():
-  return resend_email(request.headers.get("X-Auth-Token"))
+  return resend_email(request.headers.get("X-Auth-Username"))
 
 @limiter.rate_limit(limit=3, period=120*60)
 @app.route("/vulnerability/report", methods=["POST"])

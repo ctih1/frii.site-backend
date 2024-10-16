@@ -205,7 +205,7 @@ class Database:
         data["domains"] = {}
         data["feature-flags"] = {}
         data["api-keys"] = {}
-        data["credits"] = 15
+        data["credits"] = 200
         self.__save_data(data)
         if(not emailInstance.send_verification(username,email,original_username)):
             l.warn("`create_user` Invalid email")
