@@ -183,7 +183,7 @@ def delete_vuln():
 
 @app.route("/create-api",methods=["POST"])
 def create_api_():
-  return create_api(request.headers.get("X-Auth-Token"),request.json.get("domains"),request.json.get("perms"),request.json.get("comment"))
+  return create_api(request.headers.get("X-Auth-Token"),request.json.get("domains"),request.json.get("perms"),request.json.get("comment"),request.access_route[-1])
 
 @app.route("/get-api-keys",methods=["GET"])
 def get_api_keys_():
