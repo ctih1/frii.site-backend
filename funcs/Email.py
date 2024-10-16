@@ -70,7 +70,8 @@ class Email:
                 "html":
                 '<html><h1>Hello $username!</h1> <h2>Click <a href="https://api.frii.site/verification/$code">here</a> to verify your account</h2> <h3>Do <b>NOT</b> share this code!</h3> <p>This code will expire in 45 minutes.</p> <p>Link not working? Copy the text below into your browser address bar</p>https://api.frii.site/verification/$code</div></html>'.replace("$username",display_name).replace("$code",random_pin)
             })
-        except resend.exceptions.ResendError:
+        except resend.exceptions.ResendError as e:
+            l.error(f"Failed to send email {e}")
             return False
         return True
 
@@ -159,10 +160,17 @@ class Email:
         """
         start = time.time()
         data:dict=self.db.collection.find_one({"_id":username}) # type: ignore
-        print(f"Getting data from db: {time.time()-start}")
-        if(data["verified"]): return False
-        if("Error" in data): return False
-        return self.send_verification(username,data["email"],data["username"])
+        if data is None:
+            l.info("User not found, returning False")
+            return False
+        if(data["verified"]):
+            l.info("User is already verified...")
+            return False
+        return self.send_verification(
+            username,
+            self.db.fernet.decrypt(data["email"].encode("utf-8")).decode("utf-8"),
+            data["username"]
+        )
 
     def initiate_recovery(self,username:str) -> bool:
         """Sends a password recovery email to email
