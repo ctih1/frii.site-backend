@@ -37,6 +37,7 @@ class Domain:
         self.db:'Database'=db
         self.email = email
         self.cf_key_r = cf_key_r
+        self.cf_key_w = cf_key_w
         self.zone_id = zone_id
         self.dns = DNS(cf_key_w, zone_id, email)
 
