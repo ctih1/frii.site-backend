@@ -36,6 +36,7 @@ def handle_exception(error:Exception):
     if isinstance(error,SessionFlagError):
         return Response(status=462, response="User beta feature required" ,mimetype="text/plain")
     l.error(f"Unhandled error {type(error)} occured. ```{traceback.format_exc()}```")
+    sentry_sdk.capture_exception(error)
     return Response(status=500)
 
 @app.route("/")
