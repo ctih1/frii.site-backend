@@ -397,11 +397,14 @@ class Database:
 
             if "." in domain:
                 updated_domains[domain.replace(".","[dot]")] = user_data["domains"][domain]
+                l.info(f"Fixed invalid db schema for domain {domain}")
                 fixed_domains += 1
             else:
                 updated_domains[domain] = user_data["domains"][domain]
 
-            if updated_domains[domain.replace(".","[dot]")]["id"] is None:
+            domain_id = updated_domains[domain.replace(".","[dot]")]["id"]
+
+            if domain_id is None:
                 resp = domainInstance.repair_domain_id(
                     session,
                     domain,
@@ -410,10 +413,11 @@ class Database:
                 )
 
                 if resp["success"]:
+                    l.info(f"Succesfully fixed id of domain {domain}")
                     edited_stats = updated_domains[domain.replace(".","[dot]")]
                     edited_stats["id"] = resp["domain"]["id"] # type: ignore
                     edited_stats["ip"] = resp["domain"]["content"] # type: ignore
-                    updated_domains[domain.replace(".","[dot]")]["id"] = edited_stats
+                    updated_domains[domain.replace(".","[dot]")] = edited_stats
 
         if fixed_domains == 0:
             l.info("Didn't fix any domains")
