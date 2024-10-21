@@ -211,11 +211,15 @@ class Domain:
         if(req_domain!="" and domain_parts.__len__()!=1 and req_domain not in domains):
             l.info(f"User needs to own {req_domain} before registering {domain}!")
             return -1
-        if(domain not in domains):
+
+        if domain.replace(".","[dot]") not in domains:
             response:Response = requests.get(f"https://api.cloudflare.com/client/v4/zones/{self.zone_id}/dns_records?name={domain.replace('[dot]','.')+'.frii.site'}", headers=headers) # is the domain available
             if(list(response.json().get("result",[])).__len__()!=0):
-                l.info(f"Domain {domain} is not available on CloudFlare")
+                if len(domains) == 0:
+                    l.info("Domains is an empty object")
+                l.info(f"Domain {domain} is not available on CloudFlare, and user does not own it")
                 return -2
+
         l.trace(f"Domain check for {domain} succeeded")
         return 1
 
@@ -243,14 +247,21 @@ class Domain:
                 1xxx: Cloudflare api issue
         """
 
+        l.info(f"Modifying domain {domain}")
+
         domains:dict = self.db.get_data(session)["domains"]
+        print(domains)
         l.trace(f"Requested domain {domain.replace('[dot]','.')}")
 
-        if domain not in domains:
+        if domain not in domains: # stupid fucking hack no idea why db returns domains as . sometimes
             l.warn(f"User does not own {domain}")
             return {"Error":True,"message":"No permissions","code":1005}
 
-        check_domain_status=self.check_domain(domain,domains,type_)
+        check_domain_status = self.check_domain(
+            domain.replace(".","[dot]"),
+            domains,
+            type_
+        )
 
         if check_domain_status!=1:
             l.info(f"Domain check resulted in code {check_domain_status}")
@@ -356,6 +367,8 @@ class Domain:
                 1003: domain limit
                 10x4: Domain is not valid where `x*-1` is the reason (refer to `self.check_domain()`)
         """
+
+        l.info(f"Registering domain {domain}")
 
         amount_of_domains: int = self.get_user_domains(self.db,session=session,skip_fix=True).__len__()
         user_max_domains:int = self.db.get_data(session).get("permissions",{}).get("max-domains",4)
