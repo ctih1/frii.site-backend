@@ -14,6 +14,8 @@ from enum import Enum
 from .Logger import Logger
 from .Utils import generate_random_string, days_to_seconds, generate_password
 
+l = Logger("Session.py", "None", "None")
+
 if TYPE_CHECKING:
     from Database import Database
 
@@ -198,11 +200,14 @@ class Session:
 
     def __is_valid(self):
         if len(self.id) != SESSION_TOKEN_LENGTH:
+            l.info("Session is not valid: length")
             return False
         session = self.session_data
         if session is None:
+            l.info("Session is not valid: None")
             return False
         if session["ip"] != self.ip:
+            l.info("Session is not valid: ip")
             return False
         return True
 

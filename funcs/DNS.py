@@ -10,6 +10,14 @@ DomainResponse = TypedDict(
     }
 )
 
+DeleteError = TypedDict(
+    "DeleteError",
+    {
+        "success":bool,
+        "id_error": bool
+    }
+)
+
 l:Logger = Logger("DNS.py","None","None") # discod webhook set as None
 
 class ModifyError(Exception):
@@ -96,3 +104,35 @@ class DNS:
         return DomainResponse(
             id=id
         )
+
+    def find_domain_id(self,domain:str) -> str:
+        """Can return None if id is not found
+        """
+        response = requests.get(
+            f"https://api.cloudflare.com/client/v4/zones/{self.zone_id}/dns_records?name={domain.replace('[dot]','.') + '.frii.site'}",
+            headers={
+                "Authorization": "Bearer "+self.key,
+                "X-Auth-Email": self.email
+            }
+        )
+
+        return response.json().get("result",[{}])[0].get("id")
+
+    def delete(self, id:str):
+        response = requests.delete(
+            f"https://api.cloudflare.com/client/v4/zones/{self.zone_id}/dns_records/{id}",
+            headers={
+                "Authorization": "Bearer "+self.key,
+                "X-Auth-Email": self.email
+            }
+        )
+
+        if response.json().get("success") is False:
+            if(response.json().get("errors",[{}])[0].get("code") == 81044):
+                return False
+
+        if response.status_code != 200:
+            l.warn(f"`delete_domain` response status was not 200 ({response.json()})")
+            return False
+
+        return True

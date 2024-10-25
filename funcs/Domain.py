@@ -1,4 +1,5 @@
 from __future__ import annotations
+from ast import Delete
 import requests
 from requests import Response
 import time
@@ -6,6 +7,7 @@ import string
 from .Session import Session
 from .Logger import Logger
 from .Api import Permission
+import re
 from .DNS import DNS, ModifyError, RegisterError
 from typing import TYPE_CHECKING
 import os
@@ -117,27 +119,24 @@ class Domain:
         """Deletes specified domain
 
         Returns:
-            int: -1 not owning domain, 0 passowrd or user not correct, 1 succeed
+            int:-2 domain repair failed, -1 not owning domain, 0 passowrd or user not correct, 1 succeed
         """
         domains: dict = self.get_user_domains(self.db,session)
         if(domain.replace("[dot]",".") not in domains):
             l.info(f"Domain {domain} not in domains of user {session.username}")
             return -1
-        headers: dict = {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer "+self.cf_key_w, # cloudflare write token
-            "X-Auth-Email": self.email
-        }
-        record_not_exist = False
-        response = requests.delete(f"https://api.cloudflare.com/client/v4/zones/{self.zone_id}/dns_records/{domains[domain.replace('[dot]','.')]['id']}",headers=headers)
-        if(response.json().get("success") is False):
-            if(response.json().get("errors",[{}])[0].get("code") == 81044): record_not_exist = True
-        if(record_not_exist):
-            l.warn("Record does not exist on CloudFlare, but does on Database. Ignoring...")
-        self.db.delete_domain(domain.replace("[dot]","."), session.username)
+        record_not_exist = not DNS(self.cf_key_w,self.zone_id, self.email).delete(
+            domains.get(domain.replace("[dot]","."))["id"] # type: ignore
+        )
+        if record_not_exist:
+            l.warn("Record does not exist on CloudFlare, but does on Database. Starting repair...")
+            result = self.repair_domain_id(session, domain, "A" ,"0.0.0.0", mode="delete")
+            if not result["success"]:
+                l.warn("Failed to fix domain")
+                return -2
+
         l.info(f"Succesfully deleted domain {domain}")
-        if response.status_code != 200:
-            l.warn(f"`delete_domain` response status was not 200 ({response.json()})")
+        self.db.delete_domain(domain.replace("[dot]","."), session.username)
         return 1
 
     @Session.requires_auth
@@ -193,6 +192,8 @@ class Domain:
             int: -2 - domain is already in use
             int: -3 - not valid type
         """
+
+
         domain = domain.replace("[dot]",".")
         if type_.lower() not in ["a","cname","txt","ns"]:
             return -3
@@ -212,13 +213,32 @@ class Domain:
             l.info(f"User needs to own {req_domain} before registering {domain}!")
             return -1
 
+        if self.db.collection.find_one({f"domains.{domain}":{"$exists":True}}) is not None:
+            l.warn("Domain is already in use (database)")
+            return -2
+
         if domain.replace(".","[dot]") not in domains:
             response:Response = requests.get(f"https://api.cloudflare.com/client/v4/zones/{self.zone_id}/dns_records?name={domain.replace('[dot]','.')+'.frii.site'}", headers=headers) # is the domain available
             if(list(response.json().get("result",[])).__len__()!=0):
                 if len(domains) == 0:
                     l.info("Domains is an empty object")
-                l.info(f"Domain {domain} is not available on CloudFlare, and user does not own it")
-                return -2
+                REGEX_MATCH_STRING = r"\b[a-fA-F0-9]{64}\b"
+
+                domain_comment = response.json().get("result")[0]["comment"]
+                regex_matches = re.findall(REGEX_MATCH_STRING, domain_comment)
+
+                username = regex_matches[0]
+
+                user_domains = self.db.collection.find_one({"_id":username}) or {}.get("domains",{})
+                user_owns_domain = user_domains.get(domain.replace(".","[dot]")) is not None and user_domains.get(domain.replace("[dot]",".")) is None
+                if user_owns_domain:
+                    l.info(f"Domain {domain} is not available on CloudFlare, and user does not own it")
+                    return -2
+                else:
+                    l.info(f"Ignoring expired domain for username {username}")
+                    dns = DNS(self.cf_key_w, self.zone_id, self.email)
+                    domain_id = dns.find_domain_id(domain=domain.replace("[dot]","."))
+                    dns.delete(domain_id)
 
         l.trace(f"Domain check for {domain} succeeded")
         return 1
@@ -472,7 +492,7 @@ class Domain:
 
 
     @Session.requires_auth
-    def repair_domain_id(self,session:Session, domain:str, type_:str, content:str) -> RepairDomainStatus:
+    def repair_domain_id(self,session:Session, domain:str, type_:str, content:str, mode="register") -> RepairDomainStatus:
         # https://developers.cloudflare.com/api/operations/dns-records-for-a-zone-list-dns-records
         #
         response = requests.get(
@@ -485,18 +505,24 @@ class Domain:
 
         if not response.ok or response.json()["result_info"]["total_count"] == 0:
             l.error(f"Failed to recover id of {domain}, trying to register...")
-            status = self.register(domain,content,session,type_,False)
-            if not status["Error"]:
+            if mode == "register":
+                status = self.register(domain,content,session,type_,False)
+                if not status["Error"]:
+                    return RepairDomainStatus(
+                        success=True,
+                        domain=RepairDomainType(
+                            id=status["id"], content=content
+                        )
+                    )
+                return RepairDomainStatus(
+                        success=False,
+                        json={"error":"Failed to regsiter domain"}
+                    )
+            elif mode == "delete":  # record does not exist, so we dont have to delete it
                 return RepairDomainStatus(
                     success=True,
-                    domain=RepairDomainType(
-                        id=status["id"], content=content
-                    )
+                    json={"error":""}
                 )
-            return RepairDomainStatus(
-                success=False,
-                json={"error":"Failed to regsiter domain"}
-            )
 
         l.info(f"Succesfully repaired domain {domain}")
         domain_result = response.json()["result"][0]

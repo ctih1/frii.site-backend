@@ -371,7 +371,7 @@ class Database:
 
     def delete_domain(self,domain:str, username:str) -> None:
         l.info(f"Deleting domain {domain} from user {username} from the database")
-        self.collection.update_one({"_id":username}, {"$unset":{f"domains.{domain.replace('.','[dot]')}":""}})
+        self.collection.update_one({"_id":username}, {"$unset":{f"domains.{domain.replace('.','[dot]')}":1}})
 
     @Session.requires_auth
     def repair_domains(self, domainInstance:'Domain', session:Session) -> bool:
@@ -389,7 +389,7 @@ class Database:
         fixed_domains:int = 0
         domain_offset:int = 0 # duplicate domains that a hashmap will purge
 
-        for domain in user_data["domains"]:
+        for domain in user_data["domains"].copy():
             if domain.replace(".","[dot]") in updated_domains:
                 l.warn(f"Duplicate domain found {domain}")
                 domain_offset += 1
@@ -404,7 +404,7 @@ class Database:
 
             domain_id = updated_domains[domain.replace(".","[dot]")]["id"]
 
-            if domain_id is None:
+            if domain_id is None or domain_id == "":
                 resp = domainInstance.repair_domain_id(
                     session,
                     domain,
@@ -412,7 +412,9 @@ class Database:
                     updated_domains[domain.replace(".","[dot]")]["ip"] # content of the domain, stupid db schema
                 )
 
-                if resp["success"]:
+                if not resp["success"]:
+                    l.error("Failed to repair domain id")
+                else:
                     l.info(f"Succesfully fixed id of domain {domain}")
                     edited_stats = updated_domains[domain.replace(".","[dot]")]
                     edited_stats["id"] = resp["domain"]["id"] # type: ignore
