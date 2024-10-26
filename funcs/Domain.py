@@ -213,11 +213,12 @@ class Domain:
             l.info(f"User needs to own {req_domain} before registering {domain}!")
             return -1
 
-        if self.db.collection.find_one({f"domains.{domain}":{"$exists":True}}) is not None:
-            l.warn("Domain is already in use (database)")
-            return -2
 
         if domain.replace(".","[dot]") not in domains:
+            if self.db.collection.find_one({f"domains.{domain.replace('.','[dot]')}":{"$exists":True}}) is not None:
+                l.warn("Domain is already in use (database)")
+                return -2
+
             response:Response = requests.get(f"https://api.cloudflare.com/client/v4/zones/{self.zone_id}/dns_records?name={domain.replace('[dot]','.')+'.frii.site'}", headers=headers) # is the domain available
             if(list(response.json().get("result",[])).__len__()!=0):
                 if len(domains) == 0:
