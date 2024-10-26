@@ -16,6 +16,7 @@ import os
 from dotenv import load_dotenv
 import json
 import time
+from hashlib import sha256
 
 Database = _Database.Database
 Domain = _Domain.Domain
@@ -367,3 +368,10 @@ def verify_2fa(userid, code:str):
 
 def delete_session(session_id, ip:str, session) -> Response:
     return Response(status=200, response=str(Session(session_id,ip,database).delete(session)))
+
+def logout_session(session_id, ip:str) -> Response:
+    Session(session_id, ip,database).delete(sha256(session_id.encode("utf-8")).hexdigest())
+    return Response(
+        status=200,
+
+    )

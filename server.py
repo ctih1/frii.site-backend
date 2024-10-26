@@ -265,6 +265,11 @@ def get_active_sessions_():
 def delete_session_():
     return delete_session(request.headers.get("X-Auth-Token"), request.access_route[-1], request.json.get("id"))
 
+@app.route("/session/logout", methods=["DELETE"])
+def logout_session_():
+    return logout_session(request.headers.get("X-Auth-Token"), request.access_route[-1])
+
+
 @app.route("/2fa/create", methods=["POST"])
 def create_2fa_():
     return create_2fa(request.headers.get("X-Auth-Token"), request.access_route[-1])
