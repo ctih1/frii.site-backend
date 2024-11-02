@@ -196,11 +196,11 @@ def api_delete_():
 
 @app.route("/admin/get-email",methods=["GET"])
 def admin_get_email_():
-  return admin_get_email(request.headers.get("X-Auth-Token"),request.args.get("id"))
+  return admin_get_email(request.headers.get("X-Auth-Token"),request.args.get("id"),request.access_route[-1])
 
 @app.route("/admin/get-emails",methods=["POST"])
 def admin_get_emails_():
-  return admin_get_emails(request.headers.get("X-Auth-Token"),request.json.get("condition"))
+  return admin_get_emails(request.headers.get("X-Auth-Token"),request.json.get("condition"),request.access_route[-1])
 
 @app.route("/reset-password",methods=["PATCH"])
 def reset_password_():
