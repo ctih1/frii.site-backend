@@ -57,6 +57,7 @@ def login(username_hash:str, password_hash:str, ip:str, user_agent:str) -> Respo
 
 #/sign-up
 def sign_up(username:str,password:str,email_:str,language:str,country:str) -> Response:
+    return Response(status=403, response="Account registration has been disabled.")
     status:dict = database.create_user(username,password,email_,language,country,time.time(),email)
     responses = {
         1001: 409,
