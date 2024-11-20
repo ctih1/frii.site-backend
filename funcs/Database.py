@@ -12,6 +12,7 @@ from pymongo.database import Database as _Database
 from .Email import Email
 from .Session import Session
 from .Logger import Logger
+from .Invite import Invite
 import os
 from dotenv import load_dotenv
 load_dotenv()
@@ -157,7 +158,7 @@ class Database:
         return {"Error":False,"emails":emails}
 
     @l.time
-    def create_user(self,username: str, password: str, email: str, language: str, country, time_signed_up, emailInstance:'Email') -> dict:
+    def create_user(self,username: str, password: str, email: str, language: str, country, time_signed_up, emailInstance:'Email', invite_code:str) -> dict:
         """Creates a new user
 
         Args:
@@ -206,6 +207,15 @@ class Database:
         data["feature-flags"] = {}
         data["api-keys"] = {}
         data["credits"] = 200
+
+        invite_instance:Invite = Invite(invite_code, self)
+
+        if not Invite(invite_code, self).valid:
+            return False
+        
+        if not Invite.use(username):
+            l.error("Failed to use invite")
+    
         self.__save_data(data)
         if(not emailInstance.send_verification(username,email,original_username)):
             l.warn("`create_user` Invalid email")
