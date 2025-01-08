@@ -66,6 +66,7 @@ def sign_up_():
   password = request.json.get('password')
   email = request.json.get('email')
   language = request.json.get('language')
+  invite_code = request.json.get("invite")
   country = handler.getDetails(request.access_route[-1]).all
   return sign_up(
     username,
@@ -73,6 +74,7 @@ def sign_up_():
     email,
     language,
     country,
+    invite_code
   )
 
 @app.route('/domain-is-available',methods=["GET"])

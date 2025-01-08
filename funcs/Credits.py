@@ -21,5 +21,6 @@ class Credits:
 
     def get(self,session:Session) -> int:
         __data=self.db.get_data(session)
-        if(not __data.get("feature-flags",{}).get("credits",False)): raise PermissionError("Not a beta tester")
+        if(not __data.get("feature-flags",{}).get("credits",False)):
+            raise PermissionError("Not a beta tester")
         return __data.get("credits",0)

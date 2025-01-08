@@ -1,6 +1,5 @@
 from __future__ import annotations
-from pymongo.cursor import Cursor
-from hashlib import sha256, sha1
+from hashlib import sha256
 import time
 import datetime
 import pyotp
@@ -12,9 +11,9 @@ from typing import List
 from typing import TYPE_CHECKING
 from enum import Enum
 from .Logger import Logger
-from .Utils import generate_random_string, days_to_seconds, generate_password
+from .Utils import generate_random_string, generate_password
 
-l = Logger("Session.py", "None", "None")
+l:Logger = Logger("Session.py", "None", "None")
 
 if TYPE_CHECKING:
     from Database import Database
@@ -228,8 +227,8 @@ class Session:
     def __get_permimssions(self):
         if not self.valid:
             return []
-        return self.user_cache_data["permissions"]  # type: ignore
-
+        return self.user_cache_data["permissions"] 
+    
     def __get_flags(self):
         if not self.valid:
             return []
@@ -262,7 +261,8 @@ class Session:
             user_agent: the user agent of the request
             database: instance of database class
         """
-        if database.collection.find_one({"_id":username}).get("totp-key") is not None: # type: ignore ; user has set up 2FA
+
+        if database.collection.find_one({"_id":username}).get("totp-key") is not None:
             return SessionCreateStatus(
                 success=False,mfa_required=True,code=None
             )

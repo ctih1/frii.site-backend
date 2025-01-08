@@ -56,20 +56,20 @@ def login(username_hash:str, password_hash:str, ip:str, user_agent:str) -> Respo
     return Response(status=200, response=session_create_status["code"])
 
 #/sign-up
-def sign_up(username:str,password:str,email_:str,language:str,country:str) -> Response:
-    return Response(status=403, response="Account registration has been disabled.")
-    status:dict = database.create_user(username,password,email_,language,country,time.time(),email)
+def sign_up(username:str,password:str,email_:str,language:str,country:str, invite_code:str) -> Response:
+    status:dict = database.create_user(username,password,email_,language,country,time.time(),email, invite_code)
     responses = {
         1001: 409,
         1002: 400,
-        1003: 422
+        1003: 422,
+        1004: 403
     }
     if status.get("Error",False):
         return Response(status=responses.get(status["code"]),response=json.dumps(status.get("message","No extra information provided")))
     return Response(status=200)
 
 #/domain-is-available
-def domain_is_available(__domain:str) -> Response:
+def domain_is_available(__domain: str) -> Response:
     __domain = __domain.replace(".","[dot]")
     domain_status: int = domain.check_domain(__domain)
     # vercel uses python 3.9, thus why there is no switch case logic.

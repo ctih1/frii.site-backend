@@ -11,7 +11,7 @@ import re
 from .DNS import DNS, ModifyError, RegisterError
 from typing import TYPE_CHECKING
 import os
-from typing import TypedDict, NotRequired
+from typing import TypedDict
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -28,8 +28,8 @@ RepairDomainType = TypedDict(
 RepairDomainStatus = TypedDict(
     "RepairDomainStatus", {
         "success":bool,
-        "json":NotRequired[dict],
-        "domain": NotRequired[RepairDomainType]
+        "json":dict,
+        "domain": RepairDomainType
     }
 )
 

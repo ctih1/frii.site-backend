@@ -157,7 +157,7 @@ class Database:
         return {"Error":False,"emails":emails}
 
     @l.time
-    def create_user(self,username: str, password: str, email: str, language: str, country, time_signed_up, emailInstance:'Email') -> dict:
+    def create_user(self,username: str, password: str, email: str, language: str, country, time_signed_up, emailInstance:'Email', invite_code:str) -> dict:
         """Creates a new user
 
         Args:
@@ -168,7 +168,7 @@ class Database:
             country (str): users country
             time_signed_up (_type_): current tmie
             emailInstance (Email): instance of Email to send verfication
-
+            invite_code (str): invite code
         Returns:
             error:
                 `{"Error":True,"code":...,"message":...}`
@@ -182,12 +182,35 @@ class Database:
         original_username=username
         username = str(sha256(username.encode("utf-8")).hexdigest())
         password: str = str(sha256(password.encode("utf-8")).hexdigest())
+
+        invite_user = self.collection.find_one({f"invites.{invite_code}":{"$exists":True}})
+
+        if invite_user is None:
+            return {"Error":True, "code": 1004, "message": "Invalid invite code"}
+    
+        if invite_user["invites"][invite_code]["used"]:
+            return {"Error":True, "code": 1004, "message": "Invite code already used"}
+
+        self.collection.update_one(
+            {
+                f"invites.{invite_code}":
+                    {"$exists":True}
+            },
+            {
+                "$set":{
+                    f"invites.{invite_code}.used":True,
+                    f"invites.{invite_code}.used_by": username
+                    }
+                }
+        )
+
         if self.__user_exists(username):
             l.warn("`create_user` Username is already in use")
             return {"Error":True,"code":1001,"message":"User already exists"}
         if self.__email_taken(email):
             l.warn("`create_user` Email is already in use")
             return {"Error":True,"code":1002,"message":"Email aready in use"}
+        
         data: dict = {}
         data["_id"] = username
         data['email'] = (self.fernet.encrypt(bytes(email,'utf-8')).decode(encoding='utf-8')) # the encrypted email, but it is less encrypted
@@ -206,10 +229,13 @@ class Database:
         data["feature-flags"] = {}
         data["api-keys"] = {}
         data["credits"] = 200
+
         self.__save_data(data)
+
         if(not emailInstance.send_verification(username,email,original_username)):
             l.warn("`create_user` Invalid email")
             return {"Error":True,"code":1003,"message":"Invalid email"}
+        
         return {"Error":False}
 
     @Session.requires_auth
