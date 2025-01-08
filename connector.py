@@ -376,3 +376,11 @@ def logout_session(session_id, ip:str) -> Response:
         status=200,
 
     )
+
+
+def create_invite(session_id, ip:str) -> Response:
+    session = Session(session_id,ip,database)
+    status = database.create_invite(session)
+    if status.get("Error"):
+        return Response(status=403)
+    return Response(status=200,mimetype="text/plain", response=status.get("invite-code"))

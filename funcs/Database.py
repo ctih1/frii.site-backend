@@ -12,6 +12,7 @@ from pymongo.database import Database as _Database
 from .Email import Email
 from .Session import Session
 from .Logger import Logger
+from .Utils import generate_random_string
 import os
 from dotenv import load_dotenv
 load_dotenv()
@@ -155,6 +156,21 @@ class Database:
         for result in results:
             emails.append(self.fernet.decrypt(str.encode(result["email"])).decode("utf-8"))
         return {"Error":False,"emails":emails}
+    
+    @Session.requires_auth
+    @Session.requires_permission(perm="invite")
+    def create_invite(self,session:Session):
+        invite_code:str = generate_random_string(16)
+
+        if len(self.get_data(session).get("invites",{})) >= 3:
+            return {"Error": True, "code": 1001, "message": "Invite codes used up."}
+        
+        self.collection.update_one(
+            {"_id":session.username},
+            {"$set": { f"invites.{invite_code}": {"used":False}}}
+        )
+
+        return {"Error":False, "invite-code":invite_code}
 
     @l.time
     def create_user(self,username: str, password: str, email: str, language: str, country, time_signed_up, emailInstance:'Email', invite_code:str) -> dict:
@@ -223,7 +239,7 @@ class Database:
         data['accessed-from'] = []
         data["created"] = time_signed_up
         data["last-login"] = time.time()
-        data["permissions"] = {"max-domains":3}
+        data["permissions"] = {"max-domains":3, "invite":False}
         data["verified"] = False
         data["domains"] = {}
         data["feature-flags"] = {}
@@ -335,7 +351,7 @@ class Database:
         return True
 
     @Session.requires_auth
-    def delete_account(self,username:Session, domain:'Domain') -> dict:
+    def delete_account(self,session:Session, domain:'Domain') -> dict:
         """Deletes account and domains associated WARNING: INNER FUNCTION. Call with `email.delete_user()`
 
         Args:

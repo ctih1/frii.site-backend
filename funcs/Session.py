@@ -142,9 +142,7 @@ class Session:
                     )
                 a = func(*args, **kwargs)
                 return a
-
             return inner
-
         return decorator
 
     @staticmethod
@@ -190,6 +188,7 @@ class Session:
         self.permissions: list = (
             self.__get_permimssions()
         )  # list of permissions (string) [admin, vulnerabilities, inbox, etc]
+
         self.flags: list = self.__get_flags()
 
     def __cache_data(self) -> dict | None:
@@ -227,7 +226,8 @@ class Session:
     def __get_permimssions(self):
         if not self.valid:
             return []
-        return self.user_cache_data["permissions"] 
+        
+        return [permission for permission in self.user_cache_data["permissions"] if self.user_cache_data["permissions"].get(permission,True) is not False]
     
     def __get_flags(self):
         if not self.valid:
@@ -285,6 +285,14 @@ class Session:
             "owner-hash"
         )  # optimize lookup times on get_active
         database.session_collection.insert_one(session) # places session into the database
+
+        database.collection.update_one(
+            {"$and":[{"_id":username}, {"permissions.invite":{"$exists":False}}]},
+            {"$set": {
+                "permissions.invite":True
+            }}
+        )
+
         UserManager(database, ip, username).start() # updates `last-login` and `accessed-from` fields of user
         return SessionCreateStatus(
             success=True, mfa_required=False, code=session_id

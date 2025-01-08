@@ -1,6 +1,8 @@
+# ruff: noqa: F405
+
 from flask import Flask, request, jsonify, url_for, Response
 from flask import render_template
-from connector import *
+from connector import * # noqa: F403
 import ipinfo
 import os
 from flask_cors import CORS, cross_origin
@@ -279,6 +281,10 @@ def create_2fa_():
 @app.route("/2fa/verify", methods=["POST"])
 def check_2fa_():
     return verify_2fa(request.headers.get("X-Auth-Username"), request.json.get("code"))
+
+@app.route("/invite", methods=["POST"])
+def create_invite_():
+   return create_invite(request.headers.get("X-Auth-Token"), request.access_route[-1])
 
 if(__name__=="__main__"):
   app.run(port=5123,debug=True)
