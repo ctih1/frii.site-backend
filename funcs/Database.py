@@ -171,6 +171,11 @@ class Database:
         )
 
         return {"Error":False, "invite-code":invite_code}
+    
+    @Session.requires_auth
+    @Session.requires_permission(perm="invite")
+    def get_invites(self,session:Session):
+        return self.get_data(session).get("invites",{})
 
     @l.time
     def create_user(self,username: str, password: str, email: str, language: str, country, time_signed_up, emailInstance:'Email', invite_code:str) -> dict:

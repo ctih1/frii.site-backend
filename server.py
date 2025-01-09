@@ -286,5 +286,9 @@ def check_2fa_():
 def create_invite_():
    return create_invite(request.headers.get("X-Auth-Token"), request.access_route[-1])
 
+@app.route("/invite/all", methods=["GET"])
+def get_invites_():
+   return get_invites(request.headers.get("X-Auth-Token"), request.access_route[-1])
+
 if(__name__=="__main__"):
   app.run(port=5123,debug=True)

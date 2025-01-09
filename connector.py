@@ -384,3 +384,9 @@ def create_invite(session_id, ip:str) -> Response:
     if status.get("Error"):
         return Response(status=403)
     return Response(status=200,mimetype="text/plain", response=status.get("invite-code"))
+
+
+def get_invites(session_id, ip:str) -> Response:
+    session = Session(session_id,ip,database)
+    status = database.get_invites(session)
+    return Response(status=200,mimetype="application/json", response=json.dumps(status))
