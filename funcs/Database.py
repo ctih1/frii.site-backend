@@ -239,6 +239,7 @@ class Database:
         data["feature-flags"] = {}
         data["api-keys"] = {}
         data["credits"] = 200
+        data["invite-code"] = invite_code
 
         
         self.collection.update_one(
