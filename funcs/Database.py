@@ -167,8 +167,10 @@ class Database:
         
         self.collection.update_one(
             {"_id":session.username},
-            {"$set": { f"invites.{invite_code}": {"used":False}}}
+            {"$set": { f"invites.{invite_code}": {"used":False, "used_by":None, "used_at":None, "created": round(time.time())}}}
         )
+
+        self.remove_from_cache(session.username)
 
         return {"Error":False, "invite-code":invite_code}
     
@@ -212,19 +214,6 @@ class Database:
         if invite_user["invites"][invite_code]["used"]:
             return {"Error":True, "code": 1004, "message": "Invite code already used"}
 
-        self.collection.update_one(
-            {
-                f"invites.{invite_code}":
-                    {"$exists":True}
-            },
-            {
-                "$set":{
-                    f"invites.{invite_code}.used":True,
-                    f"invites.{invite_code}.used_by": username
-                    }
-                }
-        )
-
         if self.__user_exists(username):
             l.warn("`create_user` Username is already in use")
             return {"Error":True,"code":1001,"message":"User already exists"}
@@ -251,7 +240,24 @@ class Database:
         data["api-keys"] = {}
         data["credits"] = 200
 
+        
+        self.collection.update_one(
+            {
+                f"invites.{invite_code}":
+                    {"$exists":True}
+            },
+            {
+                "$set":{
+                    f"invites.{invite_code}.used":True,
+                    f"invites.{invite_code}.used_by": username,
+                    f"invites.{invite_code}.used_at": round(time.time())
+                    }
+                }
+        )
+
         self.__save_data(data)
+
+
 
         if(not emailInstance.send_verification(username,email,original_username)):
             l.warn("`create_user` Invalid email")
