@@ -42,7 +42,7 @@ class Database:
         self.status_data = None
 
     @l.time
-    def check_database_for_domain(self,domain:str) -> bool:
+    # def check_database_for_domain(self,domain:str) -> bool:
         cursor:Cursor
         results_found:int=0
         cursor = self.collection.find({f"domains.{domain}":{"$exists":True}})
@@ -51,7 +51,7 @@ class Database:
         return results_found!=0
 
     @l.time
-    def __save_data(self,data: dict) -> None:
+    # def __save_data(self,data: dict) -> None:
         """
         Saves data to mongodb
         """
@@ -60,7 +60,7 @@ class Database:
 
 
     @l.time
-    def update_data(self,username: str, key: str, value: any) -> None:
+    # def update_data(self,username: str, key: str, value: any) -> None:
         self.collection.update_one(
             {"_id": username},
             {"$set":{key:value},},
@@ -70,14 +70,14 @@ class Database:
 
     @l.time
     @Session.requires_auth
-    def __delete_user_from_db(self,session:Session) -> bool:
+    #def __delete_user_from_db(self,session:Session) -> bool:
         self.remove_from_cache(session.username)
         self.collection.delete_one({"_id":session.username})
         return True
 
     @l.time
     @Session.requires_auth
-    def add_domain(self,session: Session, domain_name:str, domain:dict) -> bool:
+    #def add_domain(self,session: Session, domain_name:str, domain:dict) -> bool:
         l.info(f"Adding domain {domain_name} to user")
         self.remove_from_cache(session.username)
         self.collection.update_one({"_id":session.username},{"$set":{f"domains.{domain_name}":domain}})
@@ -85,7 +85,7 @@ class Database:
 
     @l.time
     @Session.requires_auth
-    def modify_domain(self,session:Session,domain: str, domain_data:dict) -> bool:
+    #def modify_domain(self,session:Session,domain: str, domain_data:dict) -> bool:
         domain = domain.replace(".","[dot]")
         l.info(f"Modifying domain {domain}")
         assert(domain!=None)
@@ -95,7 +95,7 @@ class Database:
 
     @l.time
     @Session.requires_auth
-    def get_data(self,session:Session) -> dict:
+    #def get_data(self,session:Session) -> dict:
         if(self.__get_cache(session) is not None):
             l.trace(f"Found user {session.username} in cache")
             return self.__get_cache(session)
@@ -112,7 +112,7 @@ class Database:
             raise IndexError("No matches for username.")
 
     @l.time
-    def __user_exists(self,username: str) -> bool:
+    #def __user_exists(self,username: str) -> bool:
         cursor:Cursor
         results:int=0
         cursor = self.collection.find({"_id":username})
