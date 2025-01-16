@@ -65,7 +65,7 @@ class Email():
 
 		email_hash:str = Encryption.sha256(processed_email+"supahcool")
 
-		return self.table.find_item({"email-hash":email_hash}) 
+		return self.table.find_item({"email-hash":email_hash}) is not None
 	
 
 	def send_verification_code(self,username:str, email:str) -> bool:

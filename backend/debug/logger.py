@@ -31,14 +31,6 @@ class Logger:
         }
         return values.get(importance,default)
 
-    def send_to_webhook(self,importance:str, message:str) -> None:
-        LogManager(
-            message = message,
-            webhook = Webhook(self.webhook, self.trace_url),
-            importance = importance,
-            filename = self.filename
-        ).start()
-
     def time_log(self,message:str) -> None:
         return
         self.trace(message)

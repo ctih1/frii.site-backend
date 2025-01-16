@@ -20,8 +20,9 @@ class Domains(General):
     def __init__(self, mongo_client):
         super().__init__(mongo_client)
 
-    
-    def clean_domain_name(self,input:str) -> str:
+
+    @staticmethod
+    def clean_domain_name(input:str) -> str:
         return input.replace(".","[dot]")
     
     def beautify_domain_name(self,input:str) -> str:
@@ -29,7 +30,7 @@ class Domains(General):
     
     
     def add_domain(self, target_user:str, domain:str, domain_data:DomainFormat) -> None:
-        cleaned_domain:str = self.clean_domain_name(domain)
+        cleaned_domain:str = Domains.clean_domain_name(domain)
 
         self.modify_document(
             {"_id":target_user},
@@ -48,7 +49,7 @@ class Domains(General):
             value:str|None=None,
             type:str|None=None,
         ) -> None:
-        cleaned_domain:str = self.clean_domain_name(domain)
+        cleaned_domain:str = Domains.clean_domain_name(domain)
 
         user_data:dict | None = self.find_item({"_id":target_user})
         if user_data is None:
@@ -72,7 +73,7 @@ class Domains(General):
         )
 
     def delete_domain(self, target_user:str, domain:str) -> None:
-        cleaned_domain = self.clean_domain_name(domain)
+        cleaned_domain = Domains.clean_domain_name(domain)
 
         self.remove_key({"_id":target_user},key=f"domains.{cleaned_domain}")
 
@@ -94,7 +95,7 @@ class Domains(General):
                 continue
 
             if "." in domain:
-                updated_domains[self.clean_domain_name(domain)] = domains[domain]
+                updated_domains[Domains.clean_domain_name(domain)] = domains[domain]
                 fixed_domains += 1
             else:
                 updated_domains[domain] = domains[domain]
@@ -102,7 +103,7 @@ class Domains(General):
             domain_id: str | None = domains[domain]["id"]
             
             if not domain_id:
-                broken_id[self.clean_domain_name(domain)] = domains[domain]
+                broken_id[Domains.clean_domain_name(domain)] = domains[domain]
 
         return {
             "fixed": fixed_domains,
