@@ -10,6 +10,8 @@ import base64
 from cryptography import fernet
 import pyotp
 from database.table import Table
+from database.tables.general import General
+from database.tables.general import UserType
 from security.encryption import Encryption
 from debug.logger import Logger
 
@@ -26,7 +28,7 @@ class SessionFlagError(Exception):
     success:bool
 
 SessionCreateStatus = TypedDict(
-    "SessionCreateStatus", { "success":bool, "mfa_required":bool, "code":str }
+    "SessionCreateStatus", { "success":bool, "mfa_required":bool, "code":str | None }
 )
 
 SESSION_TOKEN_LENGTH: int = 32
@@ -54,10 +56,10 @@ class UserManager(threading.Thread):
 
 class Session:
     @staticmethod
-    def find_session_instance(args:tuple, kwargs:dict) -> Session:
+    def find_session_instance(args:tuple, kwargs:dict) -> Session | None:
         """Finds session from args or kwargs.
         """
-        target: Session = None
+        target: Session | None = None
         if kwargs.get("session") is not None:
             target = kwargs.get("session")  # type: ignore
         else:
@@ -184,7 +186,7 @@ class Session:
         self.valid: bool = self.__is_valid()
         self.username: str = self.__get_username()
 
-        self.user_cache_data: dict = self.__user_cache()
+        self.user_cache_data: UserType = self.__user_cache()
         self.permissions: list = self.__get_permimssions()
         self.flags: list = self.__get_flags()
 
@@ -217,9 +219,10 @@ class Session:
         return data
 
     def __get_username(self) -> str:
-        if not self.valid:
+        if not self.valid or self.session_data is None:
             return ""
-        
+
+
         return self.encryption.decrypt(self.session_data["username"])
     
     def __get_permimssions(self):
@@ -244,7 +247,7 @@ class Session:
         for session in self.session_table.find_items({"owner-hash": owner_hash}):
             session_list.append(
                 {
-                    "user_agent": session["user-agent"],
+                    "user-agent": session["user-agent"],
                     "ip": session["ip"],
                     "expire": session["expire"].timestamp(),
                     "hash": session["_id"],

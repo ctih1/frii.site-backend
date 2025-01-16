@@ -1,16 +1,35 @@
-from database.tables.general import General
+from typing import TypedDict, Dict, List
+from typing_extensions import NotRequired
+from database.tables.general import General, UserType
+
+DomainFormat = TypedDict("DomainFormat", {
+    "ip":str, # "value" of the DNS record, stupid naming
+    "registered": int, # Epoch timestamp
+    "type": str, # A, CNAME, NS, TXT
+    "id": str # Domain record id on cloudflare
+})
+
+RepairFormat = TypedDict("RepairFormat", {
+    "fixed": int,
+    "skipped": int,
+    "duplicates": int,
+    "broken-id": NotRequired[Dict[str,DomainFormat]]
+})
 
 class Domains(General):
     def __init__(self, mongo_client):
         super().__init__(mongo_client)
 
     
-    def __clean_domain_name(self,input:str) -> str:
+    def clean_domain_name(self,input:str) -> str:
         return input.replace(".","[dot]")
     
+    def beautify_domain_name(self,input:str) -> str:
+        return input.replace("[dot]",".")
     
-    def add_domain(self, target_user:str, domain:str, domain_data:dict) -> bool:
-        cleaned_domain:str = self.__clean_domain_name(domain)
+    
+    def add_domain(self, target_user:str, domain:str, domain_data:DomainFormat) -> None:
+        cleaned_domain:str = self.clean_domain_name(domain)
 
         self.modify_document(
             {"_id":target_user},
@@ -19,21 +38,24 @@ class Domains(General):
             value=domain_data
         )
 
+    def get_domains(self,target_user:str) -> DomainFormat:
+        return self.find_item(target_user)["domains"]
+
     def modify_domain(
             self,
             target_user:str,
             domain:str,
-            value:str=None,
-            type:str=None,
+            value:str|None=None,
+            type:str|None=None,
         ) -> None:
-        cleaned_domain:str = self.__clean_domain_name(domain)
+        cleaned_domain:str = self.clean_domain_name(domain)
 
         user_data:dict | None = self.find_item({"_id":target_user})
         if user_data is None:
             raise ValueError("Failed to find user")
         
         
-        domain_data:dict = user_data["domains"][cleaned_domain]
+        domain_data:DomainFormat = user_data["domains"][cleaned_domain]
 
         domain_data = {
             "ip": value or domain_data["ip"] ,
@@ -50,6 +72,43 @@ class Domains(General):
         )
 
     def delete_domain(self, target_user:str, domain:str) -> None:
-        cleaned_domain = self.__clean_domain_name(domain)
+        cleaned_domain = self.clean_domain_name(domain)
 
         self.remove_key({"_id":target_user},key=f"domains.{cleaned_domain}")
+
+    
+    def repair_domains(self, domains:Dict[str,DomainFormat]) -> RepairFormat:
+        """Repairs domains with . in their name, non destructive action
+        """
+
+        updated_domains: Dict[str,DomainFormat] = {}
+        fixed_domains: int = 0
+        domain_offset: int = 0
+        broken_id: Dict[str,DomainFormat] = {}
+
+        for domain in domains.copy():
+            domain:str = domain
+
+            if domain.replace(".","[dot]") in updated_domains:
+                domain_offset += 1
+                continue
+
+            if "." in domain:
+                updated_domains[self.clean_domain_name(domain)] = domains[domain]
+                fixed_domains += 1
+            else:
+                updated_domains[domain] = domains[domain]
+
+            domain_id: str | None = domains[domain]["id"]
+            
+            if not domain_id:
+                broken_id[self.clean_domain_name(domain)] = domains[domain]
+
+        return {
+            "fixed": fixed_domains,
+            "duplicates": domain_offset,
+            "skipped": len(domains) - fixed_domains - domain_offset,
+            "broken-id": broken_id
+        }
+
+        

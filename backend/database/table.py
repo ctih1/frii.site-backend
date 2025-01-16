@@ -1,10 +1,11 @@
 import os
-from typing import Dict, List
+from typing import Dict, List, Any
 from dotenv import load_dotenv
 from pymongo import MongoClient
 from pymongo.collection import Collection
 from pymongo.cursor import Cursor
 from pymongo.database import Database
+from database.exceptions import FilterMatchError
 
 
 class Table:
@@ -14,11 +15,11 @@ class Table:
         self.db:Database = self.cluster["database"]
         self.table:Collection = self.db[table_name]
 
-    def find_item(self,filter:Dict[str,any]) -> str | int | float | dict | list | None:
-        result:dict = self.table.find_one(filter) # Not simply returning the result in case we need to do something in the future
+    def find_item(self,filter:Dict[str,Any]) -> str | int | float | dict | list | None:
+        result:dict | None = self.table.find_one(filter) # Not simply returning the result in case we need to do something in the future
         return result
 
-    def find_items(self,filter:Dict[str,any]) -> List[dict]:
+    def find_items(self,filter:Dict[str,Any]) -> List[dict]:
         cursor:Cursor = self.table.find(filter) 
         return [item for item in cursor]
     
@@ -30,17 +31,20 @@ class Table:
         self.table.insert_one(document)
 
     def modify_document(
-            self, filter:Dict[str,any],
+            self, filter:Dict[str,Any],
             operation:str,
             key:str,
-            value:any, 
+            value:Any, 
             create_if_not_exist:bool=False
     ) -> None:
-        self.table.update_one(
+        result = self.table.update_one(
             filter,
             {operation: {key:value}},
             upsert=create_if_not_exist
         ) 
+
+        if result.matched_count == 0:
+            raise FilterMatchError("Filter didn't match anything")
 
     def create_index(self, key:str) -> None:
         self.table.create_index(key)
@@ -48,12 +52,12 @@ class Table:
     def delete_in_time(self, date_key:str) -> None:
         self.table.create_index(date_key, expireAfterSeconds=1)
 
-    def delete_document(self, filter:Dict[str,any]) -> None:
+    def delete_document(self, filter:Dict[str,Any]) -> None:
         self.table.delete_one(filter)
 
-    def delete_many(self, filter:Dict[str,any]) -> None:
+    def delete_many(self, filter:Dict[str,Any]) -> None:
         self.table.delete_many(filter)
 
-    def remove_key(self,filter:Dict[str,any], key:str) -> None:
+    def remove_key(self,filter:Dict[str,Any], key:str) -> None:
         self.table.update_one(filter,{"$unset":{ key, "" }})
 

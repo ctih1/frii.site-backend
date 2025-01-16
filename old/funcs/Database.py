@@ -121,7 +121,7 @@ class Database:
         return results!=0
 
     @l.time
-    def __email_taken(self,email:str) -> bool:
+    #def __email_taken(self,email:str) -> bool:
         p_email = email.replace("+","@")
         p_email = p_email.split("@")
         p_email = f"{p_email[0]}@{p_email[-1]}" # to avoid duplicate domains (test@tld, test+5@tld...)
@@ -136,7 +136,7 @@ class Database:
 
     @Session.requires_auth
     @Session.requires_permission(perm="userdetails")
-    def admin_get_basic_data(self,session:Session,id:str) -> dict:
+    #def admin_get_basic_data(self,session:Session,id:str) -> dict:
         raw_data:dict = self.collection.find_one(id)
         return {
             "Error":False,
@@ -150,7 +150,7 @@ class Database:
 
     @Session.requires_auth
     @Session.requires_permission(perm="userdetails")
-    def admin_get_emails(self,session:Session,condition:dict) -> dict:
+    #def admin_get_emails(self,session:Session,condition:dict) -> dict:
         results = self.collection.find(condition)
         emails:list=[]
         for result in results:
@@ -159,7 +159,7 @@ class Database:
     
     @Session.requires_auth
     @Session.requires_permission(perm="invite")
-    def create_invite(self,session:Session):
+    #def create_invite(self,session:Session):
         invite_code:str = generate_random_string(16)
 
         if len(self.get_data(session).get("invites",{})) >= 3:
@@ -176,11 +176,11 @@ class Database:
     
     @Session.requires_auth
     @Session.requires_permission(perm="invite")
-    def get_invites(self,session:Session):
+    #def get_invites(self,session:Session):
         return self.get_data(session).get("invites",{})
 
     @l.time
-    def create_user(self,username: str, password: str, email: str, language: str, country, time_signed_up, emailInstance:'Email', invite_code:str) -> dict:
+    #def create_user(self,username: str, password: str, email: str, language: str, country, time_signed_up, emailInstance:'Email', invite_code:str) -> dict:
         """Creates a new user
 
         Args:
@@ -267,13 +267,13 @@ class Database:
         return {"Error":False}
 
     @Session.requires_auth
-    def get_gpdr(self,session:Session):
+    #def get_gpdr(self,session:Session):
         a = self.get_data(session)
         return {"user_id":a["_id"],"location":a["country"],"creation_date":a["created"],"domains":a["domains"],"lang":a["lang"],"last_login":a["last-login"],"permissions":a["permissions"],"verified":a["verified"]}
 
     @l.time
     @Session.requires_auth
-    def get_basic_user_data(self,session:Session) -> dict:
+    #def get_basic_user_data(self,session:Session) -> dict:
         """Gets the basic userdate
 
         Args:
@@ -397,19 +397,19 @@ class Database:
 
     @l.time
     @Session.requires_auth
-    def join_beta(self,session:Session) -> bool:
+    #def join_beta(self,session:Session) -> bool:
         self.collection.update_one({"_id":session.username},{"$set":{"beta-enroll":True}})
         self.collection.update_one({"_id":session.username},{"$set":{"beta-updated":time.time()}})
         return True
 
     @l.time
     @Session.requires_auth
-    def leave_beta(self, session:Session) -> bool:
+    #def leave_beta(self, session:Session) -> bool:
         self.collection.update_one({"_id":session.username},{"$set":{"beta-enroll":False}})
         self.collection.update_one({"_id":session.username},{"$set":{"beta-updated":time.time()}})
         return True
 
-    def __get_status_data(self):
+    #def __get_status_data(self):
         if(self.status_data is None or self.status_data.get("expire",0) < time.time()):
             data = self.status_collection.find_one({"_id":"current"})
             if(data is None): return None
@@ -418,17 +418,17 @@ class Database:
             return data
         else: return self.status_data
 
-    def get_status(self) -> dict:
+    #def get_status(self) -> dict:
         data = self.__get_status_data()
         if(data is None): return {"reports":False}
         else: return {"reports":True, "message":data.get("message","We are experiencing heavy traffic. Features may not work correctly")}
 
-    def delete_domain(self,domain:str, username:str) -> None:
+    #def delete_domain(self,domain:str, username:str) -> None:
         l.info(f"Deleting domain {domain} from user {username} from the database")
         self.collection.update_one({"_id":username}, {"$unset":{f"domains.{domain.replace('.','[dot]')}":1}})
 
     @Session.requires_auth
-    def repair_domains(self, domainInstance:'Domain', session:Session) -> bool:
+    #def repair_domains(self, domainInstance:'Domain', session:Session) -> bool:
         """Repairs domains (.) in the database, and converts them to [dot]
         Non destructive action.
 

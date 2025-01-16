@@ -1,8 +1,8 @@
 import os
 import time
 from typing import List
-import resend
-import resend.exceptions
+import resend # type:ignore[import-untyped]
+import resend.exceptions # type:ignore[import-untyped]
 from database.tables.codes import Codes
 from database.tables.general import General
 from security.encryption import Encryption

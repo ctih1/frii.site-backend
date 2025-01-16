@@ -6,3 +6,9 @@ class EmailException(Exception):
 
 class UsernameException(Exception):
     pass
+
+class UserNotExistError(Exception):
+    pass
+
+class FilterMatchError(Exception):
+    pass

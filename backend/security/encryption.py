@@ -14,11 +14,11 @@ class Encryption:
     
     @staticmethod
     def create_password(plain_password:str) -> str:
-        bcrypt.hashpw(plain_password.encode("utf-8"), bcrypt.gensalt()).decode(encoding='utf-8')
+        return bcrypt.hashpw(plain_password.encode("utf-8"), bcrypt.gensalt()).decode(encoding='utf-8')
 
     @staticmethod
     def check_password(encrypted_password:str, target_hash:str) -> bool:
-        return bcrypt.checkpw(encrypted_password.encode("utf-8"), target_hash)
+        return bcrypt.checkpw(encrypted_password.encode("utf-8"), target_hash.encode("utf-8"))
 
     @staticmethod
     def generate_random_string(length:int) -> str:
