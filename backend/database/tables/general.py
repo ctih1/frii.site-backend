@@ -76,7 +76,7 @@ UserType = TypedDict("UserType", {
 
 
 class General(Table):
-    def __init__(self, mongo_client: MongoClient) -> None:
+    def __init__(self, mongo_client: MongoClient) -> str:
         super().__init__(mongo_client, "frii.site")
         self.encryption:Encryption = Encryption(os.getenv("ENC_KEY"))
 
@@ -126,19 +126,11 @@ class General(Table):
             "invite-code": invite_code
         }
 
-        self.table.update_one(
-            {f"invites.{invite_code}":{"$exists":True}},
-            {"$set":{
-                    f"invites.{invite_code}.used":True,
-                    f"invites.{invite_code}.used_by": username,
-                    f"invites.{invite_code}.used_at": round(time.time())
-                }
-            }
-        )
-
         self.insert_document(account_data)
         if not email_instance.send_verification_code(username,email,original_username):
             raise EmailException("Email already in use!")
+        
+        return hashed_username
 
 
     def create_invite(self,user_id:str) -> str:
