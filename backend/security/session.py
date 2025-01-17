@@ -1,6 +1,5 @@
 from __future__ import annotations
-from typing import TypedDict
-from typing import List
+from typing import TypedDict, List, TYPE_CHECKING
 import os
 from enum import Enum
 import threading
@@ -10,10 +9,13 @@ import base64
 from cryptography import fernet
 import pyotp
 from database.table import Table
-from database.tables.general import General
-from database.tables.general import UserType
 from security.encryption import Encryption
 from debug.logger import Logger
+
+if TYPE_CHECKING:
+    from database.tables.general import General
+    from database.tables.general import UserType
+    from database.tables.sessions import Sessions
 
 l:Logger = Logger("session.py")
 
@@ -40,9 +42,9 @@ SessionType = TypedDict(
 
 class UserManager(threading.Thread):
     # a thread to track user data (for security)
-    def __init__(self, general:Table, ip, username):
+    def __init__(self, general:General, ip, username):
         super(UserManager, self).__init__()
-        self.table: Table = general
+        self.table: General = general
         self.daemon = True
         self.ip = ip
         self.username = username
@@ -168,15 +170,15 @@ class Session:
             return inner
         return decorator
 
-    def __init__(self, session_id: str, ip: str, general: Table, session: Table) -> None:
+    def __init__(self, session_id: str, ip: str, general: General, session: Sessions) -> None:
         """Creates a Session object.
         Arguements:
             session_id: The id of the session string of length SESSION_TOKEN_LENGHT. Usually found in X-Auth-Token header.
             ip: The request's ip
             database: Instance of the database class
         """
-        self.session_table:Table = session
-        self.general_table:Table = general
+        self.session_table:Sessions = session
+        self.general_table:General = general
         self.encryption: Encryption = Encryption(os.getenv("ENC_KEY"))
 
         self.id: str = session_id
@@ -256,15 +258,21 @@ class Session:
         return session_list
 
     @staticmethod
-    def create(username: str, ip: str, user_agent: str, general: Table, session_table:Table) -> SessionCreateStatus:
-        """Does NOT check password validity. Creates a new session for user.
-
-        Arguements:
-            username: SHA256 hash of username
-            ip: the ip used to make the request
-            user_agent: the user agent of the request
-            database: instance of database class
+    def create(username: str, ip: str, user_agent: str, general: General, session_table:Sessions) -> SessionCreateStatus:
         """
+        Creates a new session for the given user.
+        Args:
+            username (str): The username of the user.
+            ip (str): The IP address of the user.
+            user_agent (str): The user agent string of the user's browser.
+            general (General): An instance of the General class for database operations.
+            session_table (Sessions): An instance of the Sessions class for session management.
+        Returns:
+            SessionCreateStatus: An object indicating the success of the session creation, 
+                                    whether multi-factor authentication (MFA) is required, 
+                                    and the session ID if successful.
+        """
+
 
 
 
@@ -295,7 +303,8 @@ class Session:
                 },
             key="permission.invite",
             value=True,
-            operation="$set"
+            operation="$set",
+            ignore_no_matches=True
         )
         
         UserManager(general, ip, username).start() # updates `last-login` and `accessed-from` fields of user

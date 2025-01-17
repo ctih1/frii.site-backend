@@ -2,12 +2,13 @@ from typing import TypedDict, Dict, List
 from typing_extensions import NotRequired
 from database.tables.general import General, UserType
 
-DomainFormat = TypedDict("DomainFormat", {
-    "ip":str, # "value" of the DNS record, stupid naming
-    "registered": int, # Epoch timestamp
-    "type": str, # A, CNAME, NS, TXT
-    "id": str # Domain record id on cloudflare
-})
+
+class DomainFormat(TypedDict):
+    ip: str
+    registered: int
+    type: str
+    id:str 
+
 
 RepairFormat = TypedDict("RepairFormat", {
     "fixed": int,

@@ -4,8 +4,7 @@ import json
 from pymongo import MongoClient
 from database.tables.domains import Domains, RepairFormat, DomainFormat
 from dns.exceptions import DNSException
-
-
+from dns.validation import Validation
 
 class DNS:
     def __init__(self, mongo_client:MongoClient):
@@ -39,6 +38,19 @@ class DNS:
 
         # id is always string or none
         return request.json().get("result",[{}])[0].get("id") # type: ignore[no-any-return]
+    
+    def get_domain_attributes(self, raw_domain:str) -> dict:
+        request = requests.get(
+            f"""https://api.cloudflare.com/client/v4
+            /zones/{self.zone_id}
+            /dns_records?name={raw_domain + '.frii.site'}""",
+            headers={
+                    "Authorization": f"Bearer {self.key}",
+                    "X-Auth-Email": self.email
+               }
+        ) 
+        return request.json()
+         
 
 
     def modify_domain(self, domain_id:str, content:str, type:str, domain:str,comment:str) -> str:
@@ -170,5 +182,6 @@ class DNS:
                 key=f"domains.{name}.id",
                 value=id
             )
+
 
             

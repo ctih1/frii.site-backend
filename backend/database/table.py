@@ -35,7 +35,8 @@ class Table:
             operation:str,
             key:str,
             value:Any, 
-            create_if_not_exist:bool=False
+            create_if_not_exist:bool=False,
+            ignore_no_matches:bool=False
     ) -> None:
         result = self.table.update_one(
             filter,
@@ -43,7 +44,7 @@ class Table:
             upsert=create_if_not_exist
         ) 
 
-        if result.matched_count == 0:
+        if result.matched_count == 0 and not ignore_no_matches:
             raise FilterMatchError("Filter didn't match anything")
 
     def create_index(self, key:str) -> None:

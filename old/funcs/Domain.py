@@ -115,7 +115,7 @@ class Domain:
 
     @l.time
     @Session.requires_auth
-    def delete_domain(self,session:Session, domain: str) -> int:
+    #def delete_domain(self,session:Session, domain: str) -> int:
         """Deletes specified domain
 
         Returns:
@@ -172,7 +172,7 @@ class Domain:
         l.trace(f"User {session.username} has no domains")
         return {"Error":True,"code":1002,"message":"No domains"}
 
-    def check_domain(self,domain: str, domains:dict={}, type_: str = "A") -> int:
+   # def check_domain(self,domain: str, domains:dict={}, type_: str = "A") -> int:
         """Checks if domain is valid, and not in use
 
         Checks:
@@ -246,7 +246,7 @@ class Domain:
 
 
     @Session.requires_auth
-    def modify(self,database: 'Database', domain: str, session:Session, new_content: str, type_:str, proxied:bool=False) -> dict:
+    #def modify(self,database: 'Database', domain: str, session:Session, new_content: str, type_:str, proxied:bool=False) -> dict:
         """Modify a domain
 
         Args:

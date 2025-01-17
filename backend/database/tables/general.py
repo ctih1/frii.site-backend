@@ -1,17 +1,20 @@
 import os
 import time
-from typing import TypedDict, List, Dict
-from typing_extensions import NotRequired
+from typing import TypedDict, List, Dict, TYPE_CHECKING
+from typing_extensions import NotRequired, Required
 from pymongo import MongoClient
 from database.table import Table
-from database.tables.domains import DOMAIN_FORMAT
 from database.exceptions import (
     InviteException, EmailException,
     UsernameException, UserNotExistError
 )
 
-from email.email import Email
+from mail.email import Email
 from security.encryption import Encryption
+
+if TYPE_CHECKING:
+    from database.tables.domains import DomainFormat
+
 class CountryType(TypedDict):
     ip:str
     hostname:str
@@ -61,7 +64,7 @@ UserType = TypedDict("UserType", {
     "last-login": int, # Epoch timestamp 
     "permissions": dict,
     "verified": bool,
-    "domains": DOMAIN_FORMAT,
+    "domains": Required['DomainFormat'],
     "feature-flags": NotRequired[Dict[str,bool]],
     "api-keys": NotRequired[Dict],
     "credits": NotRequired[int],

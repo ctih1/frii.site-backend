@@ -1,12 +1,14 @@
 import os
 import time
-from typing import List
+from typing import List, TYPE_CHECKING
 import resend # type:ignore[import-untyped]
 import resend.exceptions # type:ignore[import-untyped]
-from database.tables.codes import Codes
-from database.tables.general import General
 from security.encryption import Encryption
 from debug.logger import Logger
+
+if TYPE_CHECKING:
+	from database.tables.codes import Codes
+	from database.tables.general import General
 
 verify_template = """
 <head>
@@ -51,10 +53,10 @@ recovery_template = """
 
 l:Logger = Logger("email.py")
 
-class Email():
-	def __init__(self, mongo_client):
-		self.table:Codes = Codes(mongo_client)
-		self.general:General = General(mongo_client)
+class Email:
+	def __init__(self, codes:'Codes', general:'General'):
+		self.table:Codes = codes
+		self.general:General = general
 		self.encryption:Encryption = Encryption(os.getenv("ENC_KEY"))
 		resend.api_key = os.getenv("RESEND_KEY")
 
