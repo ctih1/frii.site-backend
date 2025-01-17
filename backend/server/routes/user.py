@@ -7,7 +7,7 @@ from database.tables.general import General, UserType
 from database.tables.sessions import Sessions
 from security.encryption import Encryption
 from security.session import Session, SessionCreateStatus, SESSION_TOKEN_LENGTH
-
+from server.routes.models.user import SignUp
 class User:
     def __init__(self,table:General, session_table: Sessions) -> None:
         self.table:General = table
@@ -54,4 +54,7 @@ class User:
             return JSONResponse({"auth-token":session_status["code"]})
         
         
+    def sign_up(self, request:Request, body: SignUp):
+        
+        self.table.create_user()
 
