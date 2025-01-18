@@ -37,6 +37,7 @@ SessionCreateStatus = TypedDict(
 
 SESSION_TOKEN_LENGTH: int = 32
 
+
 SessionType = TypedDict(
     "SessionType", {"user-agent": str, "ip": str, "expire": int, "hash": str}
 )
@@ -352,14 +353,13 @@ class Session:
 
         return pyotp.totp.TOTP(decrypted_key).verify(code)
 
-    def clear_sessions(self):
+    @staticmethod
+    def clear_sessions(user_id:str, session_table:Sessions):
         """Deletes every sesion that user has. Used mainly for resetting the password
         """
-        if not self.valid:
-            return False
-        
-        self.session_table.delete_many({
-            "owner-hash": Encryption.sha256(self.username+"frii.site")
+
+        session_table.delete_many({
+            "owner-hash": Encryption.sha256(user_id+"frii.site")
         })
 
         return True

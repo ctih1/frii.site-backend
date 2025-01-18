@@ -124,36 +124,36 @@ def get_user_info_():
 
 @limiter.rate_limit(limit=25,period=3*60)
 @app.route("/get-domains", methods=["GET"])
-def get_domains_():
+#def get_domains_():
   token_ = request.headers.get("X-Auth-Token")
   return get_domains(token_,request.access_route[-1])
 
 @limiter.rate_limit(limit=9,period=120)
 @app.route("/is-verified", methods=["GET"])
-def is_verified_():
+## def is_verified_():
   token_ = request.headers.get("X-Auth-Token")
   return is_verified(token_,request.access_route[-1])
 
 @limiter.rate_limit(limit=9,period=120)
 @app.route("/delete-domain",methods=["DELETE"])
-def delete_domain_():
+#def delete_domain_():
   token = request.headers.get("X-Auth-Token")
   domain = request.json.get("domain")
   return delete_domain(token, domain,request.access_route[-1])
 
 @limiter.rate_limit(limit=3,period=10*60)
 @app.route("/delete-user",methods=["DELETE"])
-def delete_user_():
+d#ef delete_user_():
   token_ = request.headers.get("X-Auth-Token")
   return delete_user(token_,request.access_route[-1])
 
 @app.route("/account-deletion/<string:Code>")
-def account_deletion_(Code):
+#def account_deletion_(Code):
   return account_deletion(Code)
 
 @limiter.rate_limit(limit=1,period=30)
 @app.route("/resend-email", methods=["GET"])
-def resend_email_():
+#def resend_email_():
   return resend_email(request.headers.get("X-Auth-Username"))
 
 @limiter.rate_limit(limit=3, period=120*60)

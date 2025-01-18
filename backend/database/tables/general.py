@@ -1,9 +1,11 @@
 import os
 import time
-from typing import TypedDict, List, Dict, TYPE_CHECKING
-from typing_extensions import NotRequired, Required
+from typing import List, Dict, TYPE_CHECKING
+from typing_extensions import NotRequired, Required, TypedDict
 from pymongo import MongoClient
 from database.table import Table
+import datetime
+
 from database.exceptions import (
     InviteException, EmailException,
     UsernameException, UserNotExistError
@@ -11,9 +13,12 @@ from database.exceptions import (
 
 from mail.email import Email
 from security.encryption import Encryption
+from security.session import SessionType
 
 if TYPE_CHECKING:
     from database.tables.domains import DomainFormat
+    from database.tables.sessions import Sessions as SessionTable
+
 
 class CountryType(TypedDict):
     ip:str
@@ -47,7 +52,9 @@ UserPageType = TypedDict("UserPageType", {
     "created":int,
     "verified":bool,
     "permissions":Dict[str,bool],
-    "beta-enroll":bool
+    "beta-enroll":bool,
+    "sessions": List[SessionType],
+    "invites": Dict[str,InviteType]
 })
 
 UserType = TypedDict("UserType", {
@@ -185,7 +192,7 @@ class General(Table):
             }
     
     
-    def get_user_profile(self, user_id:str) -> UserPageType:
+    def get_user_profile(self, user_id:str, session_table: 'SessionTable') -> UserPageType:
         user_data: UserType | None = self.find_item({"_id":user_id})
 
         if user_data is None:
@@ -196,10 +203,12 @@ class General(Table):
             "email": self.encryption.decrypt(user_data["email"]),
             "lang": user_data["lang"],
             "country": user_data["country"],
-            "created": user_data["created"],
+            "created": user_data["created"],    
             "verified": user_data["verified"],
             "permissions": user_data.get("permissions",{}),
-            "beta-enroll": user_data.get("beta-enroll",False)
+            "beta-enroll": user_data.get("beta-enroll",False),
+            "sessions": [{k:(round(v.timestamp()) if isinstance(v,datetime.datetime) else v) for k,v in session.items()} for session in session_table.find_items({"owner-hash": Encryption.sha256(user_id+"frii.site")})], # conversts datetime object of expire date in db to linux epoch int. fastapi's json encoder doesnt like datetime objects
+            "invites": user_data.get("invites",{})  
         }
 
     def change_beta_enrollment(self, user_id:str, mode:bool=False) -> None:

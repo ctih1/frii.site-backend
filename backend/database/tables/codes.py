@@ -74,12 +74,12 @@ class Codes(Table):
             }
             local_code = self.deletion_codes
         
-        elif type == "recover":
+        elif type == "recovery":
             if target_username is None:
                 raise ValueError("target_username must be specified for recovery")
             
             self.recovery_codes[code] = {
-                "account": target_session,
+                "account": self.encryption.encrypt(target_username),
                 "expire": round(time.time()) + EXPIRE_TIME
             }
             local_code = self.recovery_codes
@@ -108,7 +108,7 @@ class Codes(Table):
             code_result = self.deletion_codes.get(code)
 
         elif type == "recovery":
-            code_result = self.deletion_codes.get(code)
+            code_result = self.recovery_codes.get(code)
 
         if code_result is None:
             return {"valid":False}

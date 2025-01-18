@@ -21,7 +21,7 @@ from mail.email import Email
 
 from dns_.dns import DNS
 
-from server.routes.models.user import SignUp
+from server.routes.models.user import SignUp, PasswordReset
 
 converter:Convert = Convert()
 class User:
@@ -133,10 +133,32 @@ class User:
             status_code=200,
             tags=["account"]
         )
-        
-        
-        
-        
+
+                
+        self.router.add_api_route(
+            "/recovery/send",
+            self.send_recovery_link,
+            methods=["POST"],
+            responses={
+                200: {"description": "Email sent"}
+            },
+            status_code=200,
+            tags=["account"]
+        )
+
+        self.router.add_api_route(
+            "/recovery/verify",
+            self.reset_password,
+            methods=["POST"],
+            responses={
+                200: {"description": "Email sent"},
+                403: {"description": "Invalid code"},
+                404: {"description": "User not found"}
+            },
+            status_code=200,
+            tags=["account"]
+        )
+    
 
     def login(self,request:Request):
         login_token:List[str] = request.headers.get("X-Auth-Request").split("|")
@@ -161,13 +183,14 @@ class User:
         )
 
         if session_status["mfa_required"]:
-            if not request.headers.get("X-MFA-Code"): raise HTTPException(status=412, detail="MFA required")
+            if not request.headers.get("X-MFA-Code"):
+                raise HTTPException(status=412, detail="MFA required")
         
         if session_status["success"]:
             return JSONResponse({"auth-token":session_status["code"]})
         
 
-    def sign_up(self, request:Request, body: SignUp):
+    def sign_up(self, request:Request, body: SignUp) -> None:
         if not self.invites.is_valid(body.invite):
             raise HTTPException(status_code=400, detail="Invite not valid")
         
@@ -190,9 +213,11 @@ class User:
             return HTTPException(status_code=409, detail="Username already in use")
         self.invites.use(user_id,body.invite)
 
+
     @Session.requires_auth
     def get_settings(self, session:Session = Depends(converter.create)) -> UserPageType:
-        return JSONResponse(self.table.get_user_profile(session.username))
+        return JSONResponse(self.table.get_user_profile(session.username,self.session_table))
+    
 
     def resend_verification(self, user_id:str):
         self.codes.create_code("verification",user_id)
@@ -253,4 +278,32 @@ class User:
         self.table.delete_document(
             {"_id":user_id}
         )
+
+    def send_recovery_link(self, username:str): # username being a plaintext string 
+        self.email.send_password_code(username)
+
+    def reset_password(self, body: PasswordReset) -> None:
+        code_status:CodeStatus = self.codes.is_valid(body.code,"recovery")
+
+        if not code_status["valid"]:
+            raise HTTPException(status_code=403, detail="Invalid code")
+        
+        password:str = self.encryption.create_password(body.hashed_password)
+        username:str = code_status["account"]
+        print(username)
+
+        Session.clear_sessions(username,self.session_table)
+
+        try:
+            self.table.modify_document(
+                {"_id":username},
+                "$set",
+                "password",
+                password
+                )
+        except FilterMatchError:
+            raise HTTPException(status_code=404,detail="Invalid user")
+        
+        
+        
         

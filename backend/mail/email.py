@@ -54,7 +54,7 @@ class Email:
 				"from": "send@frii.site",
 				"to": email,
 				"subject": "Verify your account",
-				"html": verify_template.replace("{code}",code),
+				"html": verify_template.replace("{{link}}",f"https://www.frii.site/verify/{code}"),
 				"text": f"Go to https://www.frii.site/verify/{code} to verify your account"
 			})
 		except resend.exceptions.ResendError as e:
@@ -92,7 +92,7 @@ class Email:
 				"from": "send@frii.site",
 				"to": email,
 				"subject": "Account deletion",
-				"html": deletion_template.replace("{code}",code),
+				"html": deletion_template.replace("{{link}}",f"https://www.frii.site/verify/{code}"),
 				"text": f"Go to https://www.frii.site/verify/{code} to verify your account"
 			})
 		except resend.exceptions.ResendError as e:
@@ -118,7 +118,7 @@ class Email:
 				"from": "send@frii.site",
 				"to": user_email,
 				"subject": "Password recovery",
-				"html": recovery_template.replace("{link}","https://www.frii.site/verify/code")
+				"html": recovery_template.replace("{{link}}",f"https://www.frii.site/account/recover?c={code}")
 			})
 		except resend.exceptions.ResendError as e:
 			l.error(f"Failed to send email to {username}, error {e}")
