@@ -3,6 +3,7 @@ from time import time
 from fastapi import APIRouter, Request
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
+from database.exceptions import EmailException, UsernameException
 from database.table import Table
 from database.tables.general import General, UserType
 from database.tables.invitation import Invites
@@ -40,6 +41,8 @@ class User:
             responses={
                 200: {"description":"Sign up succesfull"},
                 400: {"description": "Invalid invite"},
+                422: {"description": "Email is already in use"},
+                409: {"description": "Username is already in use"},
             },
             status_code=200
         )
@@ -79,17 +82,21 @@ class User:
         if not self.invites.is_valid(body.invite):
             raise HTTPException(status_code=400, detail="Invite not valid")
         
-        user_id:str = self.table.create_user(
-            body.username,
-            body.password,
-            body.email,
-            body.language,
-            body.country,
-            round(time.time()),
-            self.email,
-            body.invite
-        )
-        
+        try:
+            user_id:str = self.table.create_user(
+                body.username,
+                body.password,
+                body.email,
+                body.language,
+                body.country,
+                round(time.time()),
+                self.email,
+                body.invite
+            )
+        except EmailException:
+            return HTTPException(status_code=422, detail="Email already in use")
+        except UsernameException:
+            return HTTPException(status_code=409, detail="Username already in use")
         self.invites.use(user_id,body.invite)
         
         
