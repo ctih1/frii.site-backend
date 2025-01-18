@@ -12,3 +12,7 @@ class UserNotExistError(Exception):
 
 class FilterMatchError(Exception):
     pass
+class SubdomainError(Exception):
+    def __init__(self, message:str, required_domain:str):
+        self.required_domain:str = required_domain
+        super().__init__(message)

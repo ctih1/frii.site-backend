@@ -3,14 +3,14 @@ import requests # type: ignore[import-untyped]
 import json
 from pymongo import MongoClient
 from database.tables.domains import Domains, RepairFormat, DomainFormat
-from dns.exceptions import DNSException
-from dns.validation import Validation
+from dns_.exceptions import DNSException
+from dns_.validation import Validation
 
 class DNS:
-    def __init__(self, mongo_client:MongoClient):
+    def __init__(self, domains:Domains):
         """Documentation for functions were created by ai.
         """
-        self.table = Domains(mongo_client)
+        self.table = domains
         self.zone_id:str = os.getenv("ZONE_ID") or ""
         self.key:str = os.getenv("CF_KEY_W") or ""
         self.email:str = os.getenv("EMAIL") or ""
@@ -69,9 +69,7 @@ class DNS:
             ValueError: If the ID of the modified DNS record cannot be retrieved.
         """
         request = requests.patch(
-            f"""https://api.cloudflare.com/client/v4
-            /zones/{self.zone_id}
-            /dns_records/{domain_id}""",
+            f"https://api.cloudflare.com/client/v4/zones/{self.zone_id}/dns_records/{domain_id}",
 
             data=json.dumps({
                 "content": content,
@@ -102,7 +100,7 @@ class DNS:
         """
         Registers a new DNS record for the specified domain.
         Args:
-            name (str): The name of the DNS record.
+            name (str): The name of the DNS record. NOTE: Must use the normal DNS schema (aka a.b, NOT a[dot]b)
             content (str): The content of the DNS record.
             type (str): The type of the DNS record (e.g., A, AAAA, CNAME, etc.).
             comment (str): A comment for the DNS record.
@@ -113,16 +111,13 @@ class DNS:
             ValueError: If the ID of the newly created DNS record cannot be retrieved.
         """
         request = requests.post(
-            f"""https://api.cloudflare.com/client/v4
-            /zones/{self.zone_id}
-            /dns_records""",
+            f"https://api.cloudflare.com/client/v4/zones/{self.zone_id}/dns_records",
 
             data=json.dumps({
                 "content": content,
                 "name": name,
                 "proxied": False,
                 "type": type,
-                "comment": comment
             }),
             headers={
                 "Content-Type":"application/json",
@@ -151,9 +146,7 @@ class DNS:
             bool: True if the domain was successfully deleted, False otherwise.
         """
         request = requests.delete(
-            f"""https://api.cloudflare.com/client/v4
-            /zones/{self.zone_id}
-            /dns_records/{domain_id}""",
+            f"https://api.cloudflare.com/client/v4/zones/{self.zone_id}/dns_records/{domain_id}",
 
             headers={
                 "Authorization": f"Bearer {self.key}",

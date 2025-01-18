@@ -4,12 +4,19 @@ from fastapi.responses import JSONResponse
 from pymongo import MongoClient
 import os
 from dotenv import load_dotenv
+
 from server.routes.user import User
 from server.routes.invite import Invite
+from server.routes.domain import Domain
+
 from database.tables.general import General
 from database.tables.sessions import Sessions
 from database.tables.invitation import Invites
 from database.tables.codes import Codes
+from database.tables.domains import Domains
+
+from dns_.dns import DNS
+
 from security.session import SessionError
 from mail.email import Email
 
@@ -27,11 +34,14 @@ general:General = General(client)
 sessions:Sessions = Sessions(client)
 invites:Invites = Invites(client)
 codes:Codes = Codes(client)
+domains:Domains = Domains(client)
+dns:DNS = DNS(domains)
 
 email:Email = Email(codes,general)
 
 app.include_router(User(general,sessions,invites,email).router)
 app.include_router(Invite(general,sessions, invites).router)
+app.include_router(Domain(general,sessions,domains,dns).router)
 
 @app.exception_handler(SessionError)
 async def session_except_handler(request:Request, e:Exception):

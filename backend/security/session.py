@@ -191,8 +191,6 @@ class Session:
         self.id = session_id
         self.ip = ip
 
-        print(self.ip,self.id)
-
         self.session_data: dict | None = self.__cache_data()
         self.valid: bool = self.__is_valid()
         self.username: str = self.__get_username()

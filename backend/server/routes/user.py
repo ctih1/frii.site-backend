@@ -1,11 +1,13 @@
+import os
 from typing import List
-from time import time
+import time
 from fastapi import APIRouter, Request
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
+import ipinfo
 from database.exceptions import EmailException, UsernameException
 from database.table import Table
-from database.tables.general import General, UserType
+from database.tables.general import General, UserType, CountryType
 from database.tables.invitation import Invites
 from database.tables.sessions import Sessions
 from security.encryption import Encryption
@@ -18,6 +20,7 @@ class User:
         self.session_table:Session = session_table
         self.invites:Invites = invite_table
         self.email:Email = email
+        self.handler:ipinfo.Handler = ipinfo.getHandler(os.getenv("IPINFO_KEY"))
         
         self.router = APIRouter()
         
@@ -82,13 +85,15 @@ class User:
         if not self.invites.is_valid(body.invite):
             raise HTTPException(status_code=400, detail="Invite not valid")
         
+        country:CountryType = self.handler.getDetails(request.client.host).all
+
         try:
             user_id:str = self.table.create_user(
                 body.username,
                 body.password,
                 body.email,
                 body.language,
-                body.country,
+                country,
                 round(time.time()),
                 self.email,
                 body.invite

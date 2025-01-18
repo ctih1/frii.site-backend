@@ -64,7 +64,7 @@ UserType = TypedDict("UserType", {
     "last-login": int, # Epoch timestamp 
     "permissions": dict,
     "verified": bool,
-    "domains": Required['DomainFormat'],
+    "domains": Required[Dict[str,'DomainFormat']],
     "feature-flags": NotRequired[Dict[str,bool]],
     "api-keys": NotRequired[Dict],
     "credits": NotRequired[int],
