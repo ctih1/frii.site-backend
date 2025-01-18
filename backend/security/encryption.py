@@ -31,5 +31,5 @@ class Encryption:
         ).decode(encoding='utf-8')
     
     def decrypt(self,encrypted_data:str) -> str:
-        return self.fernet.decrypt(encrypted_data).decode("utf-8")
+        return self.fernet.decrypt(encrypted_data.encode("utf-8")).decode("utf-8")
 

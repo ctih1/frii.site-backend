@@ -12,7 +12,7 @@ class Invites(General):
         super().__init__(mongo_client)
 
     def is_valid(self, code:str) -> bool:
-        if len(code.strip()) != INVITE_LENGTH:
+        if len(code) != INVITE_LENGTH:
             return False
         
         invite_holder: UserType | None = self.find_item({f"invites.{code}": {"$exists":True}})
@@ -25,7 +25,7 @@ class Invites(General):
         if invite is None:
             return False
         
-        return invite["used"]
+        return not invite["used"]
         
     
     def create(self, user_id:str) -> str:
@@ -48,7 +48,7 @@ class Invites(General):
         
         user_invites: Dict[str,InviteType] = user_data.get("invites",{})
         
-        if len(user_invites) >= 3:
+        if len(user_invites) >= 999:
             raise InviteException("User has made too many invites")
         
         self.modify_document(
@@ -64,7 +64,6 @@ class Invites(General):
     def use(self, user_id:str, invite_code:str) -> bool:
         if not self.is_valid(invite_code):
             raise InviteException("Invite is not valid")
-
 
         self.table.update_one(
             {f"invites.{invite_code}":{"$exists":True}},

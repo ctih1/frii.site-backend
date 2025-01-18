@@ -1,25 +1,42 @@
 import os
-from typing import List
+from typing import List, Dict
 import time
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Depends
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 import ipinfo
-from database.exceptions import EmailException, UsernameException
+
+from database.exceptions import EmailException, UsernameException, FilterMatchError
 from database.table import Table
-from database.tables.general import General, UserType, CountryType
+from database.tables.general import General, UserType, CountryType, UserPageType
 from database.tables.invitation import Invites
 from database.tables.sessions import Sessions
+from database.tables.codes import Codes, CodeStatus
+from database.tables.domains import DomainFormat
+
 from security.encryption import Encryption
 from security.session import Session, SessionCreateStatus, SESSION_TOKEN_LENGTH
+from security.convert import Convert
 from mail.email import Email
+
+from dns_.dns import DNS
+
 from server.routes.models.user import SignUp
+
+converter:Convert = Convert()
 class User:
-    def __init__(self,table:General, session_table: Sessions, invite_table:Invites, email:Email) -> None:
+    def __init__(self,table:General, session_table: Sessions, invite_table:Invites, email:Email, codes:Codes, dns:DNS) -> None:
+        converter.init_vars(table,session_table)
+
         self.table:General = table
         self.session_table:Session = session_table
         self.invites:Invites = invite_table
         self.email:Email = email
+        self.codes:Codes = codes
+        self.dns:DNS = dns
+
+        self.encryption:Encryption = Encryption(os.getenv("ENC_KEY"))
+
         self.handler:ipinfo.Handler = ipinfo.getHandler(os.getenv("IPINFO_KEY"))
         
         self.router = APIRouter()
@@ -33,7 +50,8 @@ class User:
                 404: {"description": "User not found"},
                 401: {"description": "Invalid password"},
                 412: {"description": "2FA code required to be passed in X-MFA-Code"},
-            }
+            },
+            tags=["account"]
         )
         
                 
@@ -47,8 +65,76 @@ class User:
                 422: {"description": "Email is already in use"},
                 409: {"description": "Username is already in use"},
             },
-            status_code=200
+            status_code=200,
+            tags=["account"]
         )
+        
+
+                        
+        self.router.add_api_route(
+            "/settings",
+            self.get_settings,
+            methods=["GET"],
+            responses={
+                200: {"description":"Sign up succesfull"}
+            },
+            status_code=200,
+            tags=["account"]
+        )
+
+        
+        self.router.add_api_route(
+            "/email/send",
+            self.resend_verification,
+            methods=["POST"],
+            responses={
+                200: {"description": "Email sent succesfully"},
+                404: {"description": "Account does not exist"}
+            },
+            status_code=200,
+            tags=["account"]
+        )
+        
+
+        self.router.add_api_route(
+            "/email/verify",
+            self.verify_account,
+            methods=["POST"],
+            responses={
+                200: {"description": "Verified succesfully"},
+                400: {"description": "Code is invalid"},
+                404: {"description": "Account does not exist"}
+            },
+            status_code=200,
+            tags=["account"]
+        )
+
+        self.router.add_api_route(
+            "/deletion/send",
+            self.send_account_deletion,
+            methods=["DELETE"],
+            responses={
+                200: {"description":"Deletion email sent"}
+            },
+            status_code=200,
+            tags=["account"]
+        )
+
+        
+        self.router.add_api_route(
+            "/deletion/verify",
+            self.verify_deletion,
+            methods=["DELETE"],
+            responses={
+                200: {"description": "Account deleted"},
+                400: {"description": "Deletion code invalid"},
+                404: {"description": "Account not found"}
+            },
+            status_code=200,
+            tags=["account"]
+        )
+        
+        
         
         
 
@@ -80,7 +166,7 @@ class User:
         if session_status["success"]:
             return JSONResponse({"auth-token":session_status["code"]})
         
-        
+
     def sign_up(self, request:Request, body: SignUp):
         if not self.invites.is_valid(body.invite):
             raise HTTPException(status_code=400, detail="Invite not valid")
@@ -103,6 +189,68 @@ class User:
         except UsernameException:
             return HTTPException(status_code=409, detail="Username already in use")
         self.invites.use(user_id,body.invite)
-        
-        
 
+    @Session.requires_auth
+    def get_settings(self, session:Session = Depends(converter.create)) -> UserPageType:
+        return JSONResponse(self.table.get_user_profile(session.username))
+
+    def resend_verification(self, user_id:str):
+        self.codes.create_code("verification",user_id)
+
+        user_data:UserType | None = self.table.find_item({"_id":user_id})
+
+        if user_data is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        email:str = self.encryption.decrypt(user_data["email"])
+
+        self.email.send_verification_code(user_id,email)
+
+
+    def verify_account(self, code:str):
+        code_status:CodeStatus = self.codes.is_valid(code,"verification")
+
+        if not code_status["valid"]:
+            raise HTTPException(status_code=400, detail="Code is not valid")
+        
+        try:
+            self.table.modify_document(
+                {"_id":self.encryption.decrypt(code_status["account"])},
+                "$set",
+                "verified",
+                True
+            )
+        except FilterMatchError:
+            raise HTTPException(status_code=404)
+        
+        self.codes.delete_code(code,"verification")
+
+
+    @Session.requires_auth
+    def send_account_deletion(self, request:Request, session:Session = Depends(converter.create)):
+        email:str = self.encryption.decrypt(session.user_cache_data["email"])
+        self.email.send_delete_code(session.username,email)
+
+
+    def verify_deletion(self, code:str):
+        code_status:CodeStatus = self.codes.is_valid(code,"deletion")
+
+        if not code_status["valid"]:
+            raise HTTPException(status_code=400, detail="Code is not valid")
+        
+        user_id:str = self.encryption.decrypt(code_status["account"])
+        user_data: UserType = self.table.find_item({"_id":user_id})
+
+        if user_data is None:
+            raise HTTPException(status_code=404, detail="Account not found")
+
+        for key,value in user_data["domains"].items():
+            key:str = key
+            value:DomainFormat = value
+
+            self.dns.delete_domain(value["id"])
+            
+        self.table.delete_document(
+            {"_id":user_id}
+        )
+        

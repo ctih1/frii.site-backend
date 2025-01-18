@@ -30,8 +30,10 @@ class Invite:
             methods=["POST"],
             responses={
                 200: {"description": "Invite code created"},
+                404: {"description": "User does not exist"},
                 409: {"description": "Invite limit (3) reached"}
-            }
+            },
+            tags=["invite"]
         )
 
     @Session.requires_auth
@@ -40,7 +42,9 @@ class Invite:
         try:
             code:str = self.invites.create(session.username)
         except InviteException:
-            return HTTPException(status_code=409)
+            raise HTTPException(status_code=409)
+        except UserNotExistError:
+            raise HTTPException(status_code=404)
         
         return {"code":code}
 

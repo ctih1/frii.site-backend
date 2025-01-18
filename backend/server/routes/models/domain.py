@@ -5,3 +5,8 @@ class DomainType(BaseModel):
     value: str
     type: str
 
+class RawDomainType(BaseModel):
+    ip:str
+    type:str
+    registered: int | float
+    id: str

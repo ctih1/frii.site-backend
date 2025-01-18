@@ -1,9 +1,9 @@
-from typing import List, Annotated
+from typing import List, Dict
 import time
 from fastapi import APIRouter, Request, Header, Depends
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
-from server.routes.models.domain import DomainType
+from server.routes.models.domain import DomainType, RawDomainType
 from database.table import Table
 from database.tables.general import General as GeneralTable, UserType
 from database.tables.invitation import Invites as InviteTable
@@ -43,19 +43,21 @@ class Domain:
                 405: {"description": "Domain limit exceeded"},
                 409: {"description": "Domain already in use"},
                 412: {"description": "Invalid DNS record type"}
-            }
+            },
+            tags=["domain"]
         )
 
         self.router.add_api_route(
             "/modify",
-            self.register, 
+            self.modify, 
             methods=["PATCH"],
             status_code=200,
             responses={
                 200: {"description": "Domain modified"},
                 403: {"description": "User does not own domain"},
                 412: {"description": "Invalid record name or value"},
-            }
+            },
+            tags=["domain"]
         )
 
 
@@ -67,8 +69,22 @@ class Domain:
             responses={
                 200: {"description": "Domain is available"},
                 409: {"description": "Domain is not available"},
-            }
+            },
+            tags=["domain"]
         )
+
+        self.router.add_api_route(
+            "/get",
+            self.get_domains, 
+            methods=["GET"],
+            status_code=200,
+            responses={
+                200: {"description": "Returns a JSON dict of domains"}
+            },
+            tags=["domain"]
+        )
+
+       
 
     @Session.requires_auth
     def register(self, body: DomainType, session:Session = Depends(converter.create)):
@@ -123,7 +139,7 @@ class Domain:
         if not self.dns_validation.record_name_valid(body.domain):
             raise HTTPException(status_code=412, detail=f"Invalid domain name {body.domain}")
         
-        if not self.dns_validation.record_value_valid(body.value):
+        if not self.dns_validation.record_value_valid(body.value, body.type):
             raise HTTPException(status_code=412, detail=f"Invalid value {body.value}")
         
         if not self.dns_validation.user_owns_domain(session.username,body.domain):
@@ -156,9 +172,11 @@ class Domain:
             print(e.json)
             raise HTTPException(status_code=500)
         
+    @Session.requires_auth
+    def get_domains(self, session:Session = Depends(converter.create)) -> Dict[str,RawDomainType]:
+        domains:Dict[str, RawDomainType] = session.user_cache_data["domains"]
 
-
-        
+        return JSONResponse({k.replace("[dot]","."):v for k,v in domains.items()})
 
 
     def is_available(self,name:str):

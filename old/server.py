@@ -52,7 +52,7 @@ def test_err():
     return Response(status=200)
 
 @app.route('/login', methods=['POST'])
-def login_():
+#def login_():
     login_request = request.headers.get("X-Auth-Request").split("|")
     return login(
         login_request[0],
@@ -63,7 +63,7 @@ def login_():
 
 @limiter.rate_limit(limit=1,period=120*60)
 @app.route('/sign-up', methods=['POST'])
-def sign_up_():
+#def sign_up_():
   username = request.json.get('username')
   password = request.json.get('password')
   email = request.json.get('email')
@@ -81,13 +81,13 @@ def sign_up_():
 
 @app.route('/domain-is-available',methods=["GET"])
 @limiter.rate_limit(limit=50,period=300)
-def domain_is_available_():
+#def domain_is_available_():
   domain_ = request.args.get("domain",None)
   return domain_is_available(domain_)
 
 @app.route("/register-domain",methods=["POST"])
 @limiter.rate_limit(limit=9,period=10800)
-def register_domain_():
+#def register_domain_():
   domain_ = request.json.get("domain")
   token_ = request.headers.get("X-Auth-Token",request.headers.get("X-Api-Key"))
   ip = request.json.get("content")
@@ -97,7 +97,7 @@ def register_domain_():
 
 @app.route("/modify-domain",methods=["PATCH"])
 @limiter.rate_limit(limit=12,period=10*60)
-def modify_domain_():
+#def modify_domain_():
   domain_ = request.json.get("domain")
   token_ = request.headers.get("X-Auth-Token",request.headers.get("X-Api-Key"))
   content = request.json.get("content")
@@ -107,7 +107,7 @@ def modify_domain_():
 
 @limiter.rate_limit(limit=5,period=15*60)
 @app.route("/verification/<string:Code>", methods=["GET"])
-def verification_(Code):
+#def verification_(Code):
   return verification(Code)
 
 @limiter.rate_limit(limit=2,period=30*60)
@@ -283,7 +283,7 @@ def check_2fa_():
     return verify_2fa(request.headers.get("X-Auth-Username"), request.json.get("code"))
 
 @app.route("/invite", methods=["POST"])
-def create_invite_():
+#def create_invite_():
    return create_invite(request.headers.get("X-Auth-Token"), request.access_route[-1])
 
 @app.route("/invite/all", methods=["GET"])

@@ -127,7 +127,7 @@ class General(Table):
         }
 
         self.insert_document(account_data)
-        if not email_instance.send_verification_code(username,email,original_username):
+        if not email_instance.send_verification_code(username,email):
             raise EmailException("Email already in use!")
         
         return hashed_username

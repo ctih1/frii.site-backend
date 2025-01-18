@@ -1,3 +1,4 @@
+from typing import List, Dict
 import uvicorn
 from fastapi import FastAPI, APIRouter, Request
 from fastapi.responses import JSONResponse
@@ -25,6 +26,21 @@ from mail.email import Email
 print(load_dotenv())
 
 
+tags_metadata:List[Dict[str,str]] = [
+    {
+        "name": "domains",
+        "description": "Viewing, creating, and managing domains"
+    },
+    {
+        "name": "account",
+        "description": "Getting account data, changing settings, signing up, logging in"
+    },
+    {
+        "name": "invite",
+        "description": "Viewing, creating, and managing invites"
+    }
+]
+
 
 app = FastAPI()
 
@@ -39,7 +55,7 @@ dns:DNS = DNS(domains)
 
 email:Email = Email(codes,general)
 
-app.include_router(User(general,sessions,invites,email).router)
+app.include_router(User(general,sessions,invites,email, codes, dns).router)
 app.include_router(Invite(general,sessions, invites).router)
 app.include_router(Domain(general,sessions,domains,dns).router)
 

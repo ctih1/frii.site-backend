@@ -53,7 +53,7 @@ class DNS:
          
 
 
-    def modify_domain(self, domain_id:str, content:str, type:str, domain:str,comment:str) -> str:
+    def modify_domain(self, domain_id:str, content:str, type:str, domain:str) -> str:
         """
         Modifies a DNS record for a given domain.
         Args:
@@ -75,8 +75,7 @@ class DNS:
                 "content": content,
                 "name": domain,
                 "proxied": False,
-                "type": type,
-                "comment": comment
+                "type": type
             }),
             headers={
                 "Content-Type":"application/json",
