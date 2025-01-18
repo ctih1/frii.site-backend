@@ -8,9 +8,11 @@ import datetime
 import base64
 from cryptography import fernet
 import pyotp
+from fastapi import Request
 from database.table import Table
 from security.encryption import Encryption
 from debug.logger import Logger
+from functools import wraps # test
 
 if TYPE_CHECKING:
     from database.tables.general import General
@@ -98,14 +100,16 @@ class Session:
         Throws:
             SessionError if session is not valid
         """
-        def inner(*args, **kwargs):
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
             target: Session = Session.find_session_instance(args,kwargs)
             if not target.valid:
                 raise SessionError("Session is not valid")
             a = func(*args, **kwargs)
             return a
 
-        return inner
+        return wrapper
 
     @staticmethod
     def requires_permission(permission: str):
@@ -130,8 +134,10 @@ class Session:
             SessionError if session is invalid
             SessionPermissionError: if permission is not met
         """
-        def decorator(func):
-            def inner(*args, **kwargs):
+
+        def decor(func):
+            @wraps(func)
+            def wrapper(*args,**kwargs):
                 target: Session = Session.find_session_instance(args,kwargs)
                 if not target.valid:
                     raise SessionError("Session is not valid")
@@ -141,8 +147,8 @@ class Session:
                     )
                 a = func(*args, **kwargs)
                 return a
-            return inner
-        return decorator
+            return wrapper
+        return decor
 
     @staticmethod
     def requires_flag(flag: str):
@@ -159,30 +165,33 @@ class Session:
             SessionError if session is not valid
             SessionFlagError if user does not have the flag.
         """
-        def decorator(func):
-            def inner(*args, **kwargs):
+        def decor(func):
+            @wraps(func)
+            def wrapper(*args, **kwargs):
                 target: Session = Session.find_session_instance(args,kwargs)
                 if not target.valid:
                     raise SessionError("Session is not valid")
                 if flag not in target.flags:
                     raise SessionFlagError("User does not have correct flags")
                 func(*args, **kwargs)
-            return inner
-        return decorator
+            return wrapper
+        return decor
 
-    def __init__(self, session_id: str, ip: str, general: General, session: Sessions) -> None:
+    def __init__(self, session_id:str, ip:str, general: General, sessions: Sessions) -> None:
         """Creates a Session object.
         Arguements:
             session_id: The id of the session string of length SESSION_TOKEN_LENGHT. Usually found in X-Auth-Token header.
             ip: The request's ip
             database: Instance of the database class
         """
-        self.session_table:Sessions = session
+        self.session_table:Sessions = sessions
         self.general_table:General = general
         self.encryption: Encryption = Encryption(os.getenv("ENC_KEY"))
 
-        self.id: str = session_id
-        self.ip: str = ip
+        self.id = session_id
+        self.ip = ip
+
+        print(self.ip,self.id)
 
         self.session_data: dict | None = self.__cache_data()
         self.valid: bool = self.__is_valid()

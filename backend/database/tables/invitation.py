@@ -29,6 +29,16 @@ class Invites(General):
         
     
     def create(self, user_id:str) -> str:
+        """
+        Creates an invitation code for a user.
+        Args:
+            user_id (str): The ID of the user for whom the invitation code is being created.
+        Returns:
+            str: The generated invitation code.
+        Raises:
+            UserNotExistError: If the user does not exist.
+            InviteException: If the user has already made too many invites.
+        """
         invite_code:str = Encryption.generate_random_string(INVITE_LENGTH)
         
         user_data: UserType | None = self.find_item({"_id":user_id})

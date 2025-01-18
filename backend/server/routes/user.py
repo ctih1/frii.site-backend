@@ -35,12 +35,13 @@ class User:
                 
         self.router.add_api_route(
             "/sign-up",
-            self.login,
+            self.sign_up,
             methods=["POST"],
             responses={
                 200: {"description":"Sign up succesfull"},
                 400: {"description": "Invalid invite"},
-            }
+            },
+            status_code=200
         )
         
         
