@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 	from database.tables.users import Users, UserType
 
 
-template_path:str = os.path.join(".","mail","templates")
+template_path:str = os.path.join(".","src","mail","templates")
 
 verify_template:str
 recovery_template:str
