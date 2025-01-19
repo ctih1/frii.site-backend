@@ -67,7 +67,3 @@ async def session_except_handler(request:Request, e:Exception):
             "message": "Invalid session"
         }
     )
-
-
-if __name__ == "__main__":
-    uvicorn.run(app)
