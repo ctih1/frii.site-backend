@@ -1,16 +1,17 @@
-import os
+import logging
 from typing import Dict, List, Any, Mapping
-from dotenv import load_dotenv
 from pymongo import MongoClient
 from pymongo.collection import Collection
 from pymongo.cursor import Cursor
 from pymongo.database import Database
 from database.exceptions import FilterMatchError
 
+logger:logging.Logger = logging.getLogger("frii.site")
 
 class Table:
     def __init__(self, mongo_client:MongoClient, table_name:str) -> None:
-        load_dotenv()
+        logger.info(f"Initializing table {table_name}")
+        self.name:str = table_name
         self.cluster:MongoClient = mongo_client
         self.db:Database = self.cluster["database"]
         self.table:Collection = self.db[table_name]
@@ -45,18 +46,23 @@ class Table:
         ) 
 
         if result.matched_count == 0 and not ignore_no_matches:
+            logger.error(f"Filter {filter} for table {self.name} couldn't match a document")
             raise FilterMatchError("Filter didn't match anything")
 
     def create_index(self, key:str) -> None:
+        logger.info(f"Creating index on table {self.name} for key {key}")
         self.table.create_index(key)
 
     def delete_in_time(self, date_key:str) -> None:
+        logger.info(f"Creating delete index for key {date_key} on table {self.name}")
         self.table.create_index(date_key, expireAfterSeconds=1)
 
     def delete_document(self, filter:Dict[str,Any]) -> None:
+        logger.info(f"Deleting document with filter {filter} on table {self.name}")
         self.table.delete_one(filter)
 
     def delete_many(self, filter:Dict[str,Any]) -> None:
+        logger.info(f"Deleting many with filter {filter} on table {self.name}")
         self.table.delete_many(filter)
 
     def remove_key(self,filter:Dict[str,Any], key:str) -> None:

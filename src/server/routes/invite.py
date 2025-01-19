@@ -1,5 +1,6 @@
 from typing import List, Annotated
 import time
+import logging
 from fastapi import APIRouter, Request, Header, Depends
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
@@ -15,6 +16,7 @@ from security.convert import Convert
 from mail.email import Email
 
 converter:Convert = Convert()
+logger:logging.Logger = logging.getLogger("frii.site")
 
 class Invite:
     def __init__(self, table:UsersTable, sessions:SessionTable, invites:InviteTable) -> None:
@@ -35,6 +37,8 @@ class Invite:
             },
             tags=["invite"]
         )
+
+        logger.info("Initialized")
 
     @Session.requires_auth
     @Session.requires_permission(permission="invite")

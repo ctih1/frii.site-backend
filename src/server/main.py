@@ -1,4 +1,5 @@
 from typing import List, Dict
+import logging
 from fastapi import FastAPI, APIRouter, Request
 from fastapi.responses import JSONResponse
 from pymongo import MongoClient
@@ -20,9 +21,15 @@ from dns_.dns import DNS
 from security.session import SessionError
 from mail.email import Email
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(name)s] %(levelname)s: [%(filename)s:%(funcName)s] %(message)s",
+    datefmt="%d/%m/%Y %H.%M.%S"
+)
+logger:logging.Logger = logging.getLogger("frii.site")
+logger.info("Logger init")
 
-
-print(load_dotenv())
+logger.info(f".env loaded succesfully? {load_dotenv()}")
 
 
 tags_metadata:List[Dict[str,str]] = [

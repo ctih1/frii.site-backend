@@ -1,5 +1,6 @@
 import os
 import time
+import logging
 from typing import List, Dict, TYPE_CHECKING
 from typing_extensions import NotRequired, Required, TypedDict
 from pymongo import MongoClient
@@ -20,6 +21,8 @@ if TYPE_CHECKING:
     from database.tables.domains import DomainFormat
     from database.tables.sessions import Sessions as SessionTable
 
+
+logger:logging.Logger = logging.getLogger("frii.site")
 
 class CountryType(TypedDict):
     ip:str
@@ -101,6 +104,7 @@ class Users(Table):
                     time_signed_up, email_instance:Email,
                     invite_code:str
                     ) -> str:
+        logger.info(f"Creating user with username {username}")
         original_username:str = username
         
         hashed_username:str = Encryption.sha256(username)
@@ -109,12 +113,15 @@ class Users(Table):
         invite_user:UserType | None = self.find_user({f"invites.{invite_code}":{"$exists":True}})
 
         if invite_user is None:
+            logger.error("Invite isn't valid")
             raise InviteException("Invite is not valid")
         
         if invite_user["invites"][invite_code]["used"]:
+            logger.error("Invite has already been used")
             raise InviteException("Invite has already been used!")
         
         if email_instance.is_taken(email):
+            logger.error("Email is already taken")
             raise EmailException("Email is already in use!")
         
         if self.find_item({"_id":hashed_username}) is not None:
@@ -143,18 +150,22 @@ class Users(Table):
 
         self.insert_document(account_data)
         if not email_instance.send_verification_code(username,email):
+            logger.info("Failed to send verification")
             raise EmailException("Email already in use!")
         
         return hashed_username
 
 
     def create_invite(self,user_id:str) -> str:
+        logger.info("Creating invite...")
         invite_code:str = Encryption.generate_random_string(16)
         invite_user:UserType | None = self.find_user({"_id":user_id})
+
         if invite_user is None:
             raise UserNotExistError("User does not exist!")
         
         if len(invite_user.get("invites",{})) >= 3:
+            logger.info("User has surprassed their invite limit")
             raise InviteException("Invite limit exceeded")
         
         self.table.update_one(
@@ -203,6 +214,7 @@ class Users(Table):
     
     
     def get_user_profile(self, user_id:str, session_table: 'SessionTable') -> UserPageType:
+        logger.info(f"Getting user profile for {user_id}")
         user_data: UserType | None = self.find_user({"_id":user_id})
 
         if user_data is None:

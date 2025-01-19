@@ -1,10 +1,13 @@
 import os
-import requests # type: ignore[import-untyped]
+import logging
 import json
 from pymongo import MongoClient
+import requests # type: ignore[import-untyped]
 from database.tables.domains import Domains, RepairFormat, DomainFormat
 from dns_.exceptions import DNSException
 from dns_.validation import Validation
+
+logger:logging.Logger = logging.getLogger("frii.site")
 
 class DNS:
     def __init__(self, domains:Domains):
@@ -85,11 +88,13 @@ class DNS:
         )
 
         if not request.ok:
+            logger.error(f"Failed to modify domain {domain}. {request.json()}")
             raise DNSException("Failed to modify domain", request.json())
         
         id:str | None = request.json().get("result",{}).get("id")
 
         if id is None:
+            logger.error(f"Could not find id of domain {domain}")
             raise ValueError("Failed to get id")
 
         return id # type: ignore[no-any-return]
@@ -126,6 +131,7 @@ class DNS:
         )
 
         if not request.ok:
+            logger.error(f"Failed to register domain {name}. {request.json()}")
             raise DNSException("Failed to register domain",request.json())
         
         id:str | None = request.json().get("result",{}).get("id")
@@ -154,6 +160,7 @@ class DNS:
         )
 
         if not request.ok:
+            logger.error(f"Could not delete domain with id {domain_id}. {request.json()}")
             return False
         
         return True
@@ -164,8 +171,11 @@ class DNS:
             name: str = key
             value: DomainFormat = val
 
-            id:str | None = self.get_id(name,value["type"], value["ip"])
+            logger.info(f"Trying to fix domain {name}")
 
+            id:str | None = self.get_id(name,value["type"], value["ip"])
+            
+            logger.info("Couldn't find matching domain... Registering a new one")
             id = id or self.register_domain(name,value["ip"],value["type"],f"Fixed domain for user {user_id}")
                 
             self.table.modify_document(

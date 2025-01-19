@@ -1,5 +1,6 @@
 from typing import List, Dict
 from typing import TYPE_CHECKING
+import logging
 import string
 import re
 from database.tables.domains import Domains, DomainFormat
@@ -10,6 +11,7 @@ from dns_.exceptions import DNSException, DomainExistsError
 if TYPE_CHECKING:
     from dns_.dns import DNS
 
+logger:logging.Logger = logging.getLogger("frii.site")
 
 ALLOWED_TYPES: List[str] = ["A","CNAME","TXT","NS"]
 
@@ -59,16 +61,20 @@ class Validation:
         cleaned_domain:str = Domains.clean_domain_name(name)
 
         if not Validation.record_name_valid(name):
+            logger.info(f"{name} Name is not valid")
             if raise_exceptions:
                 raise ValueError(f"Invalid record name '{name}'")
             return False
         
         if type.upper() not in ALLOWED_TYPES:
+            logger.info(f"{type} is not a valid type")
+
             if raise_exceptions:
                 raise DNSException(f"Invalid type '{type}'", type_=type)
             return False
 
         if cleaned_domain in domains:
+            logger.info(f"User already owns domain {cleaned_domain}")
             return False
         
         domain_parts:List[str] = cleaned_domain.split("[dot]")
@@ -77,11 +83,14 @@ class Validation:
         required_domain:str = domain_parts[-1]
 
         if required_domain and is_subdomain and required_domain not in domains:
+            logger.error(f"User does now own {required_domain}")
             if raise_exceptions:
                 raise SubdomainError(f"User doesn't own '{required_domain}'", required_domain)
             return False
         
         if len(self.table.find_item({f"domains.{cleaned_domain}":{"$exists":True}}) or []) != 0:
+            logger.error(f"Domain {cleaned_domain} already exists in database")
+
             if raise_exceptions:
                 raise DomainExistsError("Domain is already registered")
             return False
@@ -98,11 +107,19 @@ class Validation:
 
             domain_comment:str = domain_data.get("result")[0]["comment"] # type: ignore[index]
             regex_matches:List[str] = re.findall(REGEX_MATCH_STRING, domain_comment)
-            username:str = regex_matches[0]
+            try:
+                username:str = regex_matches[0]
+                logger.info(f"Found owner of {name} with username {username}")
+            except IndexError:
+                username = ""
+                logger.info(f"Couldn't find owner of {name}")
+                
+                return True
 
             user_data: UserType | None = self.table.find_user({"_id":username})
             
             if user_data is None or cleaned_domain not in user_data["domains"]:
+                logger.info(f"Couldn't find owner of domain {name}, deleting...")
                 # Since the target user doesn't exist, or doesn't own the domain, it is no longer taken
                 return True 
 

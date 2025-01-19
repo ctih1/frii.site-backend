@@ -1,5 +1,6 @@
 from typing import List, Dict
 import time
+import logging
 from fastapi import APIRouter, Request, Header, Depends
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
@@ -19,7 +20,7 @@ from dns_.exceptions import DNSException, DomainExistsError
 from mail.email import Email
 
 converter:Convert = Convert()
-
+logger:logging.Logger = logging.getLogger("frii.site")
 
 
 class Domain:
@@ -85,6 +86,8 @@ class Domain:
             },
             tags=["domain"]
         )
+
+        logger.info("Initialized")
 
        
 

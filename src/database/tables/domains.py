@@ -1,7 +1,10 @@
 from typing import TypedDict, Dict, List
+import logging
 from typing_extensions import NotRequired
 from database.tables.users import Users, UserType
 from database.exceptions import UserNotExistError
+
+logger:logging.Logger = logging.getLogger("frii.site")
 
 class DomainFormat(TypedDict):
     ip: str
@@ -54,6 +57,7 @@ class Domains(Users):
             type:str|None=None,
         ) -> None:
         cleaned_domain:str = Domains.clean_domain_name(domain)
+        logger.info(f"Modifying domain {cleaned_domain}...")
 
         user_data:UserType | None = self.find_user({"_id":target_user})
         if user_data is None:
@@ -78,6 +82,7 @@ class Domains(Users):
 
     def delete_domain(self, target_user:str, domain:str) -> None:
         cleaned_domain = Domains.clean_domain_name(domain)
+        logger.info(f"Deleting domain {cleaned_domain}")
 
         self.remove_key({"_id":target_user},key=f"domains.{cleaned_domain}")
 
@@ -93,6 +98,7 @@ class Domains(Users):
 
         for domain in domains.copy():
             domain:str = domain # type: ignore[no-redef]
+            logger.info(f"Fixing domain {domain}")
 
             if domain.replace(".","[dot]") in updated_domains:
                 domain_offset += 1
@@ -109,6 +115,7 @@ class Domains(Users):
             if not domain_id:
                 broken_id[Domains.clean_domain_name(domain)] = domains[domain]
 
+        logger.info(f"fixed {fixed_domains}, duplicates {domain_offset}, broken ids: {len(broken_id)}")
         return {
             "fixed": fixed_domains,
             "duplicates": domain_offset,

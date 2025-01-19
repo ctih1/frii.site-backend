@@ -1,6 +1,7 @@
 import os
 from typing import List, Dict, Annotated
 import time
+import logging
 from fastapi import APIRouter, Request, Depends, Header
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
@@ -24,6 +25,7 @@ from dns_.dns import DNS
 from server.routes.models.user import SignUp, PasswordReset
 
 converter:Convert = Convert()
+logger:logging.Logger = logging.getLogger("frii.site")
 class User:
     def __init__(self,table:Users, session_table: Sessions, invite_table:Invites, email:Email, codes:Codes, dns:DNS) -> None:
         converter.init_vars(table,session_table)
@@ -158,6 +160,8 @@ class User:
             status_code=200,
             tags=["account"]
         )
+
+        logger.info("Initialized")
     
 
     def login(self,request:Request, x_auth_request:Annotated[str, Header()]):
@@ -290,7 +294,6 @@ class User:
         
         password:str = self.encryption.create_password(body.hashed_password)
         username:str = code_status["account"]
-        print(username)
 
         Session.clear_sessions(username,self.session_table)
 
@@ -304,4 +307,3 @@ class User:
         except FilterMatchError:
             raise HTTPException(status_code=404,detail="Invalid user")
         
-    

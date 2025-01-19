@@ -1,4 +1,5 @@
 from typing import TypedDict, Dict
+import logging
 import time
 from database.tables.users import Users
 from database.tables.users import UserType, InviteType
@@ -7,11 +8,14 @@ from security.encryption import Encryption
 
 INVITE_LENGTH:int=16  
 
+logger:logging.Logger = logging.getLogger("frii.site")
+
 class Invites(Users):
     def __init__(self, mongo_client):
         super().__init__(mongo_client)
 
     def is_valid(self, code:str) -> bool:
+        logger.info(f"Checking invite {code}")
         if len(code) != INVITE_LENGTH:
             return False
         
@@ -39,6 +43,7 @@ class Invites(Users):
             UserNotExistError: If the user does not exist.
             InviteException: If the user has already made too many invites.
         """
+        logger.info("Creating invite")
         invite_code:str = Encryption.generate_random_string(INVITE_LENGTH)
         
         user_data: UserType | None = self.find_user({"_id":user_id})
@@ -48,7 +53,7 @@ class Invites(Users):
         
         user_invites: Dict[str,InviteType] = user_data.get("invites",{})
         
-        if len(user_invites) >= 999:
+        if len(user_invites) >= 3:
             raise InviteException("User has made too many invites")
         
         self.modify_document(

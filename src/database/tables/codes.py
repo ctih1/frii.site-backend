@@ -1,5 +1,6 @@
-from typing import TypedDict, Dict
+from typing import TypedDict, Dict, List
 from typing_extensions import NotRequired
+import logging
 import os
 import time
 import datetime
@@ -8,6 +9,7 @@ from database.table import Table
 from security.encryption import Encryption
 from security.session import Session
 
+logger:logging.Logger = logging.getLogger("frii.site")
 
 EXPIRE_TIME = 45*60
 
@@ -34,7 +36,10 @@ class Codes(Table):
 
 
     def __sync_codes(self):
-        codes = self.get_table()
+        logger.info("Syncing codes...")
+        codes:List[dict] = self.get_table()
+
+        codes_found:int = 0
         for code in codes:
             if code["type"] == "verification":
                 self.verification_codes[code["_id"]] = {}
@@ -48,8 +53,12 @@ class Codes(Table):
                 self.recovery_codes[code["_id"]] = {}
                 self.recovery_codes[code["_id"]]["account"] = self.encryption.decrypt(code["account"])
                 self.recovery_codes[code["_id"]]["expire"] = code["expire"]
+            codes_found += 1
+        
+        logger.info(f"Synced {codes_found} codes")
     
     def create_code(self, type:str, target_username:str) -> str:
+        logger.info(f"Creating code with the type of {type}")
         code:str = Encryption.generate_random_string(16)
 
         local_code:dict = {}
@@ -111,6 +120,7 @@ class Codes(Table):
         return {"valid":True, "account":code_result["account"]}
     
     def delete_code(self, code:str, type:str):
+        logger.info(f"Deleting code {code}")
         if type == "verification":
             try:
                 del self.verification_codes[code]

@@ -1,10 +1,10 @@
 import os
 import time
 from typing import List, TYPE_CHECKING
+import logging
 import resend # type:ignore[import-untyped]
 import resend.exceptions # type:ignore[import-untyped]
 from security.encryption import Encryption
-from debug.logger import Logger
 
 if TYPE_CHECKING:
 	from database.tables.codes import Codes
@@ -26,7 +26,7 @@ with open(os.path.join(template_path,"deletion.html"),"r") as f:
 with open(os.path.join(template_path,"recovery.html"),"r") as f:
 	recovery_template = "\n".join(f.readlines())
 
-l:Logger = Logger("email.py")
+logger:logging.Logger = logging.getLogger("frii.site")
 
 class Email:
 	def __init__(self, codes:'Codes', users:'Users'):
@@ -39,7 +39,6 @@ class Email:
 		replaced_email:str = email.replace("+","@") # removes ability to make alt accounts using the same email (ex. a@gmail.com, a+hi@gmail.com)
 		email_parts:List[str] = replaced_email.split("@")
 		processed_email = f"{email_parts[0]}@{email_parts[-1]}"
-		print(processed_email)
 
 		email_hash:str = Encryption.sha256(processed_email+"supahcool")
 
@@ -57,28 +56,30 @@ class Email:
 				"text": f"Go to https://www.frii.site/verify/{code} to verify your account"
 			})
 		except resend.exceptions.ResendError as e:
-			l.error(f"Failed to send email to {email} error: {e}")
+			logger.error(f"Failed to send verification code {e.suggested_action}")
 			return False
 		return True
 
 	def verify(self, code:str) -> bool:
 		if code not in self.codes.verification_codes:
-			l.info("Code is not valid: not in codes")
+			logger.debug(f"Code {code} is not valid: Nonexistant")
 			return False
 		
 		if time.time() > self.codes.verification_codes[code]["expire"]:
-			l.info("Code is not valid: expired")
+			logger.debug(f"Code {code} is not valid: Expired")
 			del self.codes.verification_codes[code]
 			return False
 		
-		l.info(f"Code {code} is valid, verifying..")
-
+		logger.info(f"Code {code} is valid... continuing")
+		user_id:str = self.codes.verification_codes[code]["account"]
 		self.users.modify_document(
-			{"_id":self.codes.verification_codes[code]["account"]},
+			{"_id":user_id},
 			key="verified",
 			value=True,
 			operation="$set"
 		)
+
+		logger.info(f"Verified user {user_id}")
 
 		del self.codes.verification_codes[code]
 
@@ -95,7 +96,7 @@ class Email:
 				"text": f"Go to https://www.frii.site/verify/{code} to verify your account"
 			})
 		except resend.exceptions.ResendError as e:
-			l.error(f"Failed to send email to {email} error: {e}")
+			logger.error(f"Failed to send verification code {e.suggested_action}")
 			return False
 		return True
 	
@@ -105,10 +106,10 @@ class Email:
 		user_data: 'UserType' | None = self.users.find_user({"_id":hash_username})
 
 		if user_data is None:
+			logger.debug(f"User {username} does not exist")
 			return False
 
 		user_email = self.encryption.decrypt(user_data["email"])
-	
 		code = self.codes.create_code("recovery",hash_username)
 
 		try:
@@ -119,6 +120,7 @@ class Email:
 				"html": recovery_template.replace("{{link}}",f"https://www.frii.site/account/recover?c={code}")
 			})
 		except resend.exceptions.ResendError as e:
+			logger.error(f"Failed to send verification code {e.suggested_action}")
 			return False
 		
 		return True
