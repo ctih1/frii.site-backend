@@ -9,12 +9,14 @@ from dotenv import load_dotenv
 from server.routes.user import User
 from server.routes.invite import Invite
 from server.routes.domain import Domain
+from server.routes.blog import Blog
 
 from database.tables.users import Users
 from database.tables.sessions import Sessions
 from database.tables.invitation import Invites
 from database.tables.codes import Codes
 from database.tables.domains import Domains
+from database.tables.blogs import Blogs
 
 from dns_.dns import DNS
 
@@ -57,6 +59,7 @@ sessions:Sessions = Sessions(client)
 invites:Invites = Invites(client)
 codes:Codes = Codes(client)
 domains:Domains = Domains(client)
+blogs:Blogs = Blogs(client)
 dns:DNS = DNS(domains)
 
 email:Email = Email(codes,users)
@@ -64,6 +67,7 @@ email:Email = Email(codes,users)
 app.include_router(User(users,sessions,invites,email, codes, dns).router)
 app.include_router(Invite(users,sessions, invites).router)
 app.include_router(Domain(users,sessions,domains,dns).router)
+app.include_router(Blog(blogs,users,sessions).router)
 
 @app.exception_handler(SessionError)
 async def session_except_handler(request:Request, e:Exception):
