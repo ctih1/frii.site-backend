@@ -1,5 +1,4 @@
 from typing import List, Dict
-import uvicorn
 from fastapi import FastAPI, APIRouter, Request
 from fastapi.responses import JSONResponse
 from pymongo import MongoClient
