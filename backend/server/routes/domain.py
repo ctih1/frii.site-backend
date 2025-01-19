@@ -5,7 +5,7 @@ from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 from server.routes.models.domain import DomainType, RawDomainType
 from database.table import Table
-from database.tables.general import General as GeneralTable, UserType
+from backend.database.tables.users import Users as UsersTable, UserType
 from database.tables.invitation import Invites as InviteTable
 from database.tables.domains import Domains as DomainTable
 from database.tables.sessions import Sessions as SessionTable
@@ -21,10 +21,10 @@ from mail.email import Email
 converter:Convert = Convert()
 
 class Domain:
-    def __init__(self, table:GeneralTable, sessions:SessionTable, domains:DomainTable, dns:DNS) -> None:
+    def __init__(self, table:UsersTable, sessions:SessionTable, domains:DomainTable, dns:DNS) -> None:
         converter.init_vars(table, sessions)
 
-        self.table:GeneralTable = table
+        self.table:UsersTable = table
         self.dns:DNS = dns
         self.domains:DomainTable = domains
         self.dns_validation:Validation = Validation(domains,dns)
@@ -183,7 +183,7 @@ class Domain:
         if not self.dns_validation.is_free(name,"A",{},raise_exceptions=False):
             raise HTTPException(status_code=409, detail=f"Domain {name}.frii.site is not available")
         
-            
+    
 
 
         

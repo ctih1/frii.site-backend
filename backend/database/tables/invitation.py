@@ -1,13 +1,13 @@
 from typing import TypedDict, Dict
 import time
-from database.tables.general import General
-from database.tables.general import UserType, InviteType
+from backend.database.tables.users import Users
+from backend.database.tables.users import UserType, InviteType
 from database.exceptions import UserNotExistError, InviteException
 from security.encryption import Encryption
 
 INVITE_LENGTH:int=16  
 
-class Invites(General):
+class Invites(Users):
     def __init__(self, mongo_client):
         super().__init__(mongo_client)
 

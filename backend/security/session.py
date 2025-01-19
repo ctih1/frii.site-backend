@@ -15,8 +15,8 @@ from debug.logger import Logger
 from functools import wraps # test
 
 if TYPE_CHECKING:
-    from database.tables.general import General
-    from database.tables.general import UserType
+    from backend.database.tables.users import Users
+    from backend.database.tables.users import UserType
     from database.tables.sessions import Sessions
 
 l:Logger = Logger("session.py")
@@ -45,9 +45,9 @@ SessionType = TypedDict(
 
 class UserManager(threading.Thread):
     # a thread to track user data (for security)
-    def __init__(self, general:General, ip, username):
+    def __init__(self, users:Users, ip, username):
         super(UserManager, self).__init__()
-        self.table: General = general
+        self.table: Users = users
         self.daemon = True
         self.ip = ip
         self.username = username
@@ -178,7 +178,7 @@ class Session:
             return wrapper
         return decor
 
-    def __init__(self, session_id:str, ip:str, general: General, sessions: Sessions) -> None:
+    def __init__(self, session_id:str, ip:str, users: Users, sessions: Sessions) -> None:
         """Creates a Session object.
         Arguements:
             session_id: The id of the session string of length SESSION_TOKEN_LENGHT. Usually found in X-Auth-Token header.
@@ -186,7 +186,7 @@ class Session:
             database: Instance of the database class
         """
         self.session_table:Sessions = sessions
-        self.general_table:General = general
+        self.users_table:Users = users
         self.encryption: Encryption = Encryption(os.getenv("ENC_KEY"))
 
         self.id = session_id
@@ -220,7 +220,7 @@ class Session:
         return True
 
     def __user_cache(self) -> dict:
-        data:dict = self.general_table.find_item({"_id":self.username})
+        data:dict = self.users_table.find_item({"_id":self.username})
 
         if data is None:
             self.valid = False
@@ -266,14 +266,14 @@ class Session:
         return session_list
 
     @staticmethod
-    def create(username: str, ip: str, user_agent: str, general: General, session_table:Sessions) -> SessionCreateStatus:
+    def create(username: str, ip: str, user_agent: str, users: Users, session_table:Sessions) -> SessionCreateStatus:
         """
         Creates a new session for the given user.
         Args:
             username (str): The username of the user.
             ip (str): The IP address of the user.
             user_agent (str): The user agent string of the user's browser.
-            general (General): An instance of the General class for database operations.
+            users (Users): An instance of the Users class for database operations.
             session_table (Sessions): An instance of the Sessions class for session management.
         Returns:
             SessionCreateStatus: An object indicating the success of the session creation, 
@@ -284,7 +284,7 @@ class Session:
 
 
 
-        if general.find_item({"_id":username}).get("totp-key") is not None:
+        if users.find_item({"_id":username}).get("totp-key") is not None:
             return SessionCreateStatus(
                 success = False, mfa_required = True, code = None
             )
@@ -304,7 +304,7 @@ class Session:
         session_table.create_index("owner-hash")
         session_table.insert_document(session)
 
-        general.modify_document(
+        users.modify_document(
             filter={"$and":[
                     {"_id":username}, {"permissions.invite":{"$exists":False}}
                     ]
@@ -315,7 +315,7 @@ class Session:
             ignore_no_matches=True
         )
         
-        UserManager(general, ip, username).start() # updates `last-login` and `accessed-from` fields of user
+        UserManager(users, ip, username).start() # updates `last-login` and `accessed-from` fields of user
         return SessionCreateStatus(
             success=True, mfa_required=False, code=session_id
         )
@@ -326,12 +326,12 @@ class Session:
         
         key_for_user = base64.b32encode(Encryption.generate_random_string(16).encode("utf-8")).decode("utf-8")
 
-        data = self.general_table.find_item({"_id":self.username})
+        data = self.users_table.find_item({"_id":self.username})
 
         if data.get("totp-key") is not None:
             return None
         
-        self.general_table.modify_document(
+        self.users_table.modify_document(
             {"_id":self.username},
             key="totp-key",
             value=self.encryption.encrypt(key_for_user),
@@ -344,11 +344,11 @@ class Session:
 
 
     @staticmethod
-    def verify_2fa(code: str, user_id: str, general: Table):
+    def verify_2fa(code: str, user_id: str, users: Table):
         """Verify's 2FA TOTP code (as used in google authenticator)
         Returns boolean if code is correct
         """
-        key = general.find_item({"_id": user_id}).get("totp-key")
+        key = users.find_item({"_id": user_id}).get("totp-key")
         decrypted_key = Encryption(os.getenv("ENC_KEY")).decrypt(key)
 
         return pyotp.totp.TOTP(decrypted_key).verify(code)
@@ -374,7 +374,7 @@ class Session:
         if not self.valid:
             return False
         
-        data = self.general_table.find_item({"_id": id})
+        data = self.users_table.find_item({"_id": id})
 
         session_username = self.encryption.decrypt(data["username"])
 

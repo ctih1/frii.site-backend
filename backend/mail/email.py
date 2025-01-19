@@ -8,7 +8,7 @@ from debug.logger import Logger
 
 if TYPE_CHECKING:
 	from database.tables.codes import Codes
-	from database.tables.general import General
+	from backend.database.tables.users import Users
 
 
 template_path:str = os.path.join(".","mail","templates")
@@ -29,9 +29,9 @@ with open(os.path.join(template_path,"recovery.html"),"r") as f:
 l:Logger = Logger("email.py")
 
 class Email:
-	def __init__(self, codes:'Codes', general:'General'):
-		self.table:Codes = codes
-		self.general:General = general
+	def __init__(self, codes:'Codes', users:'Users'):
+		self.codes:Codes = codes
+		self.users:'Users' = users
 		self.encryption:Encryption = Encryption(os.getenv("ENC_KEY"))
 		resend.api_key = os.getenv("RESEND_KEY")
 
@@ -39,16 +39,15 @@ class Email:
 		replaced_email:str = email.replace("+","@") # removes ability to make alt accounts using the same email (ex. a@gmail.com, a+hi@gmail.com)
 		email_parts:List[str] = replaced_email.split("@")
 		processed_email = f"{email_parts[0]}@{email_parts[-1]}"
+		print(processed_email)
 
 		email_hash:str = Encryption.sha256(processed_email+"supahcool")
 
-		print(self.table.find_item({"email-hash":email_hash}) )
-
-		return self.table.find_item({"email-hash":email_hash}) is not None
+		return self.users.find_item({"email-hash":email_hash}) is not None
 	
 
 	def send_verification_code(self,username:str, email:str) -> bool:
-		code:str = self.table.create_code("verification",username)
+		code:str = self.codes.create_code("verification",username)
 		try:
 			resend.Emails.send({
 				"from": "send@frii.site",
@@ -63,30 +62,30 @@ class Email:
 		return True
 
 	def verify(self, code:str) -> bool:
-		if code not in self.table.verification_codes:
+		if code not in self.codes.verification_codes:
 			l.info("Code is not valid: not in codes")
 			return False
 		
-		if time.time() > self.table.verification_codes[code]["expire"]:
+		if time.time() > self.codes.verification_codes[code]["expire"]:
 			l.info("Code is not valid: expired")
-			del self.table.verification_codes[code]
+			del self.codes.verification_codes[code]
 			return False
 		
 		l.info(f"Code {code} is valid, verifying..")
 
-		self.general.modify_document(
-			{"_id":self.table.verification_codes[code]["account"]},
+		self.users.modify_document(
+			{"_id":self.codes.verification_codes[code]["account"]},
 			key="verified",
 			value=True,
 			operation="$set"
 		)
 
-		del self.table.verification_codes[code]
+		del self.codes.verification_codes[code]
 
 		return True
 	
 	def send_delete_code(self, username:str, email:str) -> bool:
-		code:str = self.table.create_code("deletion",username)
+		code:str = self.codes.create_code("deletion",username)
 		try:
 			resend.Emails.send({
 				"from": "send@frii.site",
@@ -103,7 +102,7 @@ class Email:
 
 	def send_password_code(self, username:str) -> bool:
 		hash_username:str = Encryption.sha256(username)
-		user_data: dict | None = self.general.find_item({"_id":hash_username})
+		user_data: dict | None = self.users.find_item({"_id":hash_username})
 
 		if user_data is None:
 			l.info("User does not exist, abandoning verification")
@@ -111,7 +110,7 @@ class Email:
 
 		user_email = self.encryption.decrypt(user_data["email"])
 	
-		code = self.table.create_code("recovery",hash_username)
+		code = self.codes.create_code("recovery",hash_username)
 
 		try:
 			resend.Emails.send({

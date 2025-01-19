@@ -1,6 +1,6 @@
 from typing import TypedDict, Dict, List
 from typing_extensions import NotRequired
-from database.tables.general import General, UserType
+from backend.database.tables.users import Users, UserType
 
 
 class DomainFormat(TypedDict):
@@ -17,7 +17,7 @@ RepairFormat = TypedDict("RepairFormat", {
     "broken-id": NotRequired[Dict[str,DomainFormat]]
 })
 
-class Domains(General):
+class Domains(Users):
     def __init__(self, mongo_client):
         super().__init__(mongo_client)
 

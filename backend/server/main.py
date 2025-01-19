@@ -10,7 +10,7 @@ from server.routes.user import User
 from server.routes.invite import Invite
 from server.routes.domain import Domain
 
-from database.tables.general import General
+from backend.database.tables.users import Users
 from database.tables.sessions import Sessions
 from database.tables.invitation import Invites
 from database.tables.codes import Codes
@@ -46,18 +46,18 @@ app = FastAPI()
 
 client:MongoClient = MongoClient(os.getenv("MONGODB_URL"))
 
-general:General = General(client)
+users:Users = Users(client)
 sessions:Sessions = Sessions(client)
 invites:Invites = Invites(client)
 codes:Codes = Codes(client)
 domains:Domains = Domains(client)
 dns:DNS = DNS(domains)
 
-email:Email = Email(codes,general)
+email:Email = Email(codes,users)
 
-app.include_router(User(general,sessions,invites,email, codes, dns).router)
-app.include_router(Invite(general,sessions, invites).router)
-app.include_router(Domain(general,sessions,domains,dns).router)
+app.include_router(User(users,sessions,invites,email, codes, dns).router)
+app.include_router(Invite(users,sessions, invites).router)
+app.include_router(Domain(users,sessions,domains,dns).router)
 
 @app.exception_handler(SessionError)
 async def session_except_handler(request:Request, e:Exception):

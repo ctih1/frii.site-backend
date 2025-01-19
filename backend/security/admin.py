@@ -2,8 +2,8 @@ import os
 from typing import TypedDict, List
 from security.session import Session
 from security.encryption import Encryption
-from database.tables.general import General
-from database.tables.general import UserType
+from backend.database.tables.users import Users
+from backend.database.tables.users import UserType
 from database.tables.domains import DOMAIN_FORMAT
 
 user_basic_data = TypedDict("user_basic_data", {
@@ -16,7 +16,7 @@ user_basic_data = TypedDict("user_basic_data", {
 
 class Admin:
     def __init__(self, mongo_client):
-        self.table:General = General(mongo_client)
+        self.table:Users = Users(mongo_client)
         self.encryption:Encryption = Encryption(os.getenv("ENC_KEY"))
         
     @Session.requires_auth

@@ -8,7 +8,7 @@ import ipinfo
 
 from database.exceptions import EmailException, UsernameException, FilterMatchError
 from database.table import Table
-from database.tables.general import General, UserType, CountryType, UserPageType
+from backend.database.tables.users import Users, UserType, CountryType, UserPageType
 from database.tables.invitation import Invites
 from database.tables.sessions import Sessions
 from database.tables.codes import Codes, CodeStatus
@@ -25,10 +25,10 @@ from server.routes.models.user import SignUp, PasswordReset
 
 converter:Convert = Convert()
 class User:
-    def __init__(self,table:General, session_table: Sessions, invite_table:Invites, email:Email, codes:Codes, dns:DNS) -> None:
+    def __init__(self,table:Users, session_table: Sessions, invite_table:Invites, email:Email, codes:Codes, dns:DNS) -> None:
         converter.init_vars(table,session_table)
 
-        self.table:General = table
+        self.table:Users = table
         self.session_table:Session = session_table
         self.invites:Invites = invite_table
         self.email:Email = email
@@ -304,6 +304,4 @@ class User:
         except FilterMatchError:
             raise HTTPException(status_code=404,detail="Invalid user")
         
-        
-        
-        
+    

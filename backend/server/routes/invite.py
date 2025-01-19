@@ -5,7 +5,7 @@ from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 from server.routes.models.invite import InviteCreate
 from database.table import Table
-from database.tables.general import General as GeneralTable, UserType
+from backend.database.tables.users import Users as UsersTable, UserType
 from database.tables.invitation import Invites as InviteTable
 from database.tables.sessions import Sessions as SessionTable
 from database.exceptions import (UserNotExistError, InviteException)
@@ -17,9 +17,9 @@ from mail.email import Email
 converter:Convert = Convert()
 
 class Invite:
-    def __init__(self, table:GeneralTable, sessions:SessionTable, invites:InviteTable) -> None:
+    def __init__(self, table:UsersTable, sessions:SessionTable, invites:InviteTable) -> None:
         converter.init_vars(table,sessions)
-        self.table:GeneralTable = table
+        self.table:UsersTable = table
         self.invites:InviteTable = invites
 
         self.router = APIRouter(prefix="/invite")

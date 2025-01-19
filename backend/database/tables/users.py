@@ -82,7 +82,7 @@ UserType = TypedDict("UserType", {
 })
 
 
-class General(Table):
+class Users(Table):
     def __init__(self, mongo_client: MongoClient) -> str:
         super().__init__(mongo_client, "frii.site")
         self.encryption:Encryption = Encryption(os.getenv("ENC_KEY"))
