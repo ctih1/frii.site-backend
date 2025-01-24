@@ -22,11 +22,7 @@ from dns_.dns import DNS
 
 from security.session import SessionError
 from mail.email import Email
-from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-
-
 
 logging.basicConfig(
     level=logging.INFO,
