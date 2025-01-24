@@ -22,6 +22,11 @@ from dns_.dns import DNS
 
 from security.session import SessionError
 from mail.email import Email
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -51,6 +56,14 @@ tags_metadata:List[Dict[str,str]] = [
 
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 client:MongoClient = MongoClient(os.getenv("MONGODB_URL"))
 
