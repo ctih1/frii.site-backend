@@ -2,6 +2,7 @@ from typing import List, Dict
 import logging
 from fastapi import FastAPI, APIRouter, Request
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pymongo import MongoClient
 import os
 from dotenv import load_dotenv
@@ -51,6 +52,14 @@ tags_metadata:List[Dict[str,str]] = [
 
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 client:MongoClient = MongoClient(os.getenv("MONGODB_URL"))
 
