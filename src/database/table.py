@@ -65,6 +65,6 @@ class Table:
         logger.info(f"Deleting many with filter {filter} on table {self.name}")
         self.table.delete_many(filter)
 
-    def remove_key(self,filter:Dict[str,Any], key:str) -> None:
-        self.table.update_one(filter,{"$unset":{ key, "" }})
+    def remove_key(self,filter:Dict[str,Any], key:str) -> bool:
+        self.table.update_one(filter,{"$unset":{ key, "" }}).matched_count != 0
 

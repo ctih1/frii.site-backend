@@ -80,11 +80,11 @@ class Domains(Users):
             value=domain_data
         )
 
-    def delete_domain(self, target_user:str, domain:str) -> None:
+    def delete_domain(self, target_user:str, domain:str) -> bool:
         cleaned_domain = Domains.clean_domain_name(domain)
         logger.info(f"Deleting domain {cleaned_domain}")
 
-        self.remove_key({"_id":target_user},key=f"domains.{cleaned_domain}")
+        return self.remove_key({"_id":target_user},key=f"domains.{cleaned_domain}")
 
     
     def repair_domains(self, domains:Dict[str,DomainFormat]) -> RepairFormat:

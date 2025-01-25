@@ -82,7 +82,8 @@ class Domain:
             methods=["DELETE"],
             status_code=200,
             responses={
-                200: {"description": "Domain is available"}
+                200: {"description": "Domain deleted succesfully"},
+                403: {"description": "Domain does not exist, or user does not own it."}
             },
             tags=["domain"]
         )
@@ -196,7 +197,8 @@ class Domain:
 
     @Session.requires_auth
     def delete(self, domain:str, session:Session = Depends(converter.create)) -> Dict[str,DomainFormat]:
-        self.domains.delete_domain(session.username,domain)
+        if not self.domains.delete_domain(session.username,domain):
+            raise HTTPException(status_code=403, detail="Domain does not exist, or user does not own it.")
 
 
     def is_available(self,name:str):
