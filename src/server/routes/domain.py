@@ -75,6 +75,17 @@ class Domain:
             },
             tags=["domain"]
         )
+        
+        self.router.add_api_route(
+            "/delete",
+            self.delete, 
+            methods=["DELETE"],
+            status_code=200,
+            responses={
+                200: {"description": "Domain is available"}
+            },
+            tags=["domain"]
+        )
 
         self.router.add_api_route(
             "/get",
@@ -181,6 +192,11 @@ class Domain:
     def get_domains(self, session:Session = Depends(converter.create)) -> Dict[str,DomainFormat]:
         domains:Dict[str, DomainFormat] = session.user_cache_data["domains"]
         return JSONResponse({k.replace("[dot]","."):v for k,v in domains.items()}) # type: ignore[return-value]
+
+
+    @Session.requires_auth
+    def delete(self, domain:str, session:Session = Depends(converter.create)) -> Dict[str,DomainFormat]:
+        self.domains.delete_domain(session.username,domain)
 
 
     def is_available(self,name:str):
