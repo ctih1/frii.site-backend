@@ -87,7 +87,7 @@ async def get_status():
         return 200
     raise HTTPException(
         status_code=500,
-        detail=f"{status.get()["message"]}"
+        detail=f"{status.get()['message']}"
     )
 
 @app.exception_handler(SessionError)
