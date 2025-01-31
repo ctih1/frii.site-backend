@@ -1,7 +1,7 @@
 import json
 from .Logger import Logger
 import requests
-from typing import TypedDict
+from typing_extensions import TypedDict
 
 DomainResponse = TypedDict(
     "DomainResponse",

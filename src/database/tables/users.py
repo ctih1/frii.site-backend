@@ -1,8 +1,8 @@
 import os
 import time
 import logging
-from typing import List, Dict, TYPE_CHECKING
-from typing_extensions import NotRequired, Required, TypedDict
+from typing import List, TYPE_CHECKING
+from typing_extensions import NotRequired, Dict, Required, TypedDict
 from pymongo import MongoClient
 from database.table import Table
 import datetime

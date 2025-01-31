@@ -139,16 +139,12 @@ class Domain:
             print(e.json)
             raise HTTPException(status_code=500, detail="DNS Registration failed")
 
-        self.domains.add_domain(
+        self.domains.modify_domain(
             session.username,
             body.domain,
-            {
-                "ip":body.value,
-                "id": domain_id,
-                "type": body.type,
-                "registered": round(time.time())
-                }
-            )
+            body.value,
+            body.type
+        )
     
     @Session.requires_auth
     def modify(self, body:DomainType, session:Session = Depends(converter.create)):
@@ -170,6 +166,7 @@ class Domain:
                 body.domain
             )
         except ValueError: # domain id is corrupt
+            logger.error(f"Domain id for {body.domain} is corrupted")
             id:str | None = self.dns.get_id(body.domain,body.type,body.value)
 
             if id is None:

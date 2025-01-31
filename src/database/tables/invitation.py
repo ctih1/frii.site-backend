@@ -1,4 +1,4 @@
-from typing import TypedDict, Dict
+from typing import Dict
 import logging
 import time
 from database.tables.users import Users

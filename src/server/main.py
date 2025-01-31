@@ -29,7 +29,9 @@ from mail.email import Email
 logging.basicConfig(
     level=logging.INFO,
     format="[%(name)s] %(levelname)s: [%(filename)s:%(funcName)s] %(message)s",
-    datefmt="%d/%m/%Y %H.%M.%S"
+    datefmt="%d/%m/%Y %H.%M.%S",
+    filename="backend.log"
+    
 )
 logger:logging.Logger = logging.getLogger("frii.site")
 logger.info("Logger init")
@@ -72,7 +74,6 @@ codes:Codes = Codes(client)
 domains:Domains = Domains(client)
 blogs:Blogs = Blogs(client)
 dns:DNS = DNS(domains)
-status:Status = Status(client)
 
 email:Email = Email(codes,users)
 
@@ -81,14 +82,6 @@ app.include_router(Invite(users,sessions, invites).router)
 app.include_router(Domain(users,sessions,domains,dns).router)
 app.include_router(Blog(blogs,users,sessions).router)
 
-@app.route("/status",["GET"])
-async def get_status():
-    if not status.get()["issues"]:
-        return 200
-    raise HTTPException(
-        status_code=500,
-        detail=f"{status.get()['message']}"
-    )
 
 @app.exception_handler(SessionError)
 async def session_except_handler(request:Request, e:Exception):

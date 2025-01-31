@@ -1,5 +1,4 @@
-from typing import TypedDict
-from typing_extensions import NotRequired
+from typing_extensions import NotRequired, TypedDict
 from pymongo import MongoClient
 from database.table import Table
 

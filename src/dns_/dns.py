@@ -71,6 +71,7 @@ class DNS:
             DNSException: If the request to modify the DNS record fails.
             ValueError: If the ID of the modified DNS record cannot be retrieved.
         """
+        logger.debug(f"Modifying domain {domain}")
         request = requests.patch(
             f"https://api.cloudflare.com/client/v4/zones/{self.zone_id}/dns_records/{domain_id}",
 

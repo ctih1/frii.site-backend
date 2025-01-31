@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import TypedDict, List, TYPE_CHECKING
+from typing import List, TYPE_CHECKING
+from typing_extensions import TypedDict
 import os
 import time
 import datetime

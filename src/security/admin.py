@@ -1,5 +1,6 @@
 import os
-from typing import TypedDict, List
+from typing import List
+from typing_extensions import TypedDict
 from security.session import Session
 from security.encryption import Encryption
 from database.tables.users import Users

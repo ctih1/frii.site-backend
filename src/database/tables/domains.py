@@ -1,6 +1,6 @@
-from typing import TypedDict, Dict, List
+from typing import Dict, List
 import logging
-from typing_extensions import NotRequired
+from typing_extensions import NotRequired, TypedDict
 from database.tables.users import Users, UserType
 from database.exceptions import UserNotExistError
 

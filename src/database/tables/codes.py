@@ -1,5 +1,5 @@
-from typing import TypedDict, Dict, List
-from typing_extensions import NotRequired
+from typing import Dict, List
+from typing_extensions import NotRequired, TypedDict
 import logging
 import os
 import time
