@@ -30,8 +30,6 @@ logging.basicConfig(
     level=logging.INFO,
     format="[%(name)s] %(levelname)s: [%(filename)s:%(funcName)s] %(message)s",
     datefmt="%d/%m/%Y %H.%M.%S",
-    filename="backend.log"
-    
 )
 logger:logging.Logger = logging.getLogger("frii.site")
 logger.info("Logger init")
