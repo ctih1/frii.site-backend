@@ -1,5 +1,6 @@
 from typing import List, Dict
 import logging
+import sys
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,6 +31,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="[%(name)s] %(levelname)s: [%(filename)s:%(funcName)s] %(message)s",
     datefmt="%d/%m/%Y %H.%M.%S",
+    stream=sys.stdout
 )
 logger:logging.Logger = logging.getLogger("frii.site")
 logger.info("Logger init")

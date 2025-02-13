@@ -157,34 +157,41 @@ class Domain:
         
         if not self.dns_validation.user_owns_domain(session.username,body.domain):
             raise HTTPException(status_code=403, detail=f"You do not own the domain {body.domain}")
+
+        id:str | None
         
         try:
-            self.dns.modify_domain(
+            id = self.dns.modify_domain(
                 session.user_cache_data["domains"][clean_domain_name]["id"],
                 body.value,
                 body.type,
                 body.domain
             )
+        
+
         except ValueError: # domain id is corrupt
             logger.error(f"Domain id for {body.domain} is corrupted")
-            id:str | None = self.dns.get_id(body.domain,body.type,body.value)
+            id = self.dns.get_id(body.domain,body.type,body.value)
 
             if id is None:
                 id = self.dns.register_domain(body.domain,body.value,body.type,f"Registered with domain repair {session.username}")
-
-            self.domains.add_domain(
-                session.username,body.domain,
-                {
-                    "id":id,
-                    "ip": body.value,
-                    "registered": round(time.time()),
-                    "type":body.type
-                }
-            )
         
         except DNSException as e:
             print(e.json)
             raise HTTPException(status_code=500)
+        
+        if id is None:
+            raise HTTPException(status_code=501)
+        
+        self.domains.add_domain(
+            session.username,body.domain,
+            {
+                "id":id,
+                "ip": body.value,
+                "registered": round(time.time()),
+                "type":body.type
+            }
+        )
         
     @Session.requires_auth
     def get_domains(self, session:Session = Depends(converter.create)) -> Dict[str,DomainFormat]:
@@ -193,7 +200,7 @@ class Domain:
 
 
     @Session.requires_auth
-    def delete(self, domain:str, session:Session = Depends(converter.create)) -> Dict[str,DomainFormat]:
+    def delete(self, domain:str, session:Session = Depends(converter.create)) -> None:
         if not self.domains.delete_domain(session.username,domain):
             raise HTTPException(status_code=403, detail="Domain does not exist, or user does not own it.")
 
