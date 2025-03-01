@@ -53,7 +53,7 @@ class User:
                 401: {"description": "Invalid password"},
                 412: {"description": "2FA code required to be passed in X-MFA-Code"},
             },
-            tags=["account"]
+            tags=["account","session"]
         )
         
                 
@@ -161,6 +161,14 @@ class User:
             tags=["account"]
         )
 
+        self.router.add_api_route(
+            "/logout",
+            self.logout,
+            methods=["PATCH"],
+            status_code=200,
+            tags=["account","session"]
+        )
+
         logger.info("Initialized")
     
 
@@ -259,6 +267,11 @@ class User:
     def send_account_deletion(self, request:Request, session:Session = Depends(converter.create)):
         email:str = self.encryption.decrypt(session.user_cache_data["email"])
         self.email.send_delete_code(session.username,email)
+
+    @Session.requires_auth
+    def logout(self, request:Request, session:Session = Depends(converter.create)):
+        session_id_hash:str = request.query_params.get("id") or Encryption.sha256(session.id)
+        session.delete(session_id_hash)
 
 
     def verify_deletion(self, code:str):
