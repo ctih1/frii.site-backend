@@ -371,22 +371,29 @@ class Session:
 
         return True
 
-    def delete(self, id):
+    def delete(self, id) -> bool:
         """Deletes a specific session.
 
         Arguements:
             self: being an instance of Session to authenticate that the person trying to delete the session actually has permissions to do so
             id: sha256 hash of the session_id, that will be deleted
+
+        Throws:
+            SessionError: target session does not exist
+            SessionPermissionError: session does not belong to user
         """
         if not self.valid:
             return False
         
-        data = self.users_table.find_item({"_id": id})
+        data: dict | None = self.users_table.find_item({"_id": id})
 
-        session_username = self.encryption.decrypt(data["username"])
+        if data is None:
+            raise SessionError("Session does not exist")
+
+        session_username:str = self.encryption.decrypt(data["username"])
 
         if self.username != session_username:
-            return False
+            raise SessionPermissonError("Invalid username for session")
         
         self.session_table.delete_document({"_id":id})
         return True

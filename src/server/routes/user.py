@@ -15,7 +15,7 @@ from database.tables.codes import Codes, CodeStatus
 from database.tables.domains import DomainFormat
 
 from security.encryption import Encryption
-from security.session import Session, SessionCreateStatus, SESSION_TOKEN_LENGTH
+from security.session import Session, SessionCreateStatus, SessionError, SessionPermissonError, SESSION_TOKEN_LENGTH
 from security.convert import Convert
 from mail.email import Email    
 
@@ -269,10 +269,20 @@ class User:
         self.email.send_delete_code(session.username,email)
 
     @Session.requires_auth
-    def logout(self, request:Request, session:Session = Depends(converter.create)):
-        session_id_hash:str = request.query_params.get("id") or Encryption.sha256(session.id)
-        session.delete(session_id_hash)
+    def logout(self, request:Request, session:Session = Depends(converter.create)) -> None:
+        session_id_hash:str
+        if request.query_params.get("specific")  == "true":
+            session_id_hash = request.query_params.get("id")
+        else:
+            session_id_hash = Encryption.sha256(session.id)
 
+        try:
+            session.delete(session_id_hash)
+        except SessionError:
+            raise HTTPException(404)
+        except SessionPermissonError:
+            raise HTTPException(461)
+        
 
     def verify_deletion(self, code:str):
         code_status:CodeStatus = self.codes.is_valid(code,"deletion")
