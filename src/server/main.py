@@ -86,6 +86,9 @@ app.include_router(Domain(users,sessions,domains,dns).router)
 app.include_router(Blog(blogs,users,sessions).router)
 app.include_router(Languages(translations,users,sessions).router)
 
+@app.get("/status")
+async def status():
+    return 200
 
 @app.exception_handler(SessionError)
 async def session_except_handler(request:Request, e:Exception):
