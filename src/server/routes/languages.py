@@ -64,7 +64,6 @@ class Languages:
     def contribute(self,language:str,body:ContributionBody, session:Session = Depends(converter.create)) -> None:
         self.translations_table.add(language,body.keys,session.username)
 
-    
     def get_missing_keys(self,language:str) -> List[Dict[str,str]]:
         return self.translations_table.get_missing_keys(language)
         
