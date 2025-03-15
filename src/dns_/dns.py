@@ -90,10 +90,15 @@ class DNS:
 
 
         if request.json()["success"] == False and request.json()["errors"][0]["code"] == 81044: # record does not exist
+            logger.warning("ID not found!")
             found_id: str | None = self.get_id(domain)
             if found_id:
+                logger.warning(f"ID of record found! Attempting domain modification with id {found_id}")
+
                 return self.modify_domain(found_id,content,type,domain)
             else:
+                logger.error("ID not found!")
+
                 raise ValueError("Failed to retrieve id")
         if not request.ok:
             
