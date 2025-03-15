@@ -165,6 +165,10 @@ class User:
             "/logout",
             self.logout,
             methods=["PATCH"],
+            responses={
+                404: {"description": "Session does not exist"},
+                461: {"description":"User does not have access to use that session"}
+            },
             status_code=200,
             tags=["account","session"]
         )
@@ -271,11 +275,10 @@ class User:
     @Session.requires_auth
     def logout(self, request:Request, session:Session = Depends(converter.create)) -> None:
         session_id_hash:str
-        if request.query_params.get("specific")  == "true":
-            session_id_hash = request.query_params.get("id")
+        if request.headers.get("specific")  == "true":
+            session_id_hash = request.headers.get("id")
         else:
             session_id_hash = Encryption.sha256(session.id)
-
         try:
             session.delete(session_id_hash)
         except SessionError:
