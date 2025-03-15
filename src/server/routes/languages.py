@@ -19,6 +19,7 @@ class Languages:
         converter.init_vars(user_table,session_table)
 
         self.translations_table:Translations = translations
+
         self.router = APIRouter(prefix="/languages")
         
         self.router.add_api_route(
@@ -44,10 +45,10 @@ class Languages:
 
         self.router.add_api_route(
             "/{language}/missing-keys",
-            self.contribute, 
-            methods=["POST"],
+            self.get_missing_keys, 
+            methods=["GET"],
             responses={
-                200: {"description": "Contribution accepted"},
+                200: {"description": "Missing keys retrieved"},
                 460: {"description": "Invalid session"},
             },
             tags=["translations"]
@@ -64,7 +65,7 @@ class Languages:
         self.translations_table.add(language,body.keys,session.username)
 
     
-    def get_missing_keys(self,language:str) -> Dict[str,str]:
+    def get_missing_keys(self,language:str) -> List[Dict[str,str]]:
         return self.translations_table.get_missing_keys(language)
         
         

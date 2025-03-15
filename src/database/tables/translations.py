@@ -11,7 +11,7 @@ class Translations(Table):
     def __init__(self, mongo_client:MongoClient):
         super().__init__(mongo_client, "translations")
 
-        self.api_key = os.getenv("GH_API_KEY")
+        self.api_key = os.getenv("GH_KEY")
 
         response = requests.get(
             "https://api.github.com/repos/ctih1/frii.site-frontend/contents/src/locales?ref=dev",
