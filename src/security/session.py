@@ -385,7 +385,7 @@ class Session:
         if not self.valid:
             return False
         
-        data: dict | None = self.users_table.find_item({"_id": id})
+        data: dict | None = self.session_table.find_item({"_id": id})
 
         if data is None:
             raise SessionError("Session does not exist")
