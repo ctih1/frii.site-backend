@@ -16,6 +16,7 @@ from database.tables.domains import DomainFormat
 
 from security.encryption import Encryption
 from security.session import Session, SessionCreateStatus, SessionError, SessionPermissonError, SESSION_TOKEN_LENGTH
+from security.api import Api
 from security.convert import Convert
 from mail.email import Email    
 
@@ -176,6 +177,20 @@ class User:
             status_code=200,
             tags=["account","session"]
         )
+        
+        
+        self.router.add_api_route(
+            "/api/create-key",
+            self.create_api_token,
+            methods=["POST"],
+            responses={
+                403: {"description": "User does not own requested domains"},
+                460: {"description": "Invalid session"},
+            },
+            status_code=200,
+            tags=["account","api"]
+        )
+
 
         logger.info("Initialized")
     
@@ -290,6 +305,16 @@ class User:
         except SessionPermissonError:
             raise HTTPException(461)
         
+    @Session.requires_auth
+    def create_api_token(self, request:Request, comment:str, session:Session = Depends(converter.create)) -> str:
+        api_key:str
+        try:
+            api_key = Api.create(session.username,self.table,comment)
+        except PermissionError:
+            raise HTTPException(403)
+        
+        return api_key
+
 
     def verify_deletion(self, code:str):
         code_status:CodeStatus = self.codes.is_valid(code,"deletion")

@@ -1,11 +1,11 @@
 from typing import List, Dict
 import logging
 import sys
-from fastapi import FastAPI, HTTPException, Request
+import os
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pymongo import MongoClient
-import os
 from dotenv import load_dotenv
 
 from server.routes.user import User
@@ -13,6 +13,7 @@ from server.routes.invite import Invite
 from server.routes.domain import Domain
 from server.routes.blog import Blog
 from server.routes.languages import Languages
+from server.routes.api import API
 
 from database.tables.users import Users
 from database.tables.sessions import Sessions
@@ -26,7 +27,8 @@ from debug.status import Status
 
 from dns_.dns import DNS
 
-from security.session import SessionError
+from security.session import SessionError, SessionPermissonError
+from security.api import ApiError, ApiRangeError, ApiPermissionError
 from mail.email import Email
 
 logging.basicConfig(
@@ -53,6 +55,10 @@ tags_metadata:List[Dict[str,str]] = [
     {
         "name": "invite",
         "description": "Viewing, creating, and managing invites"
+    },
+    {
+        "name": "api",
+        "description": "Routes that can be used with the public API"
     }
 ]
 
@@ -76,6 +82,7 @@ codes:Codes = Codes(client)
 domains:Domains = Domains(client)
 blogs:Blogs = Blogs(client)
 dns:DNS = DNS(domains)
+
 translations:Translations = Translations(client)
 
 email:Email = Email(codes,users)
@@ -85,6 +92,7 @@ app.include_router(Invite(users,sessions, invites).router)
 app.include_router(Domain(users,sessions,domains,dns).router)
 app.include_router(Blog(blogs,users,sessions).router)
 app.include_router(Languages(translations,users,sessions).router)
+app.include_router(API(users,domains,dns).router)
 
 @app.get("/status")
 async def status():
@@ -96,5 +104,41 @@ async def session_except_handler(request:Request, e:Exception):
         status_code=460,
         content={
             "message": "Invalid session"
+        }
+    )
+    
+@app.exception_handler(SessionPermissonError)
+async def session_except_handler(request:Request, e:Exception):
+    return JSONResponse(
+        status_code=461,
+        content={
+            "message": "You lack the necessary permissions to run this action"
+        }
+    )
+
+@app.exception_handler(ApiError)
+async def session_except_handler(request:Request, e:Exception):
+    return JSONResponse(
+        status_code=460,
+        content={
+            "message": "Invalid API key"
+        }
+    )
+    
+@app.exception_handler(ApiRangeError)
+async def session_except_handler(request:Request, e:Exception):
+    return JSONResponse(
+        status_code=461,
+        content={
+            "message": "API key cannot do operations on requested domain"
+        }
+    )
+        
+@app.exception_handler(ApiPermissionError)
+async def session_except_handler(request:Request, e:Exception):
+    return JSONResponse(
+        status_code=462,
+        content={
+            "message": "API key does not have the necessary permissions to perform this action"
         }
     )

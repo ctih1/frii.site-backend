@@ -34,7 +34,6 @@ class Codes(Table):
 
         self.__sync_codes()
 
-
     def __sync_codes(self):
         logger.info("Syncing codes...")
         codes:List[dict] = self.get_table()
