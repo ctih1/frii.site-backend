@@ -45,7 +45,8 @@ class Domain:
                 403: {"description": "Domain missing for subdomain (e.g: a.b.frii.site needs b.frii.site registered)"},
                 405: {"description": "Domain limit exceeded"},
                 409: {"description": "Domain already in use"},
-                412: {"description": "Invalid DNS record type"}
+                412: {"description": "Invalid DNS record type"},
+                460: {"description": "Invalid session"}
             },
             tags=["domain"]
         )
@@ -59,6 +60,7 @@ class Domain:
                 200: {"description": "Domain modified"},
                 403: {"description": "User does not own domain"},
                 412: {"description": "Invalid record name or value"},
+                460: {"description": "Invalid session"}
             },
             tags=["domain"]
         )
@@ -83,7 +85,8 @@ class Domain:
             status_code=200,
             responses={
                 200: {"description": "Domain deleted succesfully"},
-                403: {"description": "Domain does not exist, or user does not own it."}
+                403: {"description": "Domain does not exist, or user does not own it."},
+                460: {"description": "Invalid session"}
             },
             tags=["domain"]
         )
@@ -94,7 +97,8 @@ class Domain:
             methods=["GET"],
             status_code=200,
             responses={
-                200: {"description": "Returns a JSON dict of domains"}
+                200: {"description": "Returns a JSON dict of domains"},
+                460: {"description": "Invalid session"}
             },
             tags=["domain"]
         )

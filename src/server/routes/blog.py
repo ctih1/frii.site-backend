@@ -29,7 +29,7 @@ class Blog:
             methods=["GET"],
             responses={
                 200: {"description": "Blog found"},
-                404: {"description": "Blog not found"}
+                404: {"description": "Blog not found"},
             },
             tags=["blog"]
         )
@@ -49,7 +49,8 @@ class Blog:
             self.create, 
             methods=["POST"],
             responses={
-                200: {"description": "Blog created"}
+                200: {"description": "Blog created"},
+                460: {"description": "Invalid session"}
             },
             tags=["blog"]
         )

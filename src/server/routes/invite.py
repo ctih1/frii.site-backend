@@ -33,7 +33,8 @@ class Invite:
             responses={
                 200: {"description": "Invite code created"},
                 404: {"description": "User does not exist"},
-                409: {"description": "Invite limit (3) reached"}
+                409: {"description": "Invite limit (3) reached"},
+                460: {"description": "Invalid session"}
             },
             tags=["invite"]
         )

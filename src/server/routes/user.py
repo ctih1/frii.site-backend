@@ -78,7 +78,8 @@ class User:
             self.get_settings,
             methods=["GET"],
             responses={
-                200: {"description":"Sign up succesfull"}
+                200: {"description":"Settings retrieved"},
+                460: {"description": "Invalid session"}
             },
             status_code=200,
             tags=["account"]
@@ -91,7 +92,8 @@ class User:
             methods=["POST"],
             responses={
                 200: {"description": "Email sent succesfully"},
-                404: {"description": "Account does not exist"}
+                404: {"description": "Account does not exist"},
+                460: {"description": "Invalid session"}
             },
             status_code=200,
             tags=["account"]
@@ -116,7 +118,8 @@ class User:
             self.send_account_deletion,
             methods=["DELETE"],
             responses={
-                200: {"description":"Deletion email sent"}
+                200: {"description":"Deletion email sent"},
+                460: {"description": "Invalid session"}
             },
             status_code=200,
             tags=["account"]
@@ -167,6 +170,7 @@ class User:
             methods=["PATCH"],
             responses={
                 404: {"description": "Session does not exist"},
+                460: {"description": "Invalid session"},
                 461: {"description":"User does not have access to use that session"}
             },
             status_code=200,
