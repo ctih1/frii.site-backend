@@ -41,7 +41,7 @@ class DNS:
 
         # id is always string or none
         return request.json().get("result",[{}])[0].get("id") # type: ignore[no-any-return]
-    
+
     def get_domain_attributes(self, raw_domain:str) -> dict:
         request = requests.get(
             f"""https://api.cloudflare.com/client/v4
@@ -51,9 +51,9 @@ class DNS:
                     "Authorization": f"Bearer {self.key}",
                     "X-Auth-Email": self.email
                }
-        ) 
+        )
         return request.json()
-         
+
 
 
     def modify_domain(self, domain_id:str, content:str, type:str, domain:str) -> str:
@@ -100,11 +100,11 @@ class DNS:
                 logger.error("ID not found!")
 
                 raise ValueError("Failed to retrieve id")
+
         if not request.ok:
-            
             logger.error(f"Failed to modify domain {domain}. {request.json()}")
             raise DNSException("Failed to modify domain", request.json())
-        
+
         id:str | None = request.json().get("result",{}).get("id")
 
         if id is None:
@@ -112,8 +112,8 @@ class DNS:
             raise ValueError("Failed to get id")
 
         return id # type: ignore[no-any-return]
-    
-    
+
+
     def register_domain(self, name:str, content:str, type:str, comment:str) -> str:
         """
         Registers a new DNS record for the specified domain.
@@ -147,12 +147,12 @@ class DNS:
         if not request.ok:
             logger.error(f"Failed to register domain {name}. {request.json()}")
             raise DNSException("Failed to register domain",request.json())
-        
+
         id:str | None = request.json().get("result",{}).get("id")
 
         if id is None:
             raise ValueError("Failed to get id")
-        
+
         return id
 
 
@@ -176,9 +176,9 @@ class DNS:
         if not request.ok:
             logger.error(f"Could not delete domain with id {domain_id}. {request.json()}")
             return False
-        
+
         return True
-    
+
 
     def fix_domains(self,repair_status:RepairFormat, user_id:str) -> None:
         for key, val in repair_status["broken-id"].items():
@@ -188,10 +188,10 @@ class DNS:
             logger.info(f"Trying to fix domain {name}")
 
             id:str | None = self.get_id(name,value["type"], value["ip"])
-            
+
             logger.info("Couldn't find matching domain... Registering a new one")
             id = id or self.register_domain(name,value["ip"],value["type"],f"Fixed domain for user {user_id}")
-                
+
             self.table.modify_document(
                 {f"domains.{name}":{"$exists":True}},
                 operation="$set",
@@ -200,4 +200,3 @@ class DNS:
             )
 
 
-            
