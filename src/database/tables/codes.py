@@ -42,15 +42,15 @@ class Codes(Table):
         for code in codes:
             if code["type"] == "verification":
                 self.verification_codes[code["_id"]] = {}
-                self.verification_codes[code["_id"]]["account"] = self.encryption.decrypt(code["account"])
+                self.verification_codes[code["_id"]]["account"] = code["account"]
                 self.verification_codes[code["_id"]]["expire"] = code["expire"]
             if code["type"] == "deletion":
                 self.deletion_codes[code["_id"]] = {}
-                self.deletion_codes[code["_id"]]["account"] = self.encryption.decrypt(code["account"])
+                self.deletion_codes[code["_id"]]["account"] = code["account"]
                 self.deletion_codes[code["_id"]]["expire"] = code["expire"]
             if code["type"] == "recovery":
                 self.recovery_codes[code["_id"]] = {}
-                self.recovery_codes[code["_id"]]["account"] = self.encryption.decrypt(code["account"])
+                self.recovery_codes[code["_id"]]["account"] = code["account"]
                 self.recovery_codes[code["_id"]]["expire"] = code["expire"]
             codes_found += 1
         
@@ -87,7 +87,6 @@ class Codes(Table):
         else:
             raise ValueError("Code type is not valid")
         
-        
         self.insert_document({
             "_id": code,
             "type":type,
@@ -116,7 +115,7 @@ class Codes(Table):
         if code_result["expire"] < round(time.time()):
             return {"valid":False} 
         
-        return {"valid":True, "account":code_result["account"]}
+        return {"valid":True, "account": self.encryption.decrypt(code_result["account"])}
     
     def delete_code(self, code:str, type:str):
         logger.info(f"Deleting code {code}")
