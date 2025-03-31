@@ -95,9 +95,12 @@ class Email:
 				"html": deletion_template.replace("{{link}}",f"https://www.frii.site/verify/{code}"),
 				"text": f"Go to https://www.frii.site/verify/{code} to verify your account"
 			})
+   			
 		except resend.exceptions.ResendError as e:
 			logger.error(f"Failed to send verification code {e.suggested_action}")
 			return False
+
+		logger.info(f"Sent account deletion code to username {username}")
 		return True
 	
 
@@ -122,6 +125,7 @@ class Email:
 		except resend.exceptions.ResendError as e:
 			logger.error(f"Failed to send verification code {e.suggested_action}")
 			return False
-		
+
+		logger.info(f"Sent password reset code to username {username}")
 		return True
 	
