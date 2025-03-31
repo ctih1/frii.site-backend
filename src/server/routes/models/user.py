@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import List
 class SignUp(BaseModel):
     username:str
     password:str
@@ -9,3 +10,7 @@ class SignUp(BaseModel):
 class PasswordReset(BaseModel):
     code:str
     hashed_password:str
+    
+class ApiCreationBody(BaseModel): 
+    permissions: List[str]
+    domains: List[str]
