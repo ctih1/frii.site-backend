@@ -66,5 +66,7 @@ class Table:
         self.table.delete_many(filter)
 
     def remove_key(self,filter:Dict[str,Any], key:str) -> bool:
-        self.table.update_one(filter,{"$unset":{ key, "" }}).matched_count != 0
+        updateResult = self.table.update_one(filter,{"$unset":{ key: "" }})
+        print(updateResult.matched_count != 0)
+        return updateResult.matched_count != 0
 
