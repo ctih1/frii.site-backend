@@ -1,5 +1,6 @@
 import logging
 import os
+import threading
 from typing_extensions import Dict, List
 import requests
 from pymongo import MongoClient
@@ -23,38 +24,63 @@ class Translations(Table):
         )
 
         self.languages: dict = {}
-
+        
+        threads: List[threading.Thread] = []
         for file in response.json():
-            filename:str = file["name"].split(".")[0]
-            self.languages[filename] = requests.get(file["download_url"]).json()
+            thread: threading.Thread = threading.Thread(target=self.__init_language,args=(file,))
+            threads.append(thread)
+            thread.start()
+            
+        for thread in threads:
+            thread.join() # wait for threads to fetch language data to process them
 
         self.keys:dict = {}
         self.percentages:Dict[str,float] = self.__calculate_percentages()
+        
+    def __init_language(self,file: Dict) -> None:
+        filename:str = file["name"].split(".")[0]
+        self.languages[filename] = requests.get(file["download_url"]).json()
+        
+    def __process_missing_keys(self,language:str, keys: dict) -> None:
+        preview_keys:Dict = {}
+        
+        for lang in keys:
+            if lang["_id"] == language:
+                preview_keys = lang
+    
+        if preview_keys is None or preview_keys.get("keys",None) is None:
+            logger.warning(f"`preview_keys` doesn't exist for language {language}")
+            preview_keys = {}
+            
+        for key in self.main_language:
+            if language not in self.missing_keys:
+                self.missing_keys[language] = {}
+                self.missing_keys[language]["misses"] = 0
+                self.missing_keys[language]["keys"] = []
+            if key not in self.languages[language] and key not in preview_keys.get("keys",{}):
+                self.missing_keys[language]["misses"] += 1
+                self.missing_keys[language]["keys"].append({"key":key,"ref":self.main_language.get(key)})
 
     def __calculate_percentages(self,use_int:bool=False) -> float | int:
-        main_language =  self.languages["en"]
-        missing_keys:dict = {}
-        total_keys = len(main_language)
+        threads: List[threading.Thread] = []
+        self.main_language =  self.languages["en"]
+        self.missing_keys:dict = {}
+        total_keys = len(self.main_language)
+        preview_keys = self.get_table()
 
         for language in self.languages:
-            preview_keys:dict = self.db.translation_collection.find_one({"_id":language})
-            if(preview_keys is None or preview_keys.get("keys",None) is None):
-                logger.warning(f"`preview_keys` doesn't exist for language {language}")
-                preview_keys = {}
-            for key in main_language:
-                if (language not in missing_keys):
-                    missing_keys[language] = {}
-                    missing_keys[language]["misses"] = 0
-                    missing_keys[language]["keys"] = []
-                if(key not in self.languages[language] and key not in preview_keys.get("keys",{})):
-                    missing_keys[language]["misses"] += 1
-                    missing_keys[language]["keys"].append({"key":key,"ref":main_language.get(key)})
-                    
+            thread = threading.Thread(target=self.__process_missing_keys, args=(language,preview_keys,))
+            threads.append(thread)
+            thread.start()
+            
+        for thread in threads:
+            thread.join() # wait for every thread to finish to analyze the final keys
+                     
         percentages = {}
 
-        for language in missing_keys:
-            self.keys[language] = missing_keys[language]["keys"]
-            result = 1-(missing_keys[language]["misses"]/total_keys)
+        for language in self.missing_keys:
+            self.keys[language] = self.missing_keys[language]["keys"]
+            result = 1-(self.missing_keys[language]["misses"]/total_keys)
 
             if use_int:
                 result = round(result*100)

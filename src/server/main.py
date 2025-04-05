@@ -1,4 +1,5 @@
 from typing import List, Dict
+import threading
 import logging
 import sys
 import os
@@ -33,7 +34,7 @@ from mail.email import Email
 
 logging.basicConfig(
     level=logging.INFO,
-    format="[%(name)s] %(levelname)s: [%(filename)s:%(funcName)s] %(message)s",
+    format="%(thread)d - [%(name)s] %(levelname)s: [%(filename)s:%(funcName)s] %(message)s",
     datefmt="%d/%m/%Y %H.%M.%S",
     stream=sys.stdout
 )
@@ -75,24 +76,54 @@ app.add_middleware(
 
 client:MongoClient = MongoClient(os.getenv("MONGODB_URL"))
 
-users:Users = Users(client)
-sessions:Sessions = Sessions(client)
-invites:Invites = Invites(client)
-codes:Codes = Codes(client)
-domains:Domains = Domains(client)
-blogs:Blogs = Blogs(client)
-dns:DNS = DNS(domains)
+class VariableInitializer:
+    def __init__(self):
+        pass
+    
+    def gather_users(self):
+        self.users:Users = Users(client)
+    def gather_sessions(self):
+        self.sessions:Sessions = Sessions(client)
+    def gather_invites(self):
+        self.invites:Invites = Invites(client)
+    def gather_codes(self):
+        self.codes:Codes = Codes(client)
+    def gather_domains(self):
+        self.domains:Domains = Domains(client)
+        self.dns:DNS = DNS(self.domains)
+    def gather_blogs(self):
+        self.blogs:Blogs = Blogs(client)
+    def gather_translations(self):
+        self.translations = Translations(client)
+        
 
-translations:Translations = Translations(client)
+v = VariableInitializer()
 
-email:Email = Email(codes,users)
+threads: List[threading.Thread] = [
+    threading.Thread(target=v.gather_users),
+    threading.Thread(target=v.gather_sessions),
+    threading.Thread(target=v.gather_invites),
+    threading.Thread(target=v.gather_codes),
+    threading.Thread(target=v.gather_domains),
+    threading.Thread(target=v.gather_blogs),
+    threading.Thread(target=v.gather_translations)
+]
 
-app.include_router(User(users,sessions,invites,email, codes, dns).router)
-app.include_router(Invite(users,sessions, invites).router)
-app.include_router(Domain(users,sessions,domains,dns).router)
-app.include_router(Blog(blogs,users,sessions).router)
-app.include_router(Languages(translations,users,sessions).router)
-app.include_router(API(users,domains,dns).router)
+for thread in threads:
+    thread.start()
+    thread.join()
+    
+    
+email:Email = Email(v.codes,v.users)
+
+
+
+app.include_router(User(v.users,v.sessions,v.invites,email, v.codes, v.dns).router)
+app.include_router(Invite(v.users,v.sessions, v.invites).router)
+app.include_router(Domain(v.users,v.sessions,v.domains,v.dns).router)
+app.include_router(Blog(v.blogs,v.users,v.sessions).router)
+app.include_router(Languages(v.translations,v.users,v.sessions).router)
+app.include_router(API(v.users,v.domains,v.dns).router)
 
 @app.get("/status")
 async def status():
