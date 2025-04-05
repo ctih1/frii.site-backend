@@ -99,31 +99,41 @@ class VariableInitializer:
 
 v = VariableInitializer()
 
-threads: List[threading.Thread] = [
-    threading.Thread(target=v.gather_users),
-    threading.Thread(target=v.gather_sessions),
-    threading.Thread(target=v.gather_invites),
-    threading.Thread(target=v.gather_codes),
-    threading.Thread(target=v.gather_domains),
-    threading.Thread(target=v.gather_blogs),
-    threading.Thread(target=v.gather_translations)
-]
+threads: Dict[str,threading.Thread] = {
+    "users":threading.Thread(target=v.gather_users),
+    "sessions":threading.Thread(target=v.gather_sessions),
+    "invites":threading.Thread(target=v.gather_invites),
+    "codes":threading.Thread(target=v.gather_codes),
+    "domains":threading.Thread(target=v.gather_domains),
+    "blogs":threading.Thread(target=v.gather_blogs),
+    "translations":threading.Thread(target=v.gather_translations)
+}
 
-for thread in threads:
+for thread in threads.values():
     thread.start()
-    thread.join()
     
-    
+threads["codes"].join()
+threads["users"].join()
 email:Email = Email(v.codes,v.users)
 
 
 
+threads["domains"].join()
+app.include_router(API(v.users,v.domains,v.dns).router)
+
+threads["sessions"].join()
+app.include_router(Domain(v.users,v.sessions,v.domains,v.dns).router)
+
+threads["invites"].join()
 app.include_router(User(v.users,v.sessions,v.invites,email, v.codes, v.dns).router)
 app.include_router(Invite(v.users,v.sessions, v.invites).router)
-app.include_router(Domain(v.users,v.sessions,v.domains,v.dns).router)
+
+threads["blogs"].join()
 app.include_router(Blog(v.blogs,v.users,v.sessions).router)
+
+threads["translations"].join()
 app.include_router(Languages(v.translations,v.users,v.sessions).router)
-app.include_router(API(v.users,v.domains,v.dns).router)
+
 
 @app.get("/status")
 async def status():
