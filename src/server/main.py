@@ -116,8 +116,6 @@ threads["codes"].join()
 threads["users"].join()
 email:Email = Email(v.codes,v.users)
 
-
-
 threads["domains"].join()
 app.include_router(API(v.users,v.domains,v.dns).router)
 

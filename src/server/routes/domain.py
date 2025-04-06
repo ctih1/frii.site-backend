@@ -131,9 +131,10 @@ class Domain:
         if not is_domain_available:
             raise HTTPException(status_code=409,detail="Domain is not available")
         
+        domain_id: str = ""
 
         try:
-            domain_id:str = self.dns.register_domain(
+            domain_id = self.dns.register_domain(
                 body.domain,
                 body.value,
                 body.type,
@@ -143,11 +144,15 @@ class Domain:
             print(e.json)
             raise HTTPException(status_code=500, detail="DNS Registration failed")
 
-        self.domains.modify_domain(
+        self.domains.add_domain(
             session.username,
             body.domain,
-            body.value,
-            body.type
+            {
+                "id": domain_id,
+                "type": body.type,
+                "ip": body.value,
+                "registered": time.time()
+            }
         )
     
     @Session.requires_auth
