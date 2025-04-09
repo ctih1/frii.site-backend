@@ -49,12 +49,14 @@ class Translations(Table):
         preview_keys:Dict = {}
         
         for lang in keys:
-            if lang["_id"] == language:
+            if lang["_id"] == language: 
                 preview_keys = lang
-    
-        if preview_keys is None or preview_keys.get("keys",None) is None:
-            logger.warning(f"`preview_keys` doesn't exist for language {language}")
+                
+        if preview_keys is None or preview_keys.get("keys") is None:
+            logger.info(f"`preview_keys` doesn't exist for language {language}")
             preview_keys = {}
+        else:
+            logger.info(f"preview_keys exists for language {language}")
             
         for key in self.main_language:
             if language not in self.missing_keys:
