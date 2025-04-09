@@ -33,7 +33,7 @@ from security.api import ApiError, ApiRangeError, ApiPermissionError
 from mail.email import Email
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format="%(thread)d - [%(name)s] %(levelname)s: [%(filename)s:%(funcName)s] %(message)s",
     datefmt="%d/%m/%Y %H.%M.%S",
     stream=sys.stdout
@@ -112,10 +112,11 @@ threads: Dict[str,threading.Thread] = {
 for thread in threads.values():
     thread.start()
     
-threads["codes"].join()
-threads["users"].join()
-email:Email = Email(v.codes,v.users)
 
+
+
+
+threads["users"].join()
 threads["domains"].join()
 app.include_router(API(v.users,v.domains,v.dns).router)
 
@@ -123,11 +124,15 @@ threads["sessions"].join()
 app.include_router(Domain(v.users,v.sessions,v.domains,v.dns).router)
 
 threads["invites"].join()
-app.include_router(User(v.users,v.sessions,v.invites,email, v.codes, v.dns).router)
 app.include_router(Invite(v.users,v.sessions, v.invites).router)
 
 threads["blogs"].join()
 app.include_router(Blog(v.blogs,v.users,v.sessions).router)
+
+threads["codes"].join()
+email:Email = Email(v.codes,v.users)
+
+app.include_router(User(v.users,v.sessions,v.invites,email, v.codes, v.dns).router)
 
 threads["translations"].join()
 app.include_router(Languages(v.translations,v.users,v.sessions).router)

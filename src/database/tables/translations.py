@@ -1,4 +1,5 @@
 import logging
+import time
 import os
 import threading
 from typing_extensions import Dict, List
@@ -14,6 +15,8 @@ class Translations(Table):
 
         self.api_key = os.getenv("GH_KEY")
 
+        logging.getLogger("requests").setLevel(logging.WARNING)
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
         response = requests.get(
             "https://api.github.com/repos/ctih1/frii.site-frontend/contents/src/locales?ref=dev",
             headers =  {
@@ -36,6 +39,7 @@ class Translations(Table):
 
         self.keys:dict = {}
         self.percentages:Dict[str,float] = self.__calculate_percentages()
+
         
     def __init_language(self,file: Dict) -> None:
         filename:str = file["name"].split(".")[0]
