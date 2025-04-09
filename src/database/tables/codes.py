@@ -37,22 +37,17 @@ class Codes(Table):
 
     def __sync_codes(self):
         logger.info("Syncing codes...")
+        start = time.time()
         codes:List[dict] = self.get_table()
 
         codes_found:int = 0
         for code in codes:
-            if code["type"] == "verification":
-                self.verification_codes[code["_id"]] = {}
-                self.verification_codes[code["_id"]]["account"] = code["account"]
-                self.verification_codes[code["_id"]]["expire"] = code["expire"]
-            if code["type"] == "deletion":
-                self.deletion_codes[code["_id"]] = {}
-                self.deletion_codes[code["_id"]]["account"] = code["account"]
-                self.deletion_codes[code["_id"]]["expire"] = code["expire"]
-            if code["type"] == "recovery":
-                self.recovery_codes[code["_id"]] = {}
-                self.recovery_codes[code["_id"]]["account"] = code["account"]
-                self.recovery_codes[code["_id"]]["expire"] = code["expire"]
+            id: str = code["_id"]
+            getattr(self,f"{code['type']}_codes")[id] = {
+                "account": code["account"],
+                "expire": code["expire"]
+            }
+            
             codes_found += 1
         
         logger.info(f"Synced {codes_found} codes")
