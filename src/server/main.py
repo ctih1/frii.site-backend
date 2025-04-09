@@ -24,8 +24,6 @@ from database.tables.domains import Domains
 from database.tables.blogs import Blogs
 from database.tables.translations import Translations
 
-from debug.status import Status
-
 from dns_.dns import DNS
 
 from security.session import SessionError, SessionPermissonError
@@ -34,15 +32,15 @@ from mail.email import Email
 
 logging.basicConfig(
     level=logging.DEBUG,
-    format="%(thread)d - [%(name)s] %(levelname)s: [%(filename)s:%(funcName)s] %(message)s",
+    format="[%(name)s] %(levelname)s: [%(filename)s:%(funcName)s] %(message)s",
     datefmt="%d/%m/%Y %H.%M.%S",
     stream=sys.stdout
 )
 logger:logging.Logger = logging.getLogger("frii.site")
 logger.info("Logger init")
 
-logger.info(f".env loaded succesfully? {load_dotenv()}")
-
+if not load_dotenv():
+    logger.warning("Failed to load .env file")
 
 tags_metadata:List[Dict[str,str]] = [
     {
@@ -113,9 +111,6 @@ for thread in threads.values():
     thread.start()
     
 
-
-
-
 threads["users"].join()
 threads["domains"].join()
 app.include_router(API(v.users,v.domains,v.dns).router)
@@ -131,7 +126,6 @@ app.include_router(Blog(v.blogs,v.users,v.sessions).router)
 
 threads["codes"].join()
 email:Email = Email(v.codes,v.users)
-
 app.include_router(User(v.users,v.sessions,v.invites,email, v.codes, v.dns).router)
 
 threads["translations"].join()

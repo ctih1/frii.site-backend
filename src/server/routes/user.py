@@ -1,5 +1,5 @@
 import os
-from typing import List, Dict, Annotated
+from typing import List, Dict, Annotated, Any
 import time
 import logging
 from fastapi import APIRouter, Request, Depends, Header
@@ -23,7 +23,7 @@ from mail.email import Email
 
 from dns_.dns import DNS
 
-from server.routes.models.user import SignUp, PasswordReset
+from server.routes.models.user import SignUp, PasswordReset, GDPRRequestBody
 
 converter:Convert = Convert()
 logger:logging.Logger = logging.getLogger("frii.site")
@@ -178,6 +178,19 @@ class User:
             tags=["account","session"]
         )
         
+        self.router.add_api_route(
+            "/gdpr",
+            self.get_gdpr,
+            methods=["GET"],
+            responses={
+                404: {"description": "Session does not exist"},
+                460: {"description": "Invalid session"},
+                461: {"description":"User does not have access to use that session"}
+            },
+            status_code=200,
+            tags=["account","privacy"]
+        )
+        
         
         self.router.add_api_route(
             "/api/create-key",
@@ -314,6 +327,19 @@ class User:
             raise HTTPException(403)
         
         return api_key
+    
+    @Session.requires_auth
+    def get_gdpr(self, request:Request, comment:str, session:Session = Depends(converter.create)) -> Dict[Any,Any]:
+        user_data = session.user_cache_data
+        
+        gdpr_keys:List[str] = ["_id", "lang", "country",
+                     "created", "last-login",
+                     "permissions", "verified",
+                     "domains", "feature-flags",
+                     "beta-enroll"]
+    
+        return {k:v for k,v in user_data if k in gdpr_keys}
+
 
 
     def verify_deletion(self, code:str):
