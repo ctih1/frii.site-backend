@@ -23,7 +23,7 @@ from mail.email import Email
 
 from dns_.dns import DNS
 
-from server.routes.models.user import SignUp, PasswordReset, GDPRRequestBody
+from server.routes.models.user import SignUp, PasswordReset
 
 converter:Convert = Convert()
 logger:logging.Logger = logging.getLogger("frii.site")
