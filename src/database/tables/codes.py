@@ -96,15 +96,8 @@ class Codes(Table):
         return code
     
     def is_valid(self, code:str, type:str) -> CodeStatus:
-        if type == "verification":
-            code_result = self.verification_codes.get(code)
+        code_result = getattr(self,f"{type}_codes").get(code)
         
-        elif type == "deletion":
-            code_result = self.deletion_codes.get(code)
-
-        elif type == "recovery":
-            code_result = self.recovery_codes.get(code)
-
         if code_result is None:
             return {"valid":False}
         
