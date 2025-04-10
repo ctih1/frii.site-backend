@@ -8,7 +8,8 @@ os.environ["ZONE_ID"] = os.environ.get("ZONEID") or os.environ.get("ZONE_ID")
 
 start = time.time()
 from server.main import app
-print(f"Server ready in {round(time.time() - start,2)} seconds")
+os.environ["start-elapsed"] = str(round(time.time() - start,2))
+os.environ["started-at"] = str(start)
 
 if "run" in sys.argv:
     import uvicorn

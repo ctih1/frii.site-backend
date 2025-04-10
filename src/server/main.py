@@ -2,6 +2,7 @@ from typing import List, Dict
 import threading
 import logging
 import sys
+import datetime
 import os
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -134,7 +135,13 @@ app.include_router(Languages(v.translations,v.users,v.sessions).router)
 
 @app.get("/status")
 async def status():
-    return 200
+    return JSONResponse(
+        status_code=200,
+        content={
+            "started-at": datetime.datetime.fromtimestamp(float(os.environ.get("started-at"))).isoformat(),
+            "start-elapsed": f"{os.environ.get('start-elapsed')}s"
+        }
+    )
 
 @app.exception_handler(SessionError)
 async def session_except_handler(request:Request, e:Exception):
