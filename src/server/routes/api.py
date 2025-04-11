@@ -100,7 +100,7 @@ class API:
     def register(self, body: DomainType, api:Api = Depends(converter.create)) -> None:
 
         if len(api.user_cache_data["domains"]) > api.user_cache_data.get("permissions",{}).get("max-domains",3):
-            return HTTPException(status_code=405, detail="Domain limit exceeded")
+            raise HTTPException(status_code=405, detail="Domain limit exceeded")
 
         try:
             is_domain_available:bool = self.dns_validation.is_free(

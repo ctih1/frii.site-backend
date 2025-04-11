@@ -67,7 +67,7 @@ class Blog:
     
     def get_all(self, amount:int=5, content_length:int|None=None) -> List[BlogType]:
         blogs:List[BlogType] = self.blog_table.get_table() # type: ignore[assignment]
-        return [{k:(str(v)[:content_length] if content_length and k=="body" else v) for k,v in blog.items()} for blog in blogs][:amount] # type: ignore[return-value]
+        return [{k:(str(v)[:content_length] if content_length and k=="body" else v) for k,v in blog.items()} for blog in blogs][:amount] # type: ignore[return-value, attr-defined]
 
 
     @Session.requires_auth

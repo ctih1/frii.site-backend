@@ -151,7 +151,7 @@ class Domain:
                 "id": domain_id,
                 "type": body.type,
                 "ip": body.value,
-                "registered": time.time()
+                "registered": round(time.time())
             }
         )
     

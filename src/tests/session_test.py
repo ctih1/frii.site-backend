@@ -1,9 +1,8 @@
 import pytest
-from mock import MagicMock
+from mock import MagicMock # type: ignore[import-untyped]
 from security.session import Session, SessionError, SessionPermissonError
 from database.tables.users import Users
 from database.tables.sessions import Sessions
-
 
 valid_session = MagicMock(spec=Session)
 valid_session.valid = True

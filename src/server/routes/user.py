@@ -308,9 +308,11 @@ class User:
     def logout(self, request:Request, session:Session = Depends(converter.create)) -> None:
         session_id_hash:str
         if request.headers.get("specific")  == "true":
-            session_id_hash = request.headers.get("id")
+            # The following will not be null if since if `specified` then id header must be present
+            session_id_hash = request.headers.get("id") # type: ignore[assignment]
         else:
             session_id_hash = Encryption.sha256(session.id)
+            
         try:
             session.delete(session_id_hash)
         except SessionError:
@@ -320,6 +322,7 @@ class User:
         
     @Session.requires_auth
     def create_api_token(self, request:Request, comment:str, session:Session = Depends(converter.create)) -> str:
+        raise NotImplementedError()
         api_key:str
         try:
             api_key = Api.create(session.username,self.table,comment)
@@ -330,7 +333,7 @@ class User:
     
     @Session.requires_auth
     def get_gdpr(self, request:Request, comment:str, session:Session = Depends(converter.create)) -> Dict[Any,Any]:
-        user_data = session.user_cache_data
+        user_data: UserType = session.user_cache_data
         
         gdpr_keys:List[str] = ["_id", "lang", "country",
                      "created", "last-login",
@@ -338,7 +341,7 @@ class User:
                      "domains", "feature-flags",
                      "beta-enroll"]
     
-        return {k:v for k,v in user_data if k in gdpr_keys}
+        return {k:v for k,v in user_data if k in gdpr_keys} # type: ignore[has-type, misc]
 
 
 

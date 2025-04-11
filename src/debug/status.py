@@ -14,7 +14,7 @@ class Status(Table):
         super().__init__(mongo_client, "status")
     
     def get(self) -> StatusType:
-        status_data: dict  = self.find_item({"_id":"current"})
+        status_data: dict | None  = self.find_item({"_id":"current"})
         if status_data is None:
             return {"issues":False}
         return {

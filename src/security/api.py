@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, TYPE_CHECKING
+from typing import List, TYPE_CHECKING, Dict
 from typing_extensions import TypedDict
 import os
 import time
@@ -164,7 +164,10 @@ class Api:
 
 
     def __cache_data(self) -> dict | None:
-        return self.users_table.find_item({f"api-keys.{self.encrypted_key}":{"$exists":True}})["api-keys"][self.encrypted_key]
+        user_data = self.users_table.find_item({f"api-keys.{self.encrypted_key}":{"$exists":True}})
+        if user_data is None:
+            raise ValueError("User not found")
+        return user_data["api-keys"][self.encrypted_key]
 
     def __is_valid(self):
         if self.key_data is None:
@@ -174,7 +177,7 @@ class Api:
         return True
 
     def __user_cache(self) -> 'UserType':
-        data:'UserType' | None = self.users_table.find_item({f"api-keys.{self.encrypted_key}":{"$exists":True}})
+        data:'UserType' | None = self.users_table.find_item({f"api-keys.{self.encrypted_key}":{"$exists":True}}) # type: ignore[assignment]
 
         if data is None:
             self.valid = False
@@ -193,26 +196,10 @@ class Api:
             return []
         
         return self.key_data["perms"]
-
-    def get_active(self) -> List[SessionType]:
-        if not self.valid:
-            return []
-        
-        session_list: List[SessionType] = []
-        owner_hash = Encryption.sha256(self.username + "frii.site")
-
-        for session in self.session_table.find_items({"owner-hash": owner_hash}):
-            session_list.append(
-                {
-                    "user-agent": session["user-agent"],
-                    "ip": session["ip"],
-                    "expire": session["expire"].timestamp(),
-                    "hash": session["_id"],
-                }
-            )
-        return session_list
     
     def domain_allowed(self,domain:str) -> bool:
+        if self.key_data is None:
+            raise ValueError("Key data is none!")
         return domain in self.key_data["domains"]
 
     @staticmethod
@@ -233,14 +220,18 @@ class Api:
 
 
         api_key:str="$APIV1="+Encryption.generate_random_string(32)
-        user_domains:'DomainFormat' = users.find_user({"_id": username})["domains"]
+        user_data: UserType | None = users.find_user({"_id": username})
+        if user_data is None:
+            raise ValueError("User not found")
+        
+        user_domains: Dict[str,'DomainFormat'] = user_data["domains"]
         
         for domain in user_domains:
             if domain not in list(user_domains.keys()):
                 raise PermissionError("User does not own domain")
 
         key = {
-            "string": Encryption.encrypt(api_key),
+            "string": users.encryption.encrypt(api_key),
             "perms":permissions,
             "domains":user_domains,
             "comment":comment
@@ -263,18 +254,19 @@ class Api:
             SessionPermissionError: session does not belong to user
         """
         raise NotImplementedError("Implement")
+    
         if not self.valid:
             return False
         
         data: dict | None = self.session_table.find_item({"_id": key_id})
 
         if data is None:
-            raise SessionError("Session does not exist")
+            raise SessionError("Session does not exist") # type: ignore
 
         session_username:str = self.encryption.decrypt(data["username"])
 
         if self.username != session_username:
-            raise SessionPermissonError("Invalid username for session")
+            raise SessionPermissonError("Invalid username for session") # type: ignore
         
         self.session_table.delete_document({"_id":key_id})
         return True

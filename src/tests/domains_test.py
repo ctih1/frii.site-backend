@@ -1,6 +1,6 @@
 import pytest
 import os
-from mock import MagicMock
+from mock import MagicMock # type: ignore[import-untyped]
 from dns_.validation import Validation
 from dns_.dns import DNS
 from database.exceptions import SubdomainError
@@ -53,8 +53,8 @@ def domain_locator_side_effect(*args, **kwargs):
 
 normal_user = __load_users()
 
-domain_table.find_item.side_effect = domain_locator_side_effect
-domain_table.find_user.return_value = normal_user
+domain_table.find_item.side_effect = domain_locator_side_effect # type: ignore[attr-defined]
+domain_table.find_user.return_value = normal_user # type: ignore[attr-defined]
         
 class TestDomainUser:
     def test_domain_free(self):

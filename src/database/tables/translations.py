@@ -2,8 +2,8 @@ import logging
 import time
 import os
 import threading
-from typing_extensions import Dict, List
-import requests
+from typing_extensions import Dict, List, Any
+import requests # type: ignore[import-untyped]
 from pymongo import MongoClient
 from database.table import Table
 
@@ -67,7 +67,7 @@ class Translations(Table):
                 self.missing_keys[language]["misses"] += 1
                 self.missing_keys[language]["keys"].append({"key":key,"ref":self.main_language.get(key)})
 
-    def __calculate_percentages(self,use_int:bool=False) -> float | int:
+    def __calculate_percentages(self,use_int:bool=False) -> Dict[str, float | int]:
         threads: List[threading.Thread] = []
         self.main_language =  self.languages["en"]
         self.missing_keys:dict = {}
@@ -95,12 +95,12 @@ class Translations(Table):
 
         return percentages
     
+    def add(self, lang:str, keys: List[Dict[Any,Any]], username:str):
     
-    def add(self, lang:str, keys: List[str], username:str):
-        language = {}
-
+        language: dict = {}
+    
         for translation in keys:
-            if(translation["val"]!=""):
+            if translation["val"] != "":
                 try:
                     self.keys[lang].pop(list(self.keys[lang]).index({"key":translation["key"], "ref":self.languages["en"].get(translation["key"])}))
                 except ValueError:
@@ -114,5 +114,5 @@ class Translations(Table):
             {"$set": language},upsert=True
         )
 
-    def get_missing_keys(self,language:str) -> List[str]:
+    def get_missing_keys(self,language:str) -> List[Dict[str,str]]:
         return self.keys[language]

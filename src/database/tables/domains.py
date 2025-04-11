@@ -8,7 +8,7 @@ logger:logging.Logger = logging.getLogger("frii.site")
 
 class DomainFormat(TypedDict):
     ip: str
-    registered: int
+    registered: int | float
     type: str
     id:str 
 

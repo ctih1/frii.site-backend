@@ -154,7 +154,7 @@ async def session_except_handler(request:Request, e:Exception):
     )
     
 @app.exception_handler(SessionPermissonError)
-async def session_except_handler(request:Request, e:Exception):
+async def session_permission_except_handler(request:Request, e:Exception):
     return JSONResponse(
         status_code=461,
         content={
@@ -163,7 +163,7 @@ async def session_except_handler(request:Request, e:Exception):
     )
 
 @app.exception_handler(ApiError)
-async def session_except_handler(request:Request, e:Exception):
+async def api_except_handler(request:Request, e:Exception):
     return JSONResponse(
         status_code=460,
         content={
@@ -172,7 +172,7 @@ async def session_except_handler(request:Request, e:Exception):
     )
     
 @app.exception_handler(ApiRangeError)
-async def session_except_handler(request:Request, e:Exception):
+async def api_range_except_handler(request:Request, e:Exception):
     return JSONResponse(
         status_code=461,
         content={
@@ -181,7 +181,7 @@ async def session_except_handler(request:Request, e:Exception):
     )
         
 @app.exception_handler(ApiPermissionError)
-async def session_except_handler(request:Request, e:Exception):
+async def api_permission_except_handler(request:Request, e:Exception):
     return JSONResponse(
         status_code=462,
         content={
