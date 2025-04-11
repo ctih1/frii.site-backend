@@ -21,6 +21,9 @@ RepairFormat = TypedDict("RepairFormat", {
 })
 
 class Domains(Users):
+    """Modifies domains in database.
+    Please make sure to validate the domain BEFORE you use any functions here!
+    """
     def __init__(self, mongo_client):
         super().__init__(mongo_client)
 
@@ -56,6 +59,17 @@ class Domains(Users):
             value:str|None=None,
             type:str|None=None,
         ) -> None:
+        """Modifies domain in database
+
+        Args:
+            target_user (str): ID of target user
+            domain (str): the record name (without .frii.site)
+            value (str | None, optional): Updated record value. Defaults to current one.
+            type (str | None, optional): Updated type value. Defaults to current one.
+
+        Raises:
+            ValueError: If user does not exist
+        """
         cleaned_domain:str = Domains.clean_domain_name(domain)
         logger.info(f"Modifying domain {cleaned_domain}...")
 
