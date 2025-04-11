@@ -11,3 +11,4 @@ venv/
 .env*.local
 server_key
 server_key.pub
+.mypy_cache/

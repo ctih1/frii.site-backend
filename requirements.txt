@@ -10,3 +10,5 @@ typeddict==0.3.0
 pyotp==2.9.0
 sentry-sdk==2.16.0
 fastapi==0.115.6
+pytest==8.3.5
+mock==5.2.0
