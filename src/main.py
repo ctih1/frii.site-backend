@@ -13,5 +13,5 @@ os.environ["started-at"] = str(start)
 
 
 if "run" in sys.argv:
-    import uvicorn
+    import uvicorn # type: ignore
     uvicorn.run(app)
