@@ -32,6 +32,7 @@ class Validation:
     
     @staticmethod
     def record_value_valid(value:str, type:str) -> bool:
+        
         if type.upper() == "TXT":
             return True
         if type.upper() in ["CNAME","NS"]:
@@ -39,6 +40,8 @@ class Validation:
         if type.upper() == "A":
             allowed:List[str] = list(string.digits)
             allowed.append(".")
+        else: # If type is not in checks
+            return False
 
         return all(char in allowed for char in value)
     
