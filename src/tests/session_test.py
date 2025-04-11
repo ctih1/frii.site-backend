@@ -1,10 +1,9 @@
 import pytest
-import os
-
-print(os.curdir)
-
-from security.session import Session, SessionError, SessionPermissonError
 from mock import MagicMock
+from security.session import Session, SessionError, SessionPermissonError
+from database.tables.users import Users
+from database.tables.sessions import Sessions
+
 
 valid_session = MagicMock(spec=Session)
 valid_session.valid = True
@@ -29,7 +28,6 @@ def test_requires_auth_invalid_session():
     with pytest.raises(SessionError): 
         mock_function(session=invalid_session)
 
-        
 def test_requires_perms_valid():
     @Session.requires_permission("admin")
     def mock_function(session):
@@ -45,3 +43,5 @@ def test_requires_perms_invalid():
     
     with pytest.raises(SessionPermissonError):
         mock_function(session=valid_session)
+        
+    

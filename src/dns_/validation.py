@@ -86,7 +86,7 @@ class Validation:
         required_domain:str = domain_parts[-1]
 
         if required_domain and is_subdomain and required_domain not in domains:
-            logger.error(f"User does now own {required_domain}")
+            logger.error(f"User does not own {required_domain}")
             if raise_exceptions:
                 raise SubdomainError(f"User doesn't own '{required_domain}'", required_domain)
             return False
