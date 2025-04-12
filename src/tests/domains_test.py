@@ -28,15 +28,9 @@ class TestDomainValidation:
         assert Domains.clean_domain_name("a.b") == "a[dot]b"
         assert Domains.beautify_domain_name(None,"a[dot]b") == "a.b"
         
-def __load_users():
-    example_normal = {}
-    with open(os.path.join(".","src","tests","example-users","normal.json"),"r") as f:
-        example_normal = json.load(f)
-        
-    return example_normal
+
     
     
-validation: Validation = MagicMock(spec=Validation)
 domain_table: Domains =  MagicMock(spec=Domains)
 dns: DNS = MagicMock(spec=DNS)
 
@@ -51,10 +45,9 @@ def domain_locator_side_effect(*args, **kwargs):
             }
         }
 
-normal_user = __load_users()
 
 domain_table.find_item.side_effect = domain_locator_side_effect # type: ignore[attr-defined]
-domain_table.find_user.return_value = normal_user # type: ignore[attr-defined]
+domain_table.find_user.return_value = pytest.example_user # type: ignore[attr-defined]
         
 class TestDomainUser:
     def test_domain_free(self):
@@ -64,8 +57,8 @@ class TestDomainUser:
         assert not Validation(domain_table,dns).is_free("testing-domains","A",{},False)
         
     def test_valid_subdomain(self):
-        assert Validation(domain_table,dns).is_free("example.testing-domains","A",normal_user["domains"])
+        assert Validation(domain_table,dns).is_free("example.testing-domains","A",pytest.example_user["domains"])
         
     def test_invalid_subdomain(self):
         with pytest.raises(SubdomainError):
-            Validation(domain_table,dns).is_free("example.not-owned","A",normal_user["domains"])
+            Validation(domain_table,dns).is_free("example.not-owned","A",pytest.example_user["domains"])

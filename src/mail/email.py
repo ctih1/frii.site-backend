@@ -29,10 +29,10 @@ with open(os.path.join(template_path,"recovery.html"),"r") as f:
 logger:logging.Logger = logging.getLogger("frii.site")
 
 class Email:
-	def __init__(self, codes:'Codes', users:'Users'):
+	def __init__(self, codes:'Codes', users:'Users', encryption: Encryption):
 		self.codes:Codes = codes
 		self.users:'Users' = users
-		self.encryption:Encryption = Encryption(os.getenv("ENC_KEY")) # type: ignore[arg-type]
+		self.encryption:Encryption = encryption # type: ignore[arg-type]
 		resend.api_key = os.getenv("RESEND_KEY")
 
 	def is_taken(self,email:str) -> bool:
