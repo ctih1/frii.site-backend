@@ -65,7 +65,9 @@ class Blog:
             raise HTTPException(status_code=404)
         return JSONResponse(blog) # type:ignore[return-value]
     
-    def get_all(self, amount:int=5, content_length:int|None=None) -> List[BlogType]:
+    def get_all(self, n:int=5, content:int|None=None) -> List[BlogType]:
+        amount = n
+        content_length = content
         blogs:List[BlogType] = self.blog_table.get_table() # type: ignore[assignment]
         return [{k:(str(v)[:content_length] if content_length and k=="body" else v) for k,v in blog.items()} for blog in blogs][:amount] # type: ignore[return-value, attr-defined]
 
