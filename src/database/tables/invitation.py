@@ -16,17 +16,20 @@ class Invites(Users):
 
     def is_valid(self, code:str) -> bool:
         logger.info(f"Checking invite {code}")
+        
         if len(code) != INVITE_LENGTH:
             return False
         
         invite_holder: UserType | None = self.find_user({f"invites.{code}": {"$exists":True}})
 
         if invite_holder is None:
+            logger.info("Invite holder does not exist...")
             return False
         
         invite:InviteType | None = invite_holder.get("invites",{}).get(code)
         
         if invite is None:
+            logger.info("Invite not found")
             return False
         
         return not invite["used"]

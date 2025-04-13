@@ -2,6 +2,7 @@ import pytest
 import os
 import json
 from database.tables.users import UserType
+from pymongo import MongoClient
 
 def load_user() -> UserType:
     example_normal = {}
@@ -12,3 +13,5 @@ def load_user() -> UserType:
  
 def pytest_configure():
     pytest.example_user = load_user()
+    pytest.client = MongoClient()
+    
