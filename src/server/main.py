@@ -78,23 +78,23 @@ app.add_middleware(
 client:MongoClient = MongoClient(os.getenv("MONGODB_URL"))
 
 class VariableInitializer:
-    def __init__(self):
+    def __init__(self) -> None:
         pass
     
-    def gather_users(self):
+    def gather_users(self) -> None:
         self.users:Users = Users(client)
-    def gather_sessions(self):
+    def gather_sessions(self) -> None:
         self.sessions:Sessions = Sessions(client)
-    def gather_invites(self):
+    def gather_invites(self) -> None:
         self.invites:Invites = Invites(client)
-    def gather_codes(self):
+    def gather_codes(self) -> None:
         self.codes:Codes = Codes(client)
-    def gather_domains(self):
+    def gather_domains(self) -> None:
         self.domains:Domains = Domains(client)
         self.dns:DNS = DNS(self.domains)
-    def gather_blogs(self):
+    def gather_blogs(self) -> None:
         self.blogs:Blogs = Blogs(client)
-    def gather_translations(self):
+    def gather_translations(self) -> None:
         self.translations = Translations(client)
         
 

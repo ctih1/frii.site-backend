@@ -166,36 +166,30 @@ class Domain:
         
         if not self.dns_validation.user_owns_domain(session.username,body.domain):
             raise HTTPException(status_code=403, detail=f"You do not own the domain {body.domain}")
-
-        id:str | None
+        
+        old_type: str = session.user_cache_data["domains"][clean_domain_name]["type"]
         
         try:
-            id = self.dns.modify_domain(
-                session.user_cache_data["domains"][clean_domain_name]["id"],
+            success = self.dns.modify_domain(
                 body.value,
                 body.type,
-                body.domain
+                old_type,
+                body.domain,
+                session.id,
             )
-        
+            
+            if not success:
+                raise DNSException("Not succesful", {"success": success})
 
-        except ValueError: # domain id is corrupt
-            logger.error(f"Domain id for {body.domain} is corrupted")
-            id = self.dns.get_id(body.domain,body.type,body.value)
-
-            if id is None:
-                id = self.dns.register_domain(body.domain,body.value,body.type,f"Registered with domain repair {session.username}")
-        
         except DNSException as e:
             print(e.json)
             raise HTTPException(status_code=500)
-        
-        if id is None:
-            raise HTTPException(status_code=501)
+
         
         self.domains.add_domain(
             session.username,body.domain,
             {
-                "id":id,
+                "id": "None",
                 "ip": body.value,
                 "registered": round(time.time()),
                 "type":body.type
@@ -212,6 +206,8 @@ class Domain:
     def delete(self, domain:str, session:Session = Depends(converter.create)) -> None:
         if not self.domains.delete_domain(session.username,domain):
             raise HTTPException(status_code=403, detail="Domain does not exist, or user does not own it.")
+        domain_type: str = session.user_cache_data["domains"][domain]["type"]
+        self.dns.delete_domain(domain, domain_type)
 
 
     def is_available(self,name:str):
