@@ -174,10 +174,11 @@ class API:
         
         try:
             self.dns.modify_domain(
-                api.user_cache_data["domains"][clean_domain_name]["id"],
                 value,
                 type,
-                domain
+                api.user_cache_data["domains"][clean_domain_name]["type"],
+                domain,
+                api.username
             )
         
 
@@ -204,6 +205,12 @@ class API:
     def delete(self, domain:str, api:Api = Depends(converter.create)) -> None:
         if not self.domains.delete_domain(api.username,domain):
             raise HTTPException(status_code=403, detail="Domain does not exist, or user does not own it.")
+
+
+    @Api.requires_auth
+    @Api.requires_permission("list")
+    def get_domains(self, api:Api = Depends(converter.create)) -> Dict[str,DomainFormat]:
+        return api.affected_domains
 
 
     def is_available(self,name:str):

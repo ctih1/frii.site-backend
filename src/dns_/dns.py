@@ -16,31 +16,6 @@ class DNS:
         self.table = domains
         self.key:str = os.getenv("PDNS_API_KEY") or ""
 
-    def get_id(self, name:str, type:str|None= None, value:str|None=None) -> str | None:
-        """
-        Retrieves the ID of a DNS record from Cloudflare.
-        Args:
-            name (str): The name of the DNS record.
-            type (str | None, optional): The type of the DNS record. Defaults to None.
-            value (str | None, optional): The value of the DNS record. Defaults to None.
-        Returns:
-            str | None: The ID of the DNS record if found, otherwise None.
-        """
-        request = requests.get(
-            f"""https://api.cloudflare.com/client/v4
-            /zones/{self.zone_id}
-            /dns_records?name={self.table.beautify_domain_name(name) + '.frii.site'}""",
-
-            headers={
-                "Authorization": f"Bearer {self.key}",
-                "X-Auth-Email": self.email
-            }
-        )
-
-        # id is always string or none
-        return request.json().get("result",[{}])[0].get("id") # type: ignore[no-any-return]
-
-
 
     def modify_domain(self, content:str, type:str, old_type:str, domain:str, user_id: str) -> bool:
         """
@@ -60,13 +35,17 @@ class DNS:
         if type != old_type:
             success = self.delete_domain(domain,old_type)
             if not success:
-                raise DNSException({"success": success})
+                raise DNSException("DNS Modification failed",json={"success": success})
+        
+        
+        # PowerDNS will complain if these two are not present.
         
         if type == "CNAME":
             content += "."
         
-        if type=="TXT":
-            content = '"' + content + '"'
+        if type == "TXT":
+            content = '"' + content + '"' 
+            
  
         
         logger.info(json.dumps({
@@ -189,25 +168,5 @@ class DNS:
             return False
 
         return True
-
-
-    def fix_domains(self,repair_status:RepairFormat, user_id:str) -> None:
-        for key, val in repair_status["broken-id"].items():
-            name: str = key
-            value: DomainFormat = val
-
-            logger.info(f"Trying to fix domain {name}")
-
-            id:str | None = self.get_id(name,value["type"], value["ip"])
-
-            logger.info("Couldn't find matching domain... Registering a new one")
-            id = id or self.register_domain(name,value["ip"],value["type"],f"Fixed domain for user {user_id}")
-
-            self.table.modify_document(
-                {f"domains.{name}":{"$exists":True}},
-                operation="$set",
-                key=f"domains.{name}.id",
-                value=id
-            )
 
 

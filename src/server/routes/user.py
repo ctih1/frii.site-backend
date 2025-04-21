@@ -321,18 +321,17 @@ class User:
             raise HTTPException(461)
         
     @Session.requires_auth
-    def create_api_token(self, request:Request, comment:str, session:Session = Depends(converter.create)) -> str:
-        raise NotImplementedError()
+    def create_api_token(self, request:Request, comment:str, permissions:List[str], session:Session = Depends(converter.create)) -> str:
         api_key:str
         try:
-            api_key = Api.create(session.username,self.table,comment)
+            api_key = Api.create(session.username,self.table,comment, permissions)
         except PermissionError:
             raise HTTPException(403)
         
         return api_key
     
     @Session.requires_auth
-    def get_gdpr(self, request:Request, comment:str, session:Session = Depends(converter.create)) -> Dict[Any,Any]:
+    def get_gdpr(self, request:Request, session:Session = Depends(converter.create)) -> Dict[Any,Any]:
         user_data: UserType = session.user_cache_data
         
         gdpr_keys:List[str] = ["_id", "lang", "country",
