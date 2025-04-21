@@ -46,7 +46,9 @@ class API:
                 405: {"description": "Domain limit exceeded"},
                 409: {"description": "Domain already in use"},
                 412: {"description": "Invalid DNS record type"},
-                460: {"description": "Invalid API token"}
+                460: {"description": "Invalid API key"},
+                462: {"description": "Invalid API key permissions ('register' needed)"}
+                
             },
             tags=["api","domain"]
         )
@@ -60,14 +62,16 @@ class API:
                 200: {"description": "Domain modified"},
                 403: {"description": "User does not own domain"},
                 412: {"description": "Invalid record name or value"},
-                460: {"description": "Invalid session"}
+                460: {"description": "Invalid API key"},
+                461: {"description": "API key cannot do operations on requested domain"},
+                462: {"description": "Invalid API key permissions ('content' needed)"}
             },
             tags=["api","domain"]
         )
 
 
         self.router.add_api_route(
-            "/domain",
+            "/domain/available",
             self.is_available, 
             methods=["GET"],
             status_code=200,
@@ -78,6 +82,19 @@ class API:
             tags=["api","domain"]
         )
         
+        
+        self.router.add_api_route(
+            "/domains/get",
+            self.get_domains, 
+            methods=["GET"],
+            status_code=200,
+            responses={
+                200: {"description": "Domain is available"},
+                409: {"description": "Domain is not available"},
+            },
+            tags=["api","domain"]
+        ) 
+        
         self.router.add_api_route(
             "/domain",
             self.delete, 
@@ -86,7 +103,9 @@ class API:
             responses={
                 200: {"description": "Domain deleted succesfully"},
                 403: {"description": "Domain does not exist, or user does not own it."},
-                460: {"description": "Invalid session"}
+                460: {"description": "Invalid session"},
+                461: {"description": "API key cannot do operations on requested domain"},
+                462: {"description": "Invalid API key permissions ('delete' needed)"}
             },
             tags=["api","domain"]
         )
@@ -122,14 +141,14 @@ class API:
         
 
         try:
-            domain_id:str = self.dns.register_domain(
+            self.dns.register_domain(
                 body.domain,
                 body.value,
                 body.type,
                 f"Registered through API user: {api.username}"
             )
         except DNSException as e:
-            print(e.json)
+            logger.error(e)
             raise HTTPException(status_code=500, detail="DNS Registration failed")
 
         self.domains.modify_domain(
@@ -142,49 +161,40 @@ class API:
 
     @Api.requires_auth
     @Api.requires_permission("content")
-    def modify(self, body:DomainType, api:Api = Depends(converter.create)) -> None:
-        clean_domain_name:str = self.domains.clean_domain_name(body.domain)
-        if not self.dns_validation.record_name_valid(body.domain):
-            raise HTTPException(status_code=412, detail=f"Invalid domain name {body.domain}")
+    def modify(self, domain: str, value: str, type:str, api:Api = Depends(converter.create)) -> None:
+        clean_domain_name:str = self.domains.clean_domain_name(domain)
+        if not self.dns_validation.record_name_valid(domain):
+            raise HTTPException(status_code=412, detail=f"Invalid domain name {domain}")
         
-        if not self.dns_validation.record_value_valid(body.value, body.type):
-            raise HTTPException(status_code=412, detail=f"Invalid value {body.value}")
+        if not self.dns_validation.record_value_valid(value, type):
+            raise HTTPException(status_code=412, detail=f"Invalid value {value}")
         
-        if not self.dns_validation.user_owns_domain(api.username,body.domain):
-            raise HTTPException(status_code=403, detail=f"You do not own the domain {body.domain}")
-
-        id:str | None
+        if not self.dns_validation.user_owns_domain(api.username,domain):
+            raise HTTPException(status_code=403, detail=f"You do not own the domain {domain}")
         
         try:
-            id = self.dns.modify_domain(
+            self.dns.modify_domain(
                 api.user_cache_data["domains"][clean_domain_name]["id"],
-                body.value,
-                body.type,
-                body.domain
+                value,
+                type,
+                domain
             )
         
 
         except ValueError: # domain id is corrupt
-            logger.error(f"Domain id for {body.domain} is corrupted")
-            id = self.dns.get_id(body.domain,body.type,body.value)
-
-            if id is None:
-                id = self.dns.register_domain(body.domain,body.value,body.type,f"Registered with domain repair through API {api.username}")
-        
+            logger.error(f"Domain valueerror {domain} is corrupted")      
         except DNSException as e:
             print(e.json)
             raise HTTPException(status_code=500)
-        
-        if id is None:
-            raise HTTPException(status_code=501)
+
         
         self.domains.add_domain(
-            api.username,body.domain,
+            api.username,domain,
             {
-                "id":id,
-                "ip": body.value,
+                "id": "None",
+                "ip": value,
                 "registered": round(time.time()),
-                "type":body.type
+                "type":type
             }
         )
         
