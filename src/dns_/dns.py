@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 import logging
 import json
 from pymongo import MongoClient
@@ -168,5 +169,38 @@ class DNS:
             return False
 
         return True
+    
+    def delete_multiple(self, domains: Dict[str,str]):
+        """Deleted multiple records at once
 
+        Args:
+            domains (Dict[str,str]): A set of keys {domain: type}
+        """
+        
 
+        logger.info(f"mass deleting records {list(domains.keys())}")
+        
+        rrsets = [{
+            "name": k,
+            "type": v,
+            "changetype": "DELETE",
+            "records": [{}]
+        } for k,v in domains.items()]
+        
+        request = requests.patch(
+            f"https://vps.frii.site/api/v1/servers/localhost/zones/frii.site.",
+
+            data=json.dumps({
+                "rrsets": rrsets
+            }),
+            headers={
+                "Content-Type":"application/json",
+                "X-API-Key": self.key
+            }
+        )
+
+        if not request.ok:
+            logger.error(f"Could not delete domains {list(domains.keys())}. {request.json()}")
+            return False
+
+        return True

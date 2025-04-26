@@ -24,6 +24,9 @@ if TYPE_CHECKING:
 
 logger:logging.Logger = logging.getLogger("frii.site")
 
+class EncryptedStr(str): 
+    ...
+
 class CountryType(TypedDict):
     ip:str
     hostname:str
@@ -61,11 +64,18 @@ UserPageType = TypedDict("UserPageType", {
     "invites": Dict[str,InviteType]
 })
 
+ApiKeys = TypedDict("ApiKeys", {
+    "string": EncryptedStr,
+    "perms": List[str],
+    "domains": List[str],
+    "comment": str
+})
+
 UserType = TypedDict("UserType", {
     "_id": str,
-    "email": str,
+    "email": EncryptedStr,
     "password":str,
-    "display-name":str,
+    "display-name":EncryptedStr,
     "username": NotRequired[str],
     "lang": str,
     "country": CountryType,
@@ -77,7 +87,7 @@ UserType = TypedDict("UserType", {
     "verified": bool,
     "domains": Required[Dict[str,'DomainFormat']],
     "feature-flags": NotRequired[Dict[str,bool]],
-    "api-keys": NotRequired[Dict],
+    "api-keys": NotRequired[Dict[str,ApiKeys]],
     "credits": NotRequired[int],
     "beta-enroll": NotRequired[bool],
     "beta-updated": NotRequired[int],
@@ -85,6 +95,7 @@ UserType = TypedDict("UserType", {
     "invite-code": NotRequired[str],
     "totp-key": NotRequired[str]
 })
+
 
 
 class Users(Table):
