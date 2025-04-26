@@ -130,16 +130,15 @@ class Domain:
         
         if not is_domain_available:
             raise HTTPException(status_code=409,detail="Domain is not available")
-        
-        domain_id: str = ""
 
         try:
-            domain_id = self.dns.register_domain(
+            self.dns.register_domain(
                 body.domain,
                 body.value,
                 body.type,
                 f"Registered through website user: {session.username}"
             )
+            
         except DNSException as e:
             print(e.json)
             raise HTTPException(status_code=500, detail="DNS Registration failed")
@@ -148,7 +147,7 @@ class Domain:
             session.username,
             body.domain,
             {
-                "id": domain_id,
+                "id": "None",
                 "type": body.type,
                 "ip": body.value,
                 "registered": round(time.time())

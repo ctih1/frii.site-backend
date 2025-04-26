@@ -24,9 +24,6 @@ if TYPE_CHECKING:
 
 logger:logging.Logger = logging.getLogger("frii.site")
 
-class EncryptedStr(str): 
-    ...
-
 class CountryType(TypedDict):
     ip:str
     hostname:str
@@ -65,7 +62,7 @@ UserPageType = TypedDict("UserPageType", {
 })
 
 ApiKeys = TypedDict("ApiKeys", {
-    "string": EncryptedStr,
+    "string": str,
     "perms": List[str],
     "domains": List[str],
     "comment": str
@@ -73,9 +70,9 @@ ApiKeys = TypedDict("ApiKeys", {
 
 UserType = TypedDict("UserType", {
     "_id": str,
-    "email": EncryptedStr,
+    "email": str,
     "password":str,
-    "display-name":EncryptedStr,
+    "display-name":str,
     "username": NotRequired[str],
     "lang": str,
     "country": CountryType,
