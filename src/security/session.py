@@ -172,8 +172,9 @@ class Session:
                 if not target.valid:
                     raise SessionError("Session is not valid")
                 if flag not in target.flags:
-                    raise SessionFlagError("User does not have correct flags")
-                func(*args, **kwargs)
+                    raise SessionFlagError(f"User is missing flag {flag}")
+                a = func(*args, **kwargs)
+                return a
             return wrapper
         return decor
 
