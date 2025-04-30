@@ -54,6 +54,18 @@ class Languages:
             tags=["translations"]
         )
 
+        self.router.add_api_route(
+            "/{language}/json",
+            self.get_json, 
+            methods=["GET"],
+            responses={
+                200: {"description": "Missing keys retrieved"},
+                404: {"description": "Language does not exist"},
+            },
+            tags=["translations"]
+        )
+
+
         logger.info("Initialized")
 
     def percentages(self) -> Dict[str,float]:
@@ -67,6 +79,8 @@ class Languages:
     def get_missing_keys(self,language:str) -> List[Dict[str,str]]:
         return self.translations_table.get_missing_keys(language)
         
+    def get_json(self, language:str) -> Dict[str,str]:
+        return self.translations_table.combine_preview_and_commited(language)
         
         
         
