@@ -17,14 +17,17 @@ class Translations(Table):
 
         logging.getLogger("requests").setLevel(logging.WARNING)
         logging.getLogger("urllib3").setLevel(logging.WARNING)
-        response = requests.get(
-            "https://api.github.com/repos/ctih1/frii.site-frontend/contents/src/locales?ref=dev",
-            headers =  {
-                "Accept": "application/json",
-                "Authorization":f"Bearer {self.api_key}",
-                "X-GitHub-Api-Version":"2022-11-28"
-            }
-        )
+        try:
+            response = requests.get(
+                "https://api.github.com/repos/ctih1/frii.site-frontend/contents/src/locales?ref=dev",
+                headers =  {
+                    "Accept": "application/json",
+                    "Authorization":f"Bearer {self.api_key}",
+                    "X-GitHub-Api-Version":"2022-11-28"
+                }
+            )
+        except Exception as e:
+            logger.error(f"Retrieving translation files failed {e}")
 
         self.languages: dict = {}
         
@@ -43,7 +46,10 @@ class Translations(Table):
         
     def __init_language(self,file: Dict) -> None:
         filename:str = file["name"].split(".")[0]
-        self.languages[filename] = requests.get(file["download_url"]).json()
+        try:
+            self.languages[filename] = requests.get(file["download_url"]).json()
+        except Exception as e:
+            logger.error(f"Failed to GET {file} ({e})")
         
     def __process_missing_keys(self,language:str, keys: dict) -> None:
         preview_keys:Dict = {}

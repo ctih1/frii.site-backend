@@ -110,8 +110,9 @@ class Users(Table):
     def create_user(self,username: str, password: str,
                     email: str, language: str, country,
                     time_signed_up, email_instance:Email,
-                    invite_code:str
+                    invite_code:str, target_url: str # target_url should only be the hostname (e.g canary.frii.site, www.frii.site)
                     ) -> str:
+        
         logger.info(f"Creating user with username {username}")
         original_username:str = username
         
@@ -157,7 +158,7 @@ class Users(Table):
         }
 
         self.insert_document(account_data)
-        if not email_instance.send_verification_code(username,email):
+        if not email_instance.send_verification_code(target_url,username,email):
             logger.info("Failed to send verification")
             raise EmailException("Email already in use!")
         

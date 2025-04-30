@@ -230,8 +230,13 @@ class User:
         if user_data is None:
             raise HTTPException(status_code=404,detail="User does not exist")
         
+        if not user_data["verified"]:
+            raise HTTPException(status_code=403, detail="Verification required")
+        
         if not Encryption.check_password(password_hash,user_data["password"]):
             raise HTTPException(status_code=401, detail="Invalid password")
+        
+
         
         session_status:SessionCreateStatus = Session.create(
             username_hash, 
@@ -254,7 +259,8 @@ class User:
             raise HTTPException(status_code=400, detail="Invite not valid")
         
         country:CountryType = self.handler.getDetails(request.client.host).all # type: ignore[union-attr]
-
+        from_url: str = request.headers.get("Origin", "https://www.frii.site")
+        
         try:
             user_id:str = self.table.create_user(
                 body.username,
@@ -264,7 +270,8 @@ class User:
                 country,
                 round(time.time()),
                 self.email,
-                body.invite
+                body.invite,
+                from_url
             )
         except EmailException:
             raise HTTPException(status_code=422, detail="Email already in use")
@@ -278,17 +285,22 @@ class User:
         return JSONResponse(self.table.get_user_profile(session.username,self.session_table)) # type: ignore[return-value]
     
 
-    def resend_verification(self, user_id:str):
+    def resend_verification(self, request:Request, user_id:str):
         self.codes.create_code("verification",user_id)
+        from_url: str = request.headers.get("Origin", "https://www.frii.site")
 
         user_data:UserType | None = self.table.find_user({"_id":user_id})
 
         if user_data is None:
+            logger.info(f"Could not find user with id {user_id}")
             raise HTTPException(status_code=404, detail="User not found")
+        
+        if user_data["verified"]:
+            raise HTTPException(status_code=409, detail="Account already verified")
         
         email:str = self.encryption.decrypt(user_data["email"])
 
-        self.email.send_verification_code(user_id,email)
+        self.email.send_verification_code(from_url, user_id,email)
 
 
     def verify_account(self, code:str):
