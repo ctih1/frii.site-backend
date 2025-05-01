@@ -174,7 +174,7 @@ class Domain:
                 body.type,
                 old_type,
                 body.domain,
-                session.id,
+                session.username,
             )
             
             if not success:

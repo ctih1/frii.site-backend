@@ -10,7 +10,7 @@ from database.table import Table
 logger:logging.Logger = logging.getLogger("frii.site")
 
 
-DatabaseKeyFormat = TypedDict("DatabaseLanguageFormat", {
+DatabaseKeyFormat = TypedDict("DatabaseKeyFormat", {
     "val": str,
     "contributor": str
 })
@@ -90,7 +90,7 @@ class Translations(Table):
         self.main_language =  self.languages["en"]
         self.missing_keys:dict = {}
         total_keys = len(self.main_language)
-        self.database_entries: List[DatabaseLanguageFormat] = self.get_table()
+        self.database_entries: List[DatabaseLanguageFormat] = self.get_table() # type: ignore[assignment]
 
         for language in self.languages:
             thread = threading.Thread(target=self.__process_missing_keys, args=(language,self.database_entries,))
@@ -114,7 +114,7 @@ class Translations(Table):
         return percentages
     
     def add(self, lang:str, keys: List[Dict[Any,Any]], username:str):
-        language: Dict[str, DatabaseLanguageFormat] = {}
+        language: dict = {}
     
         for translation in keys:
             if translation["val"] != "":
@@ -135,12 +135,12 @@ class Translations(Table):
         return self.keys[language]
 
     def combine_preview_and_commited(self, language: str) -> Dict[str,str]:
-        result: Dict[str, Dict[str,str]] = {}
-        codes_on_github: Dict[str, Dict[str,str]] = self.languages[language]
+        result: Dict[str,str] = {}
+        codes_on_github: Dict[str,str] = self.languages[language]
 
         print(self.database_entries)
 
-        database_language:List[DatabaseKeyFormat] = []
+        database_language: Dict[str, DatabaseKeyFormat] = {}
 
         for entry in self.database_entries:
             if entry["_id"] == language:

@@ -195,6 +195,7 @@ class Session:
         self.session_data: dict | None = self.__cache_data()
         self.valid: bool = self.__is_valid()
         self.username: str = self.__get_username()
+        self.user_id = self.username
 
         self.user_cache_data: 'UserType' = self.__user_cache()
         self.permissions: list = self.__get_permimssions()

@@ -378,11 +378,11 @@ class User:
             logger.info("Migrating API key...")
             
             for perm in key["perms"]:
-                if key in ["content", "type"] and "modify" not in updated_key["perms"]:
+                if perm in ["content", "type"] and "modify" not in updated_key["perms"]:
                     updated_key["perms"].append("content")
-                elif key == "domain":
+                elif perm == "domain":
                     updated_key["perms"].append("register")
-                elif key == "view":
+                elif perm == "view":
                     updated_key["perms"].append("list")
                 else:
                     logger.info("No migrateable keys found")
@@ -399,12 +399,12 @@ class User:
                 }
 
             try:
-                logger.info("API key needs to be migrated. Performing automatic migration")
+                logger.info(f"API key {key[:4]}... needs to be migrated. Performing automatic migration")
                 updated_key: Dict = convert_keys(api_key)
                 self.table.modify_document(
-                    {"_id": session.id},
-                    "$set", f"api-keys.{key}.perms",
-                    updated_key["perms"]
+                    {"_id": session.username},
+                    "$set", f"api-keys.{key}",
+                    updated_key
                 )
                 
                 user_keys.append(updated_key)
