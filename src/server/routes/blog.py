@@ -55,8 +55,6 @@ class Blog:
             tags=["blog"]
         )
 
-
-
         logger.info("Initialized")
 
     def get(self, id:str) -> BlogType:
@@ -80,6 +78,8 @@ class Blog:
             )
             formatted_blogs.append(new_blog)
             
+        formatted_blogs = sorted(formatted_blogs,key=lambda blog: blog.date, reverse=True)      
+    
         return formatted_blogs[:amount]
         
 
