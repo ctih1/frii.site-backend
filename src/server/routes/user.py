@@ -427,7 +427,7 @@ class User:
                      "domains", "feature-flags",
                      "beta-enroll"]
     
-        return {k:v for k,v in user_data if k in gdpr_keys} # type: ignore[has-type, misc]
+        return {k:v for k,v in user_data.items() if k in gdpr_keys} # type: ignore[has-type, misc]
 
 
 

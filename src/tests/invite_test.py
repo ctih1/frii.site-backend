@@ -53,6 +53,7 @@ class TestInviteCreation:
     def test_invite_creation_too_many(self):
         # Add invite so invite limit is reached
         pytest.example_user["invites"]["third_invite"] = {} 
+        
         with pytest.raises(InviteException):
             invites.create(pytest.example_user)
     

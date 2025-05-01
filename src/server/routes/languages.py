@@ -80,9 +80,9 @@ class Languages:
         return self.translations_table.get_missing_keys(language)
         
     def get_json(self, language:str) -> Dict[str,str]:
-        return self.translations_table.combine_preview_and_commited(language)
-        
-        
-        
+        try:
+            return self.translations_table.combine_preview_and_commited(language)
+        except ValueError:
+            raise HTTPException(status_code=404, detail=f"Language {language} not found")
         
  
