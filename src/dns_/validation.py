@@ -91,48 +91,23 @@ class Validation:
                 raise SubdomainError(f"User doesn't own '{required_domain}'", required_domain)
             return False
         
-        if len(self.table.find_item({f"domains.{cleaned_domain}":{"$exists":True}}) or []) != 0:
+        if len(self.table.find_item({f"domains.{cleaned_domain}": {"$exists":True}}) or []) != 0:
             logger.error(f"Domain {cleaned_domain} already exists in database")
 
             if raise_exceptions:
                 raise DomainExistsError("Domain is already registered")
             return False
         
-        domain_data:dict = self.dns.get_domain_attributes(name)
-
-        if len(domain_data.get("result",[])) == 0:
-            # Domain has not been registered
-            return True
+        logger.info("Domain not found in database.")
         
-        else:
-            # Check if domain holder has an account
-            REGEX_MATCH_STRING:str = r"\b[a-fA-F0-9]{64}\b"
-
-            domain_comment:str = domain_data.get("result")[0]["comment"] # type: ignore[index]
-            regex_matches:List[str] = re.findall(REGEX_MATCH_STRING, domain_comment)
-            try:
-                username:str = regex_matches[0]
-                logger.info(f"Found owner of {name} with username {username}")
-            except IndexError:
-                username = ""
-                logger.info(f"Couldn't find owner of {name}")
-                
-                return True
-
-            user_data: UserType | None = self.table.find_user({"_id":username})
-            
-            if user_data is None or cleaned_domain not in user_data["domains"]:
-                logger.info(f"Couldn't find owner of domain {name}, deleting...")
-                # Since the target user doesn't exist, or doesn't own the domain, it is no longer taken
-                return True 
-
-            return False
+        return True
 
 
     def user_owns_domain(self,user_id:str, domain:str) -> bool:
         user_data: UserType | None = self.table.find_user({"_id":user_id})
         if user_data is None:
             raise UserNotExistError("User does not exist!")
+        
         return user_data["domains"].get(self.table.clean_domain_name(domain)) is not None
     
 

@@ -2,12 +2,24 @@ import logging
 import time
 import os
 import threading
-from typing_extensions import Dict, List, Any
+from typing_extensions import Dict, List, Any, TypedDict
 import requests # type: ignore[import-untyped]
 from pymongo import MongoClient
 from database.table import Table
 
 logger:logging.Logger = logging.getLogger("frii.site")
+
+
+DatabaseKeyFormat = TypedDict("DatabaseLanguageFormat", {
+    "val": str,
+    "contributor": str
+})
+
+DatabaseLanguageFormat = TypedDict("DatabaseLanguageFormat", {
+    "_id": str,
+    "keys": Dict[str,DatabaseKeyFormat]
+})
+
 
 class Translations(Table):
     def __init__(self, mongo_client:MongoClient):
@@ -17,16 +29,19 @@ class Translations(Table):
 
         logging.getLogger("requests").setLevel(logging.WARNING)
         logging.getLogger("urllib3").setLevel(logging.WARNING)
-        response = requests.get(
-            "https://api.github.com/repos/ctih1/frii.site-frontend/contents/src/locales?ref=dev",
-            headers =  {
-                "Accept": "application/json",
-                "Authorization":f"Bearer {self.api_key}",
-                "X-GitHub-Api-Version":"2022-11-28"
-            }
-        )
+        try:
+            response = requests.get(
+                "https://api.github.com/repos/ctih1/frii.site-frontend/contents/src/locales?ref=dev",
+                headers =  {
+                    "Accept": "application/json",
+                    "Authorization":f"Bearer {self.api_key}",
+                    "X-GitHub-Api-Version":"2022-11-28"
+                }
+            )
+        except Exception as e:
+            logger.error(f"Retrieving translation files failed {e}")
 
-        self.languages: dict = {}
+        self.languages: Dict[str, Dict[str,str]] = {}
         
         threads: List[threading.Thread] = []
         for file in response.json():
@@ -43,10 +58,13 @@ class Translations(Table):
         
     def __init_language(self,file: Dict) -> None:
         filename:str = file["name"].split(".")[0]
-        self.languages[filename] = requests.get(file["download_url"]).json()
+        try:
+            self.languages[filename] = requests.get(file["download_url"]).json()
+        except Exception as e:
+            logger.error(f"Failed to GET {file} ({e})")
         
     def __process_missing_keys(self,language:str, keys: dict) -> None:
-        preview_keys:Dict = {}
+        preview_keys:Dict = {} # AKA the keys that are in the database
         
         for lang in keys:
             if lang["_id"] == language: 
@@ -72,10 +90,10 @@ class Translations(Table):
         self.main_language =  self.languages["en"]
         self.missing_keys:dict = {}
         total_keys = len(self.main_language)
-        preview_keys = self.get_table()
+        self.database_entries: List[DatabaseLanguageFormat] = self.get_table()
 
         for language in self.languages:
-            thread = threading.Thread(target=self.__process_missing_keys, args=(language,preview_keys,))
+            thread = threading.Thread(target=self.__process_missing_keys, args=(language,self.database_entries,))
             threads.append(thread)
             thread.start()
             
@@ -96,8 +114,7 @@ class Translations(Table):
         return percentages
     
     def add(self, lang:str, keys: List[Dict[Any,Any]], username:str):
-    
-        language: dict = {}
+        language: Dict[str, DatabaseLanguageFormat] = {}
     
         for translation in keys:
             if translation["val"] != "":
@@ -116,3 +133,25 @@ class Translations(Table):
 
     def get_missing_keys(self,language:str) -> List[Dict[str,str]]:
         return self.keys[language]
+
+    def combine_preview_and_commited(self, language: str) -> Dict[str,str]:
+        result: Dict[str, Dict[str,str]] = {}
+        codes_on_github: Dict[str, Dict[str,str]] = self.languages[language]
+
+        print(self.database_entries)
+
+        database_language:List[DatabaseKeyFormat] = []
+
+        for entry in self.database_entries:
+            if entry["_id"] == language:
+                database_language = entry["keys"]
+                break
+
+        if len(database_language) < 1:
+            raise ValueError(f"Language {language} not found")
+
+        result = codes_on_github
+
+        result.update({ k:v["val"] for k,v in database_language.items()})
+
+        return result

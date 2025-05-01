@@ -1,6 +1,7 @@
 from __future__ import annotations
-from typing import List, TYPE_CHECKING, Dict
+from typing import List, TYPE_CHECKING, Dict, Any
 from typing_extensions import TypedDict
+import logging
 import os
 import time
 import datetime
@@ -32,6 +33,8 @@ SessionType = TypedDict(
     "SessionType", {"user-agent": str, "ip": str, "expire": int, "hash": str}
 )
 
+
+logger = logging.getLogger("frii.site")
 
 class UserManager(threading.Thread):
     # a thread to track user data (for security)
@@ -128,16 +131,36 @@ class Api:
 
         def decor(func):
             @wraps(func)
-            def wrapper(*args,**kwargs):
-                target: Api = Api.find_api_instance(args,kwargs)
-                if not target.valid:
+            def wrapper(*args,**kwargs) -> Any:
+                target: Api | None = Api.find_api_instance(args,kwargs)
+                
+                if target is None or not target.valid:
                     raise ApiError("API is not valid")
+        
                 if permission not in target.permissions:
                     raise ApiPermissionError(
                         "User does not have correct permissions"
                     )
-                a = func(*args, **kwargs)
-                return a
+                    
+                    
+                target_domain: str | None = kwargs.get("domain")
+                
+                if permission == "content":
+                    if target_domain is None:
+                        logger.error("Target domain not specified in kwargs as 'domain'")
+                        logger.debug(f"Args: {args}; kwargs: {kwargs}")
+                        raise ValueError("Domain not specified")
+                        
+                        
+                    logger.info(target_domain)
+                    logger.info(target.affected_domains)
+                    if target_domain not in target.affected_domains:
+                        raise ApiRangeError("User cannot access this domain")
+                    
+                    logger.debug(f"API Key can modify domain {target_domain}")
+                    
+                of = func(*args, **kwargs)
+                return of
             return wrapper
         return decor
 
@@ -150,7 +173,7 @@ class Api:
             database: Instance of the database class
         """
         self.users_table:Users = users
-        self.encryption: Encryption = Encryption(os.getenv("ENC_KEY")) #type: ignore[arg-type]
+        self.encryption: Encryption = users.encryption
 
         self.key:str = api_key
         self.encrypted_key:str = Encryption.sha256(api_key+"frii.site")
@@ -161,6 +184,11 @@ class Api:
         self.user_cache_data: 'UserType' = self.__user_cache()
         self.username: str = self.__get_username()
         self.permissions: list = self.__get_permimssions()
+        
+        if self.key_data:
+            self.affected_domains: dict = self.key_data.get("domains",{})
+        else:
+            self.affected_domains = {}
 
 
     def __cache_data(self) -> dict | None:
@@ -196,11 +224,6 @@ class Api:
             return []
         
         return self.key_data["perms"]
-    
-    def domain_allowed(self,domain:str) -> bool:
-        if self.key_data is None:
-            raise ValueError("Key data is none!")
-        return domain in self.key_data["domains"]
 
     @staticmethod
     def create(username: str, users: Users, comment:str, permissions:List[str]) -> str:

@@ -30,7 +30,7 @@ class ConvertAPI:
             raise ApiError("API Key not specified")
         
         api = Api(api_key,self.users)
-        if not api.domain_allowed(target_domain):
+        if target_domain not in api.affected_domains:
             raise ApiPermissionError("API Key cannot edit this domain")
         
         return api

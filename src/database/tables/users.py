@@ -61,6 +61,13 @@ UserPageType = TypedDict("UserPageType", {
     "invites": Dict[str,InviteType]
 })
 
+ApiKeys = TypedDict("ApiKeys", {
+    "string": str,
+    "perms": List[str],
+    "domains": List[str],
+    "comment": str
+})
+
 UserType = TypedDict("UserType", {
     "_id": str,
     "email": str,
@@ -77,7 +84,7 @@ UserType = TypedDict("UserType", {
     "verified": bool,
     "domains": Required[Dict[str,'DomainFormat']],
     "feature-flags": NotRequired[Dict[str,bool]],
-    "api-keys": NotRequired[Dict],
+    "api-keys": NotRequired[Dict[str,ApiKeys]],
     "credits": NotRequired[int],
     "beta-enroll": NotRequired[bool],
     "beta-updated": NotRequired[int],
@@ -85,6 +92,7 @@ UserType = TypedDict("UserType", {
     "invite-code": NotRequired[str],
     "totp-key": NotRequired[str]
 })
+
 
 
 class Users(Table):
@@ -102,8 +110,9 @@ class Users(Table):
     def create_user(self,username: str, password: str,
                     email: str, language: str, country,
                     time_signed_up, email_instance:Email,
-                    invite_code:str
+                    invite_code:str, target_url: str # target_url should only be the hostname (e.g canary.frii.site, www.frii.site)
                     ) -> str:
+        
         logger.info(f"Creating user with username {username}")
         original_username:str = username
         
@@ -149,7 +158,7 @@ class Users(Table):
         }
 
         self.insert_document(account_data)
-        if not email_instance.send_verification_code(username,email):
+        if not email_instance.send_verification_code(target_url,username,email):
             logger.info("Failed to send verification")
             raise EmailException("Email already in use!")
         

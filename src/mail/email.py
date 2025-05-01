@@ -45,15 +45,15 @@ class Email:
 		return self.users.find_item({"email-hash":email_hash}) is not None
 	
 
-	def send_verification_code(self,username:str, email:str) -> bool:
+	def send_verification_code(self,base_url:str, username:str, email:str) -> bool:
 		code:str = self.codes.create_code("verification",username)
 		try:
 			resend.Emails.send({
 				"from": "send@frii.site",
 				"to": email,
 				"subject": "Verify your account",
-				"html": verify_template.replace("{{link}}",f"https://www.frii.site/verify/{code}"),
-				"text": f"Go to https://www.frii.site/verify/{code} to verify your account"
+				"html": verify_template.replace("{{link}}",f"{base_url}/verify/{code}"),
+				"text": f"Go to {base_url}/verify/{code} to verify your account"
 			})
 		except resend.exceptions.ResendError as e:
 			logger.error(f"Failed to send verification code {e.suggested_action}")

@@ -14,3 +14,9 @@ class PasswordReset(BaseModel):
 class ApiCreationBody(BaseModel): 
     permissions: List[str]
     domains: List[str]
+    
+class ApiGetKeys(BaseModel):
+    key: str
+    domains: List[str]
+    perms: List[str]
+    comment: str
