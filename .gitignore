@@ -1,6 +1,7 @@
 userinfo.json
 /__pycache__/
 funcs/__pycache__/
+**/__pycache__/
 key.pem
 cert.pem
 .env
@@ -10,8 +11,4 @@ venv/
 .env*.local
 server_key
 server_key.pub
-<<<<<<< HEAD
-*.go
-*.mod
-=======
->>>>>>> dev
+.mypy_cache/
