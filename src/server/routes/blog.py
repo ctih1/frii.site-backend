@@ -68,19 +68,23 @@ class Blog:
     def get_all(self, n:int=5, content:int|None=None) -> List[BlogType]:
         amount = n
         content_length = content
-        blogs:List[BlogType] = self.blog_table.get_table() # type: ignore[assignment]
-        return [{k:(str(v)[:content_length] if content_length and k=="body" else v) for k,v in blog.items()} for blog in blogs][:amount] # type: ignore[return-value, attr-defined]
-
+        blogs = self.blog_table.get_table() # type: ignore[assignment]
+        formatted_blogs: List[BlogType] = []
+        
+        for blog in blogs:
+            new_blog: BlogType = BlogType(
+                url=blog["_id"], 
+                date=blog["date"],
+                title=blog["title"],
+                body=blog["body"][:content_length]
+            )
+            formatted_blogs.append(new_blog)
+            
+        return formatted_blogs[:amount]
+        
 
     @Session.requires_auth
     @Session.requires_permission(permission="blog")
     def create(self,body: BlogType, session:Session = Depends(converter.create)):
         return self.blog_table.create(body.title,body.body)
-
-
-        
-        
-        
-        
-        
- 
+    

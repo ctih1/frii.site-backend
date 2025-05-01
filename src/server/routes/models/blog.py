@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
 class BlogType(BaseModel):
-    _id: str
+    url: str
     date: int
     title: str
     body: str
