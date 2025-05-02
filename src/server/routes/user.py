@@ -2,7 +2,7 @@ import os
 from typing import List, Dict, Annotated, Any
 import time
 import logging
-from fastapi import APIRouter, Request, Depends, Header
+from fastapi import APIRouter, Request, Depends, Header, WebSocket
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 import ipinfo # type: ignore[import-untyped]
@@ -37,6 +37,7 @@ class User:
         self.email:Email = email
         self.codes:Codes = codes
         self.dns:DNS = dns
+
 
         self.encryption:Encryption = Encryption(os.getenv("ENC_KEY")) # type: ignore[arg-type]
 
@@ -198,6 +199,17 @@ class User:
             methods=["POST"],
             responses={
                 403: {"description": "User does not own requested domains"},
+                460: {"description": "Invalid session"},
+            },
+            status_code=200,
+            tags=["account","api"]
+        )
+        
+        self.router.add_api_route(
+            "/api/get-keys",
+            self.get_api_keys,
+            methods=["GET"],
+            responses={
                 460: {"description": "Invalid session"},
             },
             status_code=200,
@@ -479,3 +491,8 @@ class User:
         except FilterMatchError:
             raise HTTPException(status_code=404,detail="Invalid user")
         
+
+            
+        
+           
+            

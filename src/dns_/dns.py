@@ -18,7 +18,7 @@ class DNS:
         self.key:str = os.getenv("PDNS_API_KEY") or ""
 
 
-    def modify_domain(self, content:str, type:str, old_type:str, domain:str, user_id: str) -> bool:
+    def modify_domain(self, content:str, type:str, old_type:str, domain:str, user_id: str, ttl: int = 240) -> bool:
         """
         Modifies a DNS record for a given domain.
         Args:
@@ -53,7 +53,7 @@ class DNS:
                 "rrsets": [{
                     "name": domain+".frii.site.",
                     "type": type,
-                    "ttl": 3400,
+                    "ttl": ttl,
                     "changetype": "REPLACE",
                     "records": [{
                         "content": content,
