@@ -142,7 +142,7 @@ class Domain:
     def register(self, body: DomainType, session:Session = Depends(converter.create)):
 
         if len(session.user_cache_data["domains"]) > session.user_cache_data.get("permissions",{}).get("max-domains",3):
-            return HTTPException(status_code=405, detail="Domain limit exceeded")
+            raise HTTPException(status_code=405, detail="Domain limit exceeded")
 
         try:
             is_domain_available:bool = self.dns_validation.is_free(
@@ -162,16 +162,15 @@ class Domain:
         if not is_domain_available:
             raise HTTPException(status_code=409,detail="Domain is not available")
 
-        try:
-            self.dns.register_domain(
-                body.domain,
-                body.value,
-                body.type,
-                f"Registered through website user: {session.username}"
-            )
-            
-        except DNSException as e:
-            print(e.json)
+        success = self.dns.register_domain(
+            body.domain,
+            body.value,
+            body.type,
+            f"Registered through website user: {session.username}"
+        )
+        
+        if not success:
+            logger.error("DNS registration failed")
             raise HTTPException(status_code=500, detail="DNS Registration failed")
 
         self.domains.add_domain(
@@ -258,6 +257,7 @@ class Domain:
                 logger.info("Updating vercel verification...")
                 
                 self.dns.modify_domain(verification_value,"TXT","TXT","_vercel",user_id, 15)
+                
                 time.sleep(45)
             time.sleep(1)
     
