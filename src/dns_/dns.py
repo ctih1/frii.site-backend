@@ -41,7 +41,7 @@ class DNS:
         
         # PowerDNS will complain if these two are not present.
         
-        if type == "CNAME":
+        if type == "CNAME" and not content.endswith("."):
             content += "."
         
         if type == "TXT":
@@ -93,7 +93,7 @@ class DNS:
         """
         
     
-        if type == "CNAME":
+        if type == "CNAME" and not content.endswith("."):
             content += "."
         
         if type == "TXT":
