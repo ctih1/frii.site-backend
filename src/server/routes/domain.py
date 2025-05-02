@@ -255,6 +255,8 @@ class Domain:
                     logger.error("Verification value not found")
                     continue
                 
+                logger.info("Updating vercel verification...")
+                
                 self.dns.modify_domain(verification_value,"TXT","TXT","_vercel",user_id, 15)
                 time.sleep(45)
             time.sleep(1)
