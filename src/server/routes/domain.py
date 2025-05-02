@@ -37,6 +37,7 @@ class Domain:
         self.dns_validation:Validation = Validation(domains,dns)
         self.verification_queue: deque = deque([])
         self.verification_dict: Dict[str,str] = {}
+        self.current_queue_user: str = ""
         
         Thread(target=self.handle_deque).start()
 
@@ -246,8 +247,8 @@ class Domain:
 
     def handle_deque(self) -> None:
         while True:
-            while len(self.verification_queue) >= 1:
-                user_id: str = self.verification_queue.popleft()
+            while len(self.verification_queue) != 0:
+                user_id: str = self.verification_queue[0]
                 verification_value: str | None= self.verification_dict.get(user_id)
                 
                 if verification_value is None:
@@ -257,8 +258,10 @@ class Domain:
                 logger.info("Updating vercel verification...")
                 
                 self.dns.modify_domain(verification_value,"TXT","TXT","_vercel",user_id, 15)
-                
+                self.current_queue_user = user_id
+               
                 time.sleep(45)
+                self.verification_queue.popleft()
             time.sleep(1)
     
     @Session.requires_auth
@@ -273,6 +276,9 @@ class Domain:
     def vercel_queue_get(self, session:Session = Depends(converter.create)) -> int:
         if session.user_id not in self.verification_queue:
             raise HTTPException(status_code=404, detail="User not in the queue. (see /domain/vercel/join)")
+            
+        if session.user_id == self.current_queue_user:
+            raise HTTPException(status_code=408, detail="Domain is currently on")
 
         return self.verification_queue.index(session.user_id)
         
