@@ -111,9 +111,27 @@ class Domain:
             tags=["domain"]
         )
         
-        self.router.add_api_websocket_route(
-            "/ws/vercel",
-            self.vercel_socket
+        self.router.add_api_route(
+            "/vercel/join",
+            self.vercel_queue_join,
+            methods=["POST"],
+            responses={
+                200: {"description": "Joined queue"},
+                460: {"description": "Invalid session"}
+            },
+            tags=["domain","vercel"]
+        )
+        
+        self.router.add_api_route(
+            "/vercel/get",
+            self.vercel_queue_get,
+            methods=["GET"],
+            responses={
+                200: {"description": "Position in queue"},
+                404: {"description": "User not in queue"},
+                460: {"description": "Invalid session"}
+            },
+            tags=["domain","vercel"]
         )
 
         logger.info("Initialized")
@@ -240,68 +258,19 @@ class Domain:
                 self.dns.modify_domain(verification_value,"TXT","TXT","_vercel",user_id, 15)
                 time.sleep(45)
             time.sleep(1)
+    
+    @Session.requires_auth
+    def vercel_queue_join(self, value:str, session:Session = Depends(converter.create)):
+        if session.user_id not in self.verification_queue:
+            self.verification_queue.append(session.user_id)
+        else:
+            logger.info("User already in queue")
+        self.verification_dict[session.user_id] = value
+        
+    @Session.requires_auth
+    def vercel_queue_get(self, session:Session = Depends(converter.create)) -> int:
+        if session.user_id not in self.verification_queue:
+            raise HTTPException(status_code=404, detail="User not in the queue. (see /domain/vercel/join)")
 
-    async def vercel_socket(self, websocket: WebSocket):
-        await websocket.accept()
-        logger.info("New WS accepted")
-        listening: bool = True
-        authenticated: bool = False
-        user_session: Session | None= None
+        return self.verification_queue.index(session.user_id)
         
-        while listening:
-            while not authenticated:
-                data = await websocket.receive_json()
-                ip: str | None = None
-            
-                if websocket.client:
-                    ip = websocket.client.host
-                    
-                if ip is None:
-                    logger.error(f"Could not find websocket ip {ip}")
-                    listening = False
-                    break
-                
-                session_id:str = data["session"]
-                verification_code:str = data["value"]
-                
-                logger.debug(f"Checking user {session_id}")
-                
-                user_session = Session(session_id, ip, self.table, self.session_table)
-                
-                if not user_session.valid:
-                    logger.info("User session is invalid")
-                    await websocket.send_json({"auth":False},mode="text")
-                elif user_session.user_id not in self.verification_queue:   
-                    logger.info("Session is valid")
-                    authenticated = True
-                    self.verification_queue.append(user_session.user_id)
-                    self.verification_dict[user_session.user_id] = verification_code
-                    await websocket.send_json({"auth":True},mode="text")
-                else:
-                    logger.info("User already in queue. Reconnecting")
-                    self.verification_dict[user_session.user_id] = verification_code
-                    authenticated = True
-                    await websocket.send_json({"auth":True},mode="text")
-
-            if user_session is None:
-                authenticated = False
-                continue
-            
-            try:
-                user_position:int = self.verification_queue.index(user_session.user_id) 
-                await websocket.send_json({"auth": True, "position": user_position}, mode="text")
-            except ValueError as e:
-                await websocket.send_json({"auth": True, "position": 0}, mode="text")
-                await websocket.close()
-                authenticated = False
-                break
-                
-        
-            await asyncio.sleep(3)
-            
-            
-        
-        
-        
-        
- 
