@@ -46,22 +46,7 @@ class DNS:
         
         if type == "TXT":
             content = '"' + content + '"' 
-            
- 
         
-        logger.info(json.dumps({
-                "rrsets": [{
-                    "name": domain+".frii.site.",
-                    "type": type,
-                    "ttl": ttl,
-                    "changetype": "REPLACE",
-                    "records": [{
-                        "content": content,
-                        "disabled": False,
-                        "comment": f"Modified by Session based auth ({user_id})"
-                    }]
-                }]
-            }))
         
         request = requests.patch(
             f"https://vps.frii.site/api/v1/servers/localhost/zones/frii.site.",
@@ -70,7 +55,7 @@ class DNS:
                 "rrsets": [{
                     "name": domain+".frii.site.",
                     "type": type,
-                    "ttl": 3400,
+                    "ttl": ttl,
                     "changetype": "REPLACE",
                     "records": [{
                         "content": content,
