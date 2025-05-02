@@ -259,7 +259,7 @@ class Domain:
                 
                 self.dns.modify_domain(verification_value,"TXT","TXT","_vercel",user_id, 15)
                 self.current_queue_user = user_id
-                
+               
                 time.sleep(45)
                 self.verification_queue.popleft()
             time.sleep(1)
@@ -276,10 +276,9 @@ class Domain:
     def vercel_queue_get(self, session:Session = Depends(converter.create)) -> int:
         if session.user_id not in self.verification_queue:
             raise HTTPException(status_code=404, detail="User not in the queue. (see /domain/vercel/join)")
+            
         if session.user_id == self.current_queue_user:
             raise HTTPException(status_code=408, detail="Domain is currently on")
-
-        logger.info(f"Deck: {self.verification_queue}")
 
         return self.verification_queue.index(session.user_id)
         
