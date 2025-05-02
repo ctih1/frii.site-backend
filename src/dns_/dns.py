@@ -92,6 +92,14 @@ class DNS:
             ValueError: If the ID of the newly created DNS record cannot be retrieved.
         """
         
+    
+        if type == "CNAME":
+            content += "."
+        
+        if type == "TXT":
+            content = '"' + content + '"' 
+        
+        
         request = requests.patch(
             f"https://vps.frii.site/api/v1/servers/localhost/zones/frii.site.",
 
