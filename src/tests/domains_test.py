@@ -10,11 +10,17 @@ import json
 
 class TestDomainValidation:
     def test_valid_name(self):
-        assert Validation.record_name_valid("example-domain")
+        assert Validation.record_name_valid("example-domain","A")
     
     def test_invalid_name(self):
-        assert not Validation.record_name_valid("Invälid_Recörd_Nämë")
+        assert not Validation.record_name_valid("Invälid_Recörd_Nämë", "A")
+
+    def test_txt_record(self):
+        assert Validation.record_name_valid("_verification", "TXT")
         
+    def test_underscore_not_txt_record(self):
+        assert not Validation.record_name_valid("_verification", "A")
+
     def test_valid_content(self):
         assert Validation.record_value_valid("1.2.3.4","A")
     
