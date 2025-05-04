@@ -21,22 +21,24 @@ class Validation:
         self.table = table
 
     @staticmethod
-    def record_name_valid(name:str) -> bool:
+    def record_name_valid(name:str, type: str) -> bool:
         allowed:List[str] = list(string.ascii_letters)
 
         allowed.extend(list(string.digits))
         allowed.extend([".","-"])
+        
+        if type.upper() == "TXT":
+            allowed.append("_")
 
         valid:bool = all(char in allowed for char in name)
         return valid
     
     @staticmethod
     def record_value_valid(value:str, type:str) -> bool:
-        
         if type.upper() == "TXT":
             return True
         if type.upper() in ["CNAME","NS"]:
-            return Validation.record_name_valid(value)
+            return Validation.record_name_valid(value, type)
         if type.upper() == "A":
             allowed:List[str] = list(string.digits)
             allowed.append(".")
@@ -63,7 +65,7 @@ class Validation:
 
         cleaned_domain:str = Domains.clean_domain_name(name)
 
-        if not Validation.record_name_valid(name):
+        if not Validation.record_name_valid(name, type):
             logger.info(f"{name} Name is not valid")
             if raise_exceptions:
                 raise ValueError(f"Invalid record name '{name}'")

@@ -188,7 +188,7 @@ class Domain:
     @Session.requires_auth
     def modify(self, body:DomainType, session:Session = Depends(converter.create)):
         clean_domain_name:str = self.domains.clean_domain_name(body.domain)
-        if not self.dns_validation.record_name_valid(body.domain):
+        if not self.dns_validation.record_name_valid(body.domain, body.type):
             raise HTTPException(status_code=412, detail=f"Invalid domain name {body.domain}")
         
         if not self.dns_validation.record_value_valid(body.value, body.type):
