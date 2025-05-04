@@ -163,7 +163,7 @@ class API:
     @Api.requires_permission("content")
     def modify(self, domain: str, value: str, type:str, api:Api = Depends(converter.create)) -> None:
         clean_domain_name:str = self.domains.clean_domain_name(domain)
-        if not self.dns_validation.record_name_valid(domain):
+        if not self.dns_validation.record_name_valid(domain, type):
             raise HTTPException(status_code=412, detail=f"Invalid domain name {domain}")
         
         if not self.dns_validation.record_value_valid(value, type):
