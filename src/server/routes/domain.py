@@ -236,7 +236,7 @@ class Domain:
     def delete(self, domain:str, session:Session = Depends(converter.create)) -> None:
         if not self.domains.delete_domain(session.username,domain):
             raise HTTPException(status_code=403, detail="Domain does not exist, or user does not own it.")
-        domain_type: str = session.user_cache_data["domains"][domain]["type"]
+        domain_type: str = session.user_cache_data["domains"][self.domains.clean_domain_name(domain)]["type"]
         self.dns.delete_domain(domain, domain_type)
 
 
