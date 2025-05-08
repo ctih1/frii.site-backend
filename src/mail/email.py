@@ -52,8 +52,8 @@ class Email:
 				"from": "send@frii.site",
 				"to": email,
 				"subject": "Verify your account",
-				"html": verify_template.replace("{{link}}",f"{base_url}/account/verify/{code}"),
-				"text": f"Go to {base_url}/account/verify/{code} to verify your account"
+				"html": verify_template.replace("{{link}}",f"{base_url}/account/verify/email?code={code}"),
+				"text": f"Go to {base_url}/account/verify/email?code={code} to verify your account"
 			})
 		except resend.exceptions.ResendError as e:
 			logger.error(f"Failed to send verification code {e.suggested_action}")
