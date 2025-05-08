@@ -59,7 +59,6 @@ class Codes(Table):
         local_code:dict = {}
 
         if type == "verification":
-            
             self.verification_codes[code] = {
                 "account": self.encryption.encrypt(target_username),
                 "expire": round(time.time()) + EXPIRE_TIME

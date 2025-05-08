@@ -323,7 +323,7 @@ class User:
         
         try:
             self.table.modify_document(
-                {"_id":self.encryption.decrypt(code_status["account"])},
+                {"_id": code_status["account"]},
                 "$set",
                 "verified",
                 True
@@ -449,7 +449,7 @@ class User:
         if not code_status["valid"]:
             raise HTTPException(status_code=400, detail="Code is not valid")
         
-        user_id:str = self.encryption.decrypt(code_status["account"])
+        user_id:str = code_status["account"]
         user_data: UserType | None = self.table.find_user({"_id":user_id})
 
         if user_data is None:
