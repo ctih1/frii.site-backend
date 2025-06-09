@@ -8,7 +8,6 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pymongo import MongoClient
-from logtail import LogtailHandler # type: ignore[import-untyped]
 from dotenv import load_dotenv
 import json
 
@@ -40,13 +39,9 @@ logging.basicConfig(
     datefmt="%d/%m/%Y %H.%M.%S",
     stream=sys.stdout
 )
-betterStackHandler = LogtailHandler(
-    source_token = os.getenv("BSTACK_SOURCE"),
-    host = os.getenv("BSTACK_HOST")
-)
+
 logger:logging.Logger = logging.getLogger("frii.site")
 logger.handlers = []
-logger.addHandler(betterStackHandler)
 
 logger.info("Logger init")
 

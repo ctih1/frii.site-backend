@@ -158,6 +158,9 @@ class DNS:
         )
 
         if not request.ok:
+            if not self.key:
+                logger.critical("DNS API key missing!")
+                
             logger.error(f"Could not delete domain {domain}. {request.json()}")
             return False
 
