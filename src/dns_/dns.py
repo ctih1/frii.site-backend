@@ -79,6 +79,10 @@ class DNS:
 
         if not request.ok:
             logger.error(f"Failed to modify domain {domain}. {request.json()}")
+
+            if not self.key:
+                logger.error("API key not defined!")
+
             raise DNSException("Failed to modify domain", request.json())
 
         return True
@@ -132,6 +136,10 @@ class DNS:
 
         if not request.ok:
             logger.error(f"Failed to register domain {domain}. {request.json()}")
+
+            if not self.key:
+                logger.error("API key not defined!")
+
             raise DNSException("Failed to register domain", request.json())
 
         return True
