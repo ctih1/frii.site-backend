@@ -93,7 +93,7 @@ class DNS:
         """
         
     
-        if type == "CNAME" and not content.endswith("."):
+        if (type == "CNAME" or type == "NS") and not content.endswith("."):
             content += "."
         
         if type == "TXT":
