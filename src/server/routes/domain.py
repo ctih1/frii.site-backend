@@ -13,7 +13,7 @@ from database.tables.users import Users as UsersTable, UserType
 from database.tables.invitation import Invites as InviteTable
 from database.tables.domains import Domains as DomainTable, DomainFormat
 from database.tables.sessions import Sessions as SessionTable
-from database.exceptions import (UserNotExistError, InviteException, SubdomainError)
+from database.exceptions import UserNotExistError, InviteException, SubdomainError
 from security.encryption import Encryption
 from security.session import Session, SessionCreateStatus, SESSION_TOKEN_LENGTH
 from security.convert import Convert
@@ -22,107 +22,110 @@ from dns_.validation import Validation
 from dns_.exceptions import DNSException, DomainExistsError
 from mail.email import Email
 
-converter:Convert = Convert()
-logger:logging.Logger = logging.getLogger("frii.site")
+converter: Convert = Convert()
+logger: logging.Logger = logging.getLogger("frii.site")
 
 
 class Domain:
-    def __init__(self, table:UsersTable, sessions:SessionTable, domains:DomainTable, dns:DNS) -> None:
+    def __init__(
+        self, table: UsersTable, sessions: SessionTable, domains: DomainTable, dns: DNS
+    ) -> None:
         converter.init_vars(table, sessions)
 
         self.session_table = sessions
-        self.table:UsersTable = table
-        self.dns:DNS = dns
-        self.domains:DomainTable = domains
-        self.dns_validation:Validation = Validation(domains,dns)
+        self.table: UsersTable = table
+        self.dns: DNS = dns
+        self.domains: DomainTable = domains
+        self.dns_validation: Validation = Validation(domains, dns)
         self.verification_queue: deque = deque([])
-        self.verification_dict: Dict[str,str] = {}
+        self.verification_dict: Dict[str, str] = {}
         self.current_queue_user: str = ""
-        
+
         Thread(target=self.handle_deque).start()
 
         self.router = APIRouter(prefix="/domain")
 
         self.router.add_api_route(
             "/register",
-            self.register, 
+            self.register,
             methods=["POST"],
             status_code=200,
             responses={
                 200: {"description": "Domain created"},
                 400: {"description": "Invalid domain name"},
-                403: {"description": "Domain missing for subdomain (e.g: a.b.frii.site needs b.frii.site registered)"},
+                403: {
+                    "description": "Domain missing for subdomain (e.g: a.b.frii.site needs b.frii.site registered)"
+                },
                 405: {"description": "Domain limit exceeded"},
                 409: {"description": "Domain already in use"},
                 412: {"description": "Invalid DNS record type"},
-                460: {"description": "Invalid session"}
+                460: {"description": "Invalid session"},
             },
-            tags=["domain"]
+            tags=["domain"],
         )
 
         self.router.add_api_route(
             "/modify",
-            self.modify, 
+            self.modify,
             methods=["PATCH"],
             status_code=200,
             responses={
                 200: {"description": "Domain modified"},
                 403: {"description": "User does not own domain"},
                 412: {"description": "Invalid record name or value"},
-                460: {"description": "Invalid session"}
+                460: {"description": "Invalid session"},
             },
-            tags=["domain"]
+            tags=["domain"],
         )
-
 
         self.router.add_api_route(
             "/available",
-            self.is_available, 
+            self.is_available,
             methods=["GET"],
             status_code=200,
             responses={
                 200: {"description": "Domain is available"},
                 409: {"description": "Domain is not available"},
             },
-            tags=["domain"]
+            tags=["domain"],
         )
-        
+
         self.router.add_api_route(
             "/delete",
-            self.delete, 
+            self.delete,
             methods=["DELETE"],
             status_code=200,
             responses={
                 200: {"description": "Domain deleted succesfully"},
                 403: {"description": "Domain does not exist, or user does not own it."},
-                460: {"description": "Invalid session"}
+                460: {"description": "Invalid session"},
             },
-            tags=["domain"]
+            tags=["domain"],
         )
 
         self.router.add_api_route(
             "/get",
-            self.get_domains, 
+            self.get_domains,
             methods=["GET"],
             status_code=200,
             responses={
                 200: {"description": "Returns a JSON dict of domains"},
-                460: {"description": "Invalid session"}
+                460: {"description": "Invalid session"},
             },
-            tags=["domain"]
+            tags=["domain"],
         )
-        
+
         self.router.add_api_route(
             "/vercel/join",
             self.vercel_queue_join,
             methods=["POST"],
             responses={
                 200: {"description": "Joined queue"},
-                460: {"description": "Invalid session"}
+                460: {"description": "Invalid session"},
             },
-            tags=["domain","vercel"]
+            tags=["domain", "vercel"],
         )
-        
+
         self.router.add_api_route(
             "/vercel/get",
             self.vercel_queue_get,
@@ -130,46 +133,47 @@ class Domain:
             responses={
                 200: {"description": "Position in queue"},
                 404: {"description": "User not in queue"},
-                460: {"description": "Invalid session"}
+                460: {"description": "Invalid session"},
             },
-            tags=["domain","vercel"]
+            tags=["domain", "vercel"],
         )
 
         logger.info("Initialized")
 
-       
-
     @Session.requires_auth
-    def register(self, body: DomainType, session:Session = Depends(converter.create)):
+    def register(self, body: DomainType, session: Session = Depends(converter.create)):
 
-        if len(session.user_cache_data["domains"]) > session.user_cache_data.get("permissions",{}).get("max-domains",3):
+        if len(session.user_cache_data["domains"]) > session.user_cache_data.get(
+            "permissions", {}
+        ).get("max-domains", 3):
             raise HTTPException(status_code=405, detail="Domain limit exceeded")
 
         try:
-            is_domain_available:bool = self.dns_validation.is_free(
-                body.domain,
-                body.type,
-                session.user_cache_data["domains"]
+            is_domain_available: bool = self.dns_validation.is_free(
+                body.domain, body.type, session.user_cache_data["domains"]
             )
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid record name")
         except DNSException as e:
             raise HTTPException(status_code=412, detail=f"Invalid type {e.type_}")
         except SubdomainError as e:
-            raise HTTPException(status_code=403, detail=f"You need to own {e.required_domain}.frii.site before registering {body.domain}")
+            raise HTTPException(
+                status_code=403,
+                detail=f"You need to own {e.required_domain}.frii.site before registering {body.domain}",
+            )
         except DomainExistsError:
             raise HTTPException(status_code=409, detail="Domain is already registered")
-        
+
         if not is_domain_available:
-            raise HTTPException(status_code=409,detail="Domain is not available")
+            raise HTTPException(status_code=409, detail="Domain is not available")
 
         success = self.dns.register_domain(
             body.domain,
             body.value,
             body.type,
-            f"Registered through website user: {session.username}"
+            f"Registered through website user: {session.username}",
         )
-        
+
         if not success:
             logger.error("DNS registration failed")
             raise HTTPException(status_code=500, detail="DNS Registration failed")
@@ -181,24 +185,28 @@ class Domain:
                 "id": "None",
                 "type": body.type,
                 "ip": body.value,
-                "registered": round(time.time())
-            }
+                "registered": round(time.time()),
+            },
         )
-    
+
     @Session.requires_auth
-    def modify(self, body:DomainType, session:Session = Depends(converter.create)):
-        clean_domain_name:str = self.domains.clean_domain_name(body.domain)
+    def modify(self, body: DomainType, session: Session = Depends(converter.create)):
+        clean_domain_name: str = self.domains.clean_domain_name(body.domain)
         if not self.dns_validation.record_name_valid(body.domain, body.type):
-            raise HTTPException(status_code=412, detail=f"Invalid domain name {body.domain}")
-        
+            raise HTTPException(
+                status_code=412, detail=f"Invalid domain name {body.domain}"
+            )
+
         if not self.dns_validation.record_value_valid(body.value, body.type):
             raise HTTPException(status_code=412, detail=f"Invalid value {body.value}")
-        
-        if not self.dns_validation.user_owns_domain(session.username,body.domain):
-            raise HTTPException(status_code=403, detail=f"You do not own the domain {body.domain}")
-        
+
+        if not self.dns_validation.user_owns_domain(session.username, body.domain):
+            raise HTTPException(
+                status_code=403, detail=f"You do not own the domain {body.domain}"
+            )
+
         old_type: str = session.user_cache_data["domains"][clean_domain_name]["type"]
-        
+
         try:
             success = self.dns.modify_domain(
                 body.value,
@@ -207,7 +215,7 @@ class Domain:
                 body.domain,
                 session.username,
             )
-            
+
             if not success:
                 raise DNSException("Not succesful", {"success": success})
 
@@ -215,70 +223,82 @@ class Domain:
             print(e.json)
             raise HTTPException(status_code=500)
 
-        
         self.domains.add_domain(
-            session.username,body.domain,
+            session.username,
+            body.domain,
             {
                 "id": "None",
                 "ip": body.value,
                 "registered": round(time.time()),
-                "type":body.type
-            }
+                "type": body.type,
+            },
         )
-        
-    @Session.requires_auth
-    def get_domains(self, session:Session = Depends(converter.create)) -> Dict[str,DomainFormat]:
-        domains:Dict[str, DomainFormat] = session.user_cache_data["domains"]
-        return JSONResponse({k.replace("[dot]","."):v for k,v in domains.items()}) # type: ignore[return-value]
-
 
     @Session.requires_auth
-    def delete(self, domain:str, session:Session = Depends(converter.create)) -> None:
-        if not self.domains.delete_domain(session.username,domain):
-            raise HTTPException(status_code=403, detail="Domain does not exist, or user does not own it.")
-        domain_type: str = session.user_cache_data["domains"][self.domains.clean_domain_name(domain)]["type"]
+    def get_domains(
+        self, session: Session = Depends(converter.create)
+    ) -> Dict[str, DomainFormat]:
+        domains: Dict[str, DomainFormat] = session.user_cache_data["domains"]
+        return JSONResponse({k.replace("[dot]", "."): v for k, v in domains.items()})  # type: ignore[return-value]
+
+    @Session.requires_auth
+    def delete(self, domain: str, session: Session = Depends(converter.create)) -> None:
+        if not self.domains.delete_domain(session.username, domain):
+            raise HTTPException(
+                status_code=403,
+                detail="Domain does not exist, or user does not own it.",
+            )
+        domain_type: str = session.user_cache_data["domains"][
+            self.domains.clean_domain_name(domain)
+        ]["type"]
         self.dns.delete_domain(domain, domain_type)
 
-
-    def is_available(self,name:str):
-        if not self.dns_validation.is_free(name,"A",{},raise_exceptions=False):
-            raise HTTPException(status_code=409, detail=f"Domain {name}.frii.site is not available")
-        
+    def is_available(self, name: str):
+        if not self.dns_validation.is_free(name, "A", {}, raise_exceptions=False):
+            raise HTTPException(
+                status_code=409, detail=f"Domain {name}.frii.site is not available"
+            )
 
     def handle_deque(self) -> None:
         while True:
             while len(self.verification_queue) != 0:
                 user_id: str = self.verification_queue[0]
-                verification_value: str | None= self.verification_dict.get(user_id)
-                
+                verification_value: str | None = self.verification_dict.get(user_id)
+
                 if verification_value is None:
                     logger.error("Verification value not found")
                     continue
-                
+
                 logger.info("Updating vercel verification...")
-                
-                self.dns.modify_domain(verification_value,"TXT","TXT","_vercel",user_id, 15)
+
+                self.dns.modify_domain(
+                    verification_value, "TXT", "TXT", "_vercel", user_id, 15
+                )
                 self.current_queue_user = user_id
-               
+
                 time.sleep(45)
                 self.verification_queue.popleft()
             time.sleep(1)
-    
+
     @Session.requires_auth
-    def vercel_queue_join(self, value:str, session:Session = Depends(converter.create)):
+    def vercel_queue_join(
+        self, value: str, session: Session = Depends(converter.create)
+    ):
         if session.user_id not in self.verification_queue:
             self.verification_queue.append(session.user_id)
         else:
             logger.info("User already in queue")
         self.verification_dict[session.user_id] = value
-        
+
     @Session.requires_auth
-    def vercel_queue_get(self, session:Session = Depends(converter.create)) -> int:
+    def vercel_queue_get(self, session: Session = Depends(converter.create)) -> int:
         if session.user_id not in self.verification_queue:
-            raise HTTPException(status_code=404, detail="User not in the queue. (see /domain/vercel/join)")
-            
+            raise HTTPException(
+                status_code=404,
+                detail="User not in the queue. (see /domain/vercel/join)",
+            )
+
         if session.user_id == self.current_queue_user:
             raise HTTPException(status_code=408, detail="Domain is currently on")
 
         return self.verification_queue.index(session.user_id)
-        

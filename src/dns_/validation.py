@@ -11,43 +11,50 @@ from dns_.exceptions import DNSException, DomainExistsError
 if TYPE_CHECKING:
     from dns_.dns import DNS
 
-logger:logging.Logger = logging.getLogger("frii.site")
+logger: logging.Logger = logging.getLogger("frii.site")
 
-ALLOWED_TYPES: List[str] = ["A","CNAME","TXT","NS"]
+ALLOWED_TYPES: List[str] = ["A", "CNAME", "TXT", "NS"]
+
 
 class Validation:
-    def __init__(self, table: Domains, dns:'DNS'):
+    def __init__(self, table: Domains, dns: "DNS"):
         self.dns = dns
         self.table = table
 
     @staticmethod
-    def record_name_valid(name:str, type: str) -> bool:
-        allowed:List[str] = list(string.ascii_letters)
+    def record_name_valid(name: str, type: str) -> bool:
+        allowed: List[str] = list(string.ascii_letters)
 
         allowed.extend(list(string.digits))
-        allowed.extend([".","-"])
-        
+        allowed.extend([".", "-"])
+
         if type.upper() == "TXT":
             allowed.append("_")
 
-        valid:bool = all(char in allowed for char in name)
+        valid: bool = all(char in allowed for char in name)
         return valid
-    
+
     @staticmethod
-    def record_value_valid(value:str, type:str) -> bool:
+    def record_value_valid(value: str, type: str) -> bool:
         if type.upper() == "TXT":
             return True
-        if type.upper() in ["CNAME","NS"]:
+        if type.upper() in ["CNAME", "NS"]:
             return Validation.record_name_valid(value, type)
         if type.upper() == "A":
-            allowed:List[str] = list(string.digits)
+            allowed: List[str] = list(string.digits)
             allowed.append(".")
-        else: # If type is not in checks
+        else:  # If type is not in checks
             return False
 
         return all(char in allowed for char in value)
-    
-    def is_free(self, name:str, type:str, domains:Dict[str,DomainFormat], raise_exceptions:bool=True):
+
+    def is_free(
+        self,
+        name: str,
+        type: str,
+        domains: Dict[str, DomainFormat],
+        raise_exceptions: bool = True,
+    ):
         """
         Checks if a given domain name is free for registration.
         Args:
@@ -63,14 +70,14 @@ class Validation:
             SubdomainError: If the user doesn't own the required domain and raise_exceptions is True.
         """
 
-        cleaned_domain:str = Domains.clean_domain_name(name)
+        cleaned_domain: str = Domains.clean_domain_name(name)
 
         if not Validation.record_name_valid(name, type):
             logger.info(f"{name} Name is not valid")
             if raise_exceptions:
                 raise ValueError(f"Invalid record name '{name}'")
             return False
-        
+
         if type.upper() not in ALLOWED_TYPES:
             logger.info(f"{type} is not a valid type")
 
@@ -81,37 +88,42 @@ class Validation:
         if cleaned_domain in domains:
             logger.info(f"User already owns domain {cleaned_domain}")
             return False
-        
-        domain_parts:List[str] = cleaned_domain.split("[dot]")
-        is_subdomain:bool = len(domain_parts) > 1
 
-        required_domain:str = domain_parts[-1]
+        domain_parts: List[str] = cleaned_domain.split("[dot]")
+        is_subdomain: bool = len(domain_parts) > 1
+
+        required_domain: str = domain_parts[-1]
 
         if required_domain and is_subdomain and required_domain not in domains:
             logger.error(f"User does not own {required_domain}")
             if raise_exceptions:
-                raise SubdomainError(f"User doesn't own '{required_domain}'", required_domain)
+                raise SubdomainError(
+                    f"User doesn't own '{required_domain}'", required_domain
+                )
             return False
-        
-        if len(self.table.find_item({f"domains.{cleaned_domain}": {"$exists":True}}) or []) != 0:
+
+        if (
+            len(
+                self.table.find_item({f"domains.{cleaned_domain}": {"$exists": True}})
+                or []
+            )
+            != 0
+        ):
             logger.error(f"Domain {cleaned_domain} already exists in database")
 
             if raise_exceptions:
                 raise DomainExistsError("Domain is already registered")
             return False
-        
+
         logger.info("Domain not found in database.")
-        
+
         return True
 
-
-    def user_owns_domain(self,user_id:str, domain:str) -> bool:
-        user_data: UserType | None = self.table.find_user({"_id":user_id})
+    def user_owns_domain(self, user_id: str, domain: str) -> bool:
+        user_data: UserType | None = self.table.find_user({"_id": user_id})
         if user_data is None:
             raise UserNotExistError("User does not exist!")
-        
-        return user_data["domains"].get(self.table.clean_domain_name(domain)) is not None
-    
 
-        
-        
+        return (
+            user_data["domains"].get(self.table.clean_domain_name(domain)) is not None
+        )

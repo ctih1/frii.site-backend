@@ -8,11 +8,7 @@ from database.tables.users import UserType
 from database.tables.domains import DomainFormat
 from database.exceptions import UserNotExistError
 
-user_basic_data = TypedDict("user_basic_data", {
-    "username":str,
-    "email": str,
-    "created": int,
-    "last-login": int,
-    "domains": dict
-})
-
+user_basic_data = TypedDict(
+    "user_basic_data",
+    {"username": str, "email": str, "created": int, "last-login": int, "domains": dict},
+)

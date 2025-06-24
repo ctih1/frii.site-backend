@@ -24,14 +24,17 @@ if TYPE_CHECKING:
 class SessionError(Exception):
     pass
 
+
 class SessionPermissonError(Exception):
     pass
 
+
 class SessionFlagError(Exception):
-    success:bool
+    success: bool
+
 
 SessionCreateStatus = TypedDict(
-    "SessionCreateStatus", { "success":bool, "mfa_required":bool, "code":str | None }
+    "SessionCreateStatus", {"success": bool, "mfa_required": bool, "code": str | None}
 )
 
 SESSION_TOKEN_LENGTH: int = 32
@@ -44,7 +47,7 @@ SessionType = TypedDict(
 
 class UserManager(threading.Thread):
     # a thread to track user data (for security)
-    def __init__(self, users:Users, ip, username):
+    def __init__(self, users: Users, ip, username):
         super(UserManager, self).__init__()
         self.table: Users = users
         self.daemon = True
@@ -60,9 +63,8 @@ class UserManager(threading.Thread):
 
 class Session:
     @staticmethod
-    def find_session_instance(args:tuple, kwargs:dict) -> Session | None:
-        """Finds session from args or kwargs.
-        """
+    def find_session_instance(args: tuple, kwargs: dict) -> Session | None:
+        """Finds session from args or kwargs."""
         target: Session | None = None
         if kwargs.get("session") is not None:
             target = kwargs.get("session")  # type: ignore
@@ -103,7 +105,7 @@ class Session:
 
         @wraps(func)
         def wrapper(*args, **kwargs):
-            target: Session = Session.find_session_instance(args,kwargs)
+            target: Session = Session.find_session_instance(args, kwargs)
             if not target.valid:
                 raise SessionError("Session is not valid")
             a = func(*args, **kwargs)
@@ -137,8 +139,8 @@ class Session:
 
         def decor(func):
             @wraps(func)
-            def wrapper(*args,**kwargs):
-                target: Session = Session.find_session_instance(args,kwargs)
+            def wrapper(*args, **kwargs):
+                target: Session = Session.find_session_instance(args, kwargs)
                 if not target.valid:
                     raise SessionError("Session is not valid")
                 if permission not in target.permissions:
@@ -147,7 +149,9 @@ class Session:
                     )
                 a = func(*args, **kwargs)
                 return a
+
             return wrapper
+
         return decor
 
     @staticmethod
@@ -165,29 +169,34 @@ class Session:
             SessionError if session is not valid
             SessionFlagError if user does not have the flag.
         """
+
         def decor(func):
             @wraps(func)
             def wrapper(*args, **kwargs):
-                target: Session = Session.find_session_instance(args,kwargs)
+                target: Session = Session.find_session_instance(args, kwargs)
                 if not target.valid:
                     raise SessionError("Session is not valid")
                 if flag not in target.flags:
                     raise SessionFlagError(f"User is missing flag {flag}")
                 a = func(*args, **kwargs)
                 return a
+
             return wrapper
+
         return decor
 
-    def __init__(self, session_id:str, ip:str, users: Users, sessions: Sessions) -> None:
+    def __init__(
+        self, session_id: str, ip: str, users: Users, sessions: Sessions
+    ) -> None:
         """Creates a Session object.
         Arguements:
             session_id: The id of the session string of length SESSION_TOKEN_LENGHT. Usually found in X-Auth-Token header.
             ip: The request's ip
             database: Instance of the database class
         """
-        self.session_table:Sessions = sessions
-        self.users_table:Users = users
-        self.encryption: Encryption = Encryption(os.getenv("ENC_KEY")) #type: ignore[arg-type]
+        self.session_table: Sessions = sessions
+        self.users_table: Users = users
+        self.encryption: Encryption = Encryption(os.getenv("ENC_KEY"))  # type: ignore[arg-type]
 
         self.id = session_id
         self.ip = ip
@@ -197,58 +206,60 @@ class Session:
         self.username: str = self.__get_username()
         self.user_id = self.username
 
-        self.user_cache_data: 'UserType' = self.__user_cache()
+        self.user_cache_data: "UserType" = self.__user_cache()
         self.permissions: list = self.__get_permimssions()
         self.flags: list = self.__get_flags()
 
-
     def __cache_data(self) -> dict | None:
-        return self.session_table.find_item({"_id":Encryption.sha256(self.id)})
+        return self.session_table.find_item({"_id": Encryption.sha256(self.id)})
 
     def __is_valid(self):
         if len(self.id) != SESSION_TOKEN_LENGTH:
             return False
-        
+
         if self.session_data is None:
             return False
-        
+
         if self.session_data["ip"] != self.ip:
             return False
-        
+
         return True
 
-    def __user_cache(self) -> 'UserType':
-        data:'UserType' | None = self.users_table.find_user({"_id":self.username})
+    def __user_cache(self) -> "UserType":
+        data: "UserType" | None = self.users_table.find_user({"_id": self.username})
 
         if data is None:
             self.valid = False
-            return {} # type: ignore[typeddict-item]
-        
+            return {}  # type: ignore[typeddict-item]
+
         return data
 
     def __get_username(self) -> str:
         if not self.valid or self.session_data is None:
             return ""
 
-
         return self.encryption.decrypt(self.session_data["username"])
-    
+
     def __get_permimssions(self):
         if not self.valid:
             return []
-        
-        return [permission for permission in self.user_cache_data["permissions"] if self.user_cache_data["permissions"].get(permission,True) is not False]
-    
+
+        return [
+            permission
+            for permission in self.user_cache_data["permissions"]
+            if self.user_cache_data["permissions"].get(permission, True) is not False
+        ]
+
     def __get_flags(self):
         if not self.valid:
             return []
-    
+
         return list(self.user_cache_data.get("feature-flags", {}).keys())  # type: ignore
 
     def get_active(self) -> List[SessionType]:
         if not self.valid:
             return []
-        
+
         session_list: List[SessionType] = []
         owner_hash = Encryption.sha256(self.username + "frii.site")
 
@@ -264,7 +275,9 @@ class Session:
         return session_list
 
     @staticmethod
-    def create(username: str, ip: str, user_agent: str, users: Users, session_table:Sessions) -> SessionCreateStatus:
+    def create(
+        username: str, ip: str, user_agent: str, users: Users, session_table: Sessions
+    ) -> SessionCreateStatus:
         """
         Creates a new session for the given user.
         Args:
@@ -274,22 +287,18 @@ class Session:
             users (Users): An instance of the Users class for database operations.
             session_table (Sessions): An instance of the Sessions class for session management.
         Returns:
-            SessionCreateStatus: An object indicating the success of the session creation, 
-                                    whether multi-factor authentication (MFA) is required, 
+            SessionCreateStatus: An object indicating the success of the session creation,
+                                    whether multi-factor authentication (MFA) is required,
                                     and the session ID if successful.
         """
 
-
-
-        user_data:'UserType' | None= users.find_user({"_id":username})
+        user_data: "UserType" | None = users.find_user({"_id": username})
 
         if user_data is None:
             raise UserNotExistError()
 
         if user_data.get("totp-key") is not None:
-            return SessionCreateStatus(
-                success = False, mfa_required = True, code = None
-            )
+            return SessionCreateStatus(success=False, mfa_required=True, code=None)
 
         session_id = Encryption.generate_random_string(SESSION_TOKEN_LENGTH)
 
@@ -298,8 +307,10 @@ class Session:
             "expire": datetime.datetime.now() + datetime.timedelta(days=7),
             "ip": ip,
             "user-agent": user_agent,
-            "owner-hash": Encryption.sha256(username + "frii.site"),  # "frii.site" acts as a salt, making rainbow table attacts more difficult
-            "username": Encryption(os.getenv("ENC_KEY")).encrypt(username) # type: ignore[arg-type]
+            "owner-hash": Encryption.sha256(
+                username + "frii.site"
+            ),  # "frii.site" acts as a salt, making rainbow table attacts more difficult
+            "username": Encryption(os.getenv("ENC_KEY")).encrypt(username),  # type: ignore[arg-type]
         }
 
         session_table.delete_in_time(date_key="expire")
@@ -307,69 +318,68 @@ class Session:
         session_table.insert_document(session)
 
         users.modify_document(
-            filter={"$and":[
-                    {"_id":username}, {"permissions.invite":{"$exists":False}}
-                    ]
-                },
+            filter={
+                "$and": [{"_id": username}, {"permissions.invite": {"$exists": False}}]
+            },
             key="permission.invite",
             value=True,
             operation="$set",
-            ignore_no_matches=True
+            ignore_no_matches=True,
         )
-        
-        UserManager(users, ip, username).start() # updates `last-login` and `accessed-from` fields of user
-        return SessionCreateStatus(
-            success=True, mfa_required=False, code=session_id
-        )
+
+        UserManager(
+            users, ip, username
+        ).start()  # updates `last-login` and `accessed-from` fields of user
+        return SessionCreateStatus(success=True, mfa_required=False, code=session_id)
 
     def create_2fa(self):
         if not self.valid:
             raise SessionError()
-        
-        key_for_user = base64.b32encode(Encryption.generate_random_string(16).encode("utf-8")).decode("utf-8")
 
-        data = self.users_table.find_item({"_id":self.username})
+        key_for_user = base64.b32encode(
+            Encryption.generate_random_string(16).encode("utf-8")
+        ).decode("utf-8")
+
+        data = self.users_table.find_item({"_id": self.username})
 
         if data.get("totp-key") is not None:
             return None
-        
+
         self.users_table.modify_document(
-            {"_id":self.username},
+            {"_id": self.username},
             key="totp-key",
             value=self.encryption.encrypt(key_for_user),
-            operation="$set"
+            operation="$set",
         )
 
         return pyotp.totp.TOTP(key_for_user).provisioning_uri(
             self.username, "frii.site"
         )
 
-
     @staticmethod
-    def verify_2fa(code: str, user_id: str, users: 'Users'):
+    def verify_2fa(code: str, user_id: str, users: "Users"):
         """Verify's 2FA TOTP code (as used in google authenticator)
         Returns boolean if code is correct
         """
-        user_data: 'UserType' | None = users.find_user({"_id":user_id})
+        user_data: "UserType" | None = users.find_user({"_id": user_id})
         if user_data is None:
             raise UserNotExistError()
-        
-        key:str | None = user_data.get("totp-key")
+
+        key: str | None = user_data.get("totp-key")
         if key is None:
             raise ValueError("MFA key does not exist")
-        
-        decrypted_key:str = Encryption(os.getenv("ENC_KEY")).decrypt(key) # type: ignore[arg-type]
+
+        decrypted_key: str = Encryption(os.getenv("ENC_KEY")).decrypt(key)  # type: ignore[arg-type]
 
         return pyotp.totp.TOTP(decrypted_key).verify(code)
 
     @staticmethod
-    def clear_sessions(user_id:str, session_table:Sessions):
-        """Deletes every sesion that user has. Used mainly for resetting the password
-        """
+    def clear_sessions(user_id: str, session_table: Sessions):
+        """Deletes every sesion that user has. Used mainly for resetting the password"""
 
-        session_table.delete_many({
-            "owner-hash": Encryption.sha256(user_id+"frii.site")
-        })
+        session_table.delete_many(
+            {"owner-hash": Encryption.sha256(user_id + "frii.site")}
+        )
 
         return True
 
@@ -386,16 +396,16 @@ class Session:
         """
         if not self.valid:
             return False
-        
+
         data: dict | None = self.session_table.find_item({"_id": id})
 
         if data is None:
             raise SessionError("Session does not exist")
 
-        session_username:str = self.encryption.decrypt(data["username"])
+        session_username: str = self.encryption.decrypt(data["username"])
 
         if self.username != session_username:
             raise SessionPermissonError("Invalid username for session")
-        
-        self.session_table.delete_document({"_id":id})
+
+        self.session_table.delete_document({"_id": id})
         return True
