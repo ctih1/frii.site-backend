@@ -15,7 +15,6 @@ from server.routes.user import User
 from server.routes.invite import Invite
 from server.routes.domain import Domain
 from server.routes.blog import Blog
-from server.routes.languages import Languages
 from server.routes.api import API
 
 from database.tables.users import Users
@@ -131,8 +130,8 @@ threads["codes"].join()
 email: Email = Email(v.codes, v.users, Encryption(os.environ["ENC_KEY"]))
 app.include_router(User(v.users, v.sessions, v.invites, email, v.codes, v.dns).router)
 
-#threads["translations"].join()
-#app.include_router(Languages(v.translations, v.users, v.sessions).router)
+# threads["translations"].join()
+# app.include_router(Languages(v.translations, v.users, v.sessions).router)
 
 
 @app.get("/status")
