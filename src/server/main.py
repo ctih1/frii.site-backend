@@ -94,9 +94,6 @@ class VariableInitializer:
     def gather_blogs(self) -> None:
         self.blogs: Blogs = Blogs(client)
 
-    def gather_translations(self) -> None:
-        self.translations = Translations(client)
-
 
 v = VariableInitializer()
 
