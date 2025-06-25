@@ -23,7 +23,6 @@ from database.tables.invitation import Invites
 from database.tables.codes import Codes
 from database.tables.domains import Domains
 from database.tables.blogs import Blogs
-from database.tables.translations import Translations
 
 from dns_.dns import DNS
 
@@ -126,9 +125,6 @@ app.include_router(Blog(v.blogs, v.users, v.sessions).router)
 threads["codes"].join()
 email: Email = Email(v.codes, v.users, Encryption(os.environ["ENC_KEY"]))
 app.include_router(User(v.users, v.sessions, v.invites, email, v.codes, v.dns).router)
-
-# threads["translations"].join()
-# app.include_router(Languages(v.translations, v.users, v.sessions).router)
 
 
 @app.get("/status")
