@@ -108,7 +108,6 @@ threads: Dict[str, threading.Thread] = {
     "codes": threading.Thread(target=v.gather_codes),
     "domains": threading.Thread(target=v.gather_domains),
     "blogs": threading.Thread(target=v.gather_blogs),
-    "translations": threading.Thread(target=v.gather_translations),
 }
 
 for thread in threads.values():
@@ -132,8 +131,8 @@ threads["codes"].join()
 email: Email = Email(v.codes, v.users, Encryption(os.environ["ENC_KEY"]))
 app.include_router(User(v.users, v.sessions, v.invites, email, v.codes, v.dns).router)
 
-threads["translations"].join()
-app.include_router(Languages(v.translations, v.users, v.sessions).router)
+#threads["translations"].join()
+#app.include_router(Languages(v.translations, v.users, v.sessions).router)
 
 
 @app.get("/status")
