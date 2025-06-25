@@ -105,9 +105,7 @@ UserType = TypedDict(
 class Users(Table):
     def __init__(self, mongo_client: MongoClient):
         super().__init__(mongo_client, "frii.site")
-        self.encryption: Encryption = Encryption(
-            os.getenv("ENC_KEY")
-        )  # type:ignore[arg-type]
+        self.encryption: Encryption = Encryption(os.getenv("ENC_KEY") or "none")
 
     def find_user(self, filter: dict) -> UserType | None:
         return self.find_item(filter)  # type: ignore[return-value]
