@@ -53,6 +53,8 @@ class InviteType(TypedDict):
     used_at: NotRequired[int]  # epoch timestamp
 
 
+MFA = TypedDict("MFA", {"verified": bool, "key": str, "recovery": List[str]})
+
 UserPageType = TypedDict(
     "UserPageType",
     {
@@ -97,7 +99,7 @@ UserType = TypedDict(
         "beta-updated": NotRequired[int],
         "invites": NotRequired[Dict[str, InviteType]],
         "invite-code": NotRequired[str],
-        "totp-key": NotRequired[str],
+        "totp": NotRequired[MFA],
     },
 )
 
@@ -130,6 +132,8 @@ class Users(Table):
         original_username: str = username
 
         hashed_username: str = Encryption.sha256(username)
+        lowercase_hashed_username = Encryption.sha256(username.lower())
+
         hashed_password: str = Encryption.sha256(password)
 
         invite_user: UserType | None = self.find_user(
@@ -155,8 +159,8 @@ class Users(Table):
             "_id": hashed_username,
             "email": self.encryption.encrypt(email),
             "password": self.encryption.create_password(hashed_password),
-            "display-name": self.encryption.encrypt(hashed_username),
-            "username": self.encryption.encrypt(original_username),
+            "display-name": self.encryption.encrypt(original_username),
+            "username": lowercase_hashed_username,
             "lang": language,
             "country": country,
             "email-hash": Encryption.sha256(email + "supahcool"),
@@ -173,6 +177,7 @@ class Users(Table):
         }
 
         self.insert_document(account_data)
+        self.create_index("username")
         if not email_instance.send_verification_code(target_url, username, email):
             logger.info("Failed to send verification")
             raise EmailException("Email already in use!")
