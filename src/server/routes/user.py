@@ -228,17 +228,6 @@ class User:
             tags=["account", "api"],
         )
 
-        self.router.add_api_route(
-            "/api/get-keys",
-            self.get_api_keys,
-            methods=["GET"],
-            responses={
-                460: {"description": "Invalid session"},
-            },
-            status_code=200,
-            tags=["account", "api"],
-        )
-
         logger.info("Initialized")
 
     def login(self, request: Request, x_auth_request: Annotated[str, Header()]):

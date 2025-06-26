@@ -143,9 +143,13 @@ class Domain:
     @Session.requires_auth
     def register(self, body: DomainType, session: Session = Depends(converter.create)):
 
-        if len(session.user_cache_data["domains"]) > session.user_cache_data.get(
-            "permissions", {}
-        ).get("max-domains", 3):
+        is_subdomain = "." in body.domain
+
+        user_domain_amount = len(session.user_cache_data["domains"])
+        user_max_domains = session.user_cache_data.get("permissions", {}).get(
+            "max-domains", 3
+        )
+        if not is_subdomain and user_domain_amount > user_max_domains:
             raise HTTPException(status_code=405, detail="Domain limit exceeded")
 
         try:
