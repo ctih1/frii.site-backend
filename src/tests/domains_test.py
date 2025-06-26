@@ -16,6 +16,10 @@ class TestDomainValidation:
     def test_invalid_name(self):
         assert not Validation.record_name_valid("Invälid_Recörd_Nämë", "A")
 
+    def test_invalid_start_and_end(self):
+        assert not Validation.record_name_valid("example.", "A")
+        assert not Validation.record_name_valid(".example", "A")
+
     def test_txt_record(self):
         assert Validation.record_name_valid("_verification", "TXT")
 
