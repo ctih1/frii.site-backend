@@ -32,9 +32,13 @@ class Validation:
             allowed.append("_")
 
         valid: bool = all(char in allowed for char in name)
-        if valid and (
-            name[0] not in list(string.ascii_letters)
-            or name[-1] not in list(string.ascii_letters)
+        if (
+            valid
+            and type.upper() != "TXT"
+            and (
+                name[0] not in list(string.ascii_letters)
+                or name[-1] not in list(string.ascii_letters)
+            )
         ):
             valid = False
         return valid
