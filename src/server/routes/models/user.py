@@ -15,6 +15,11 @@ class PasswordReset(BaseModel):
     hashed_password: str
 
 
+class MFACreation(BaseModel):
+    backup_codes: List[str]
+    app_link: str
+
+
 class ApiCreationBody(BaseModel):
     permissions: List[str]
     domains: List[str]

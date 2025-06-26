@@ -142,6 +142,7 @@ async def status():
 
 @app.exception_handler(SessionError)
 async def session_except_handler(request: Request, e: Exception):
+    logger.warning(e.args)
     return JSONResponse(status_code=460, content={"message": "Invalid session"})
 
 

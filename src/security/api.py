@@ -42,16 +42,16 @@ logger = logging.getLogger("frii.site")
 
 class UserManager(threading.Thread):
     # a thread to track user data (for security)
-    def __init__(self, users: Users, ip, username):
+    def __init__(self, users: Users, ip, userid):
         super(UserManager, self).__init__()
         self.table: Users = users
         self.daemon = True
         self.ip = ip
-        self.username = username
+        self.userid = userid
 
     def start(self):
         self.table.table.update_one(
-            {"_id": self.username},
+            {"_id": self.userid},
             {"$push": {"accessed-from": self.ip}, "$set": {"last-login": time.time()}},
         )
 
@@ -184,7 +184,7 @@ class Api:
         self.valid: bool = self.__is_valid()
 
         self.user_cache_data: "UserType" = self.__user_cache()
-        self.username: str = self.__get_username()
+        self.username: str = self.__get_id()
         self.permissions: list = self.__get_permimssions()
 
         if self.key_data:
@@ -215,7 +215,7 @@ class Api:
 
         return data
 
-    def __get_username(self) -> str:
+    def __get_id(self) -> str:
         if not self.valid or self.key_data is None:
             return ""
 

@@ -49,21 +49,21 @@ SessionType = TypedDict(
     "SessionType", {"user-agent": str, "ip": str, "expire": int, "hash": str}
 )
 
-logger = logging.getLogger("frii.site")
+logger: logging.Logger = logging.getLogger("frii.site")
 
 
 class UserManager(threading.Thread):
     # a thread to track user data (for security)
-    def __init__(self, users: Users, ip, username):
+    def __init__(self, users: Users, ip, userid):
         super(UserManager, self).__init__()
         self.table: Users = users
         self.daemon = True
         self.ip = ip
-        self.username = username
+        self.userid = userid
 
     def start(self):
         self.table.table.update_one(
-            {"_id": self.username},
+            {"_id": self.userid},
             {"$push": {"accessed-from": self.ip}, "$set": {"last-login": time.time()}},
         )
 
@@ -114,7 +114,7 @@ class Session:
         def wrapper(*args, **kwargs):
             target: Session = Session.find_session_instance(args, kwargs)
             if not target.valid:
-                raise SessionError("Session is not valid")
+                raise SessionError("Session is not valid (requires auth)")
             a = func(*args, **kwargs)
             return a
 
@@ -149,7 +149,7 @@ class Session:
             def wrapper(*args, **kwargs):
                 target: Session = Session.find_session_instance(args, kwargs)
                 if not target.valid:
-                    raise SessionError("Session is not valid")
+                    raise SessionError("Session is not valid (requires permission)")
                 if permission not in target.permissions:
                     raise SessionPermissonError(
                         "User does not have correct permissions"
@@ -182,7 +182,7 @@ class Session:
             def wrapper(*args, **kwargs):
                 target: Session = Session.find_session_instance(args, kwargs)
                 if not target.valid:
-                    raise SessionError("Session is not valid")
+                    raise SessionError("Session is not valid (flag missing)")
                 if flag not in target.flags:
                     raise SessionFlagError(f"User is missing flag {flag}")
                 a = func(*args, **kwargs)
@@ -210,8 +210,20 @@ class Session:
 
         self.session_data: dict | None = self.__cache_data()
         self.valid: bool = self.__is_valid()
-        self.username: str = self.__get_username()
-        self.user_id = self.username
+
+        self.username: str = self.__get_userid()
+
+        @property
+        def username(self) -> str:
+            logger.warning("Using deprecated `username` property")
+            return self.username
+
+        @username.setter
+        def username(self, val):
+            logger.warning("Using deprecated `username` property")
+            self.username = val
+
+        self.user_id = self.__get_userid()
 
         self.user_cache_data: "UserType" = self.__user_cache()
         self.permissions: list = self.__get_permimssions()
@@ -221,15 +233,20 @@ class Session:
         return self.session_table.find_item({"_id": Encryption.sha256(self.id)})
 
     def __is_valid(self):
+        logger.info("Checking validity")
         if len(self.id) != SESSION_TOKEN_LENGTH:
+            logger.info("User session length isnt correct")
             return False
 
         if self.session_data is None:
+            logger.info("Could not fetch session data")
             return False
 
         if self.session_data["ip"] != self.ip:
+            logger.info("Session ip doesnt match")
             return False
 
+        logger.info("Session is valid")
         return True
 
     def __user_cache(self) -> "UserType":
@@ -241,11 +258,10 @@ class Session:
 
         return data
 
-    def __get_username(self) -> str:
+    def __get_userid(self) -> str:
         if not self.valid or self.session_data is None:
             return ""
-
-        return self.encryption.decrypt(self.session_data["_id"])
+        return self.encryption.decrypt(self.session_data["username"])
 
     def __get_permimssions(self):
         if not self.valid:
@@ -294,7 +310,7 @@ class Session:
         """
         Creates a new session for the given user.
         Args:
-            username (str): The username of the user.
+            username (str): The userid of the user.
             mfa_code (str): a possible mfa code for the users account
             ip (str): The IP address of the user.
             user_agent (str): The user agent string of the user's browser.
@@ -324,7 +340,7 @@ class Session:
                 return SessionCreateStatus(success=False, mfa_required=True, code=-1)
 
         session_id = Encryption.generate_random_string(SESSION_TOKEN_LENGTH)
-
+        logger.info(f"Setting session username to {username}")
         session = {
             "_id": Encryption.sha256(session_id),
             "expire": datetime.datetime.now() + datetime.timedelta(days=7),
@@ -335,6 +351,8 @@ class Session:
             ),  # "frii.site" acts as a salt, making rainbow table attacts more difficult
             "username": Encryption(os.getenv("ENC_KEY")).encrypt(username),  # type: ignore[arg-type]
         }
+
+        logger.info(session)
 
         session_table.delete_in_time(date_key="expire")
         session_table.create_index("owner-hash")
@@ -350,7 +368,6 @@ class Session:
             ignore_no_matches=True,
         )
 
-        logger.debug(user_data.get("display-name")[:6])
         if user_data.get("display-name").startswith("gAAAAA") and real_username:
             logger.info("Updating display-name and username")
             users.table.update_one(
@@ -358,7 +375,7 @@ class Session:
                 {
                     "$set": {
                         "display-name": users.encryption.encrypt(real_username),
-                        "username": username,
+                        "username": Encryption.sha256(real_username.lower()),
                     }
                 },
             )
@@ -396,9 +413,10 @@ class Session:
             operation="$set",
         )
 
+        display_name = self.encryption.decrypt(self.user_cache_data["display-name"])
         setup_url: str = pyotp.totp.TOTP(
             key_for_user, interval=30, digits=6
-        ).provisioning_uri(self.username, "frii.site")
+        ).provisioning_uri(display_name, "frii.site")
 
         return {"url": setup_url, "codes": backup_keys}
 
@@ -461,6 +479,35 @@ class Session:
         self.users_table.remove_key(
             {
                 "_id": self.username,
+            },
+            "totp",
+        )
+
+    @staticmethod
+    def remove_mfa_static(
+        userid: str, user_table: Users, user: UserType, backup_code: str
+    ):
+        logger.info("Checking backup code")
+        codes = user.get("totp", {}).get("recovery", [])
+        found_code: bool = False
+
+        for code in codes:
+            decrypted_code = user_table.encryption.decrypt(code)
+            logger.debug(
+                f"Checking mfa code {backup_code[:4]}... to {decrypted_code[:4]}"
+            )
+
+            if backup_code == decrypted_code:
+                logger.debug("Found a matching code")
+                found_code = True
+                break
+
+        if not found_code:
+            raise ValueError("Invalid backup code")
+
+        user_table.remove_key(
+            {
+                "_id": userid,
             },
             "totp",
         )
