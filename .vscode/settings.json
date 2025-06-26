@@ -7,5 +7,6 @@
         "editor.formatOnSave": true
     },
     "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "python.testing.pytestEnabled": true,
+    "mypy-type-checker.severity": {"error":"Error", "warning": "Error"}
 }

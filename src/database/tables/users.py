@@ -163,7 +163,7 @@ class Users(Table):
             "accessed-from": [],
             "created": time_signed_up,
             "last-login": round(time.time()),
-            "permissions": {"max-domains": 3, "invite": False},
+            "permissions": {"max-domains": 3, "max-subdomains": 50, "invite": False},
             "feature-flags": {},
             "verified": False,
             "domains": {},
@@ -245,6 +245,15 @@ class Users(Table):
         if user_data is None:
             raise UserNotExistError("Invalid user")
 
+        session_data = session_table.find_items(
+            {"owner-hash": Encryption.sha256(user_id + "frii.site")}
+        )
+
+        for session in session_data:
+            # NOTE: If you're an admin and want to make a session last forever, this cant handle much lol
+            # I tried using 3025 and `.timestamp()` just errored out
+            session["expire"] = round(session.get("expire").timestamp())  # type: ignore[union-attr]
+
         return {
             "username": self.encryption.decrypt(user_data["display-name"]),
             "email": self.encryption.decrypt(user_data["email"]),
@@ -254,8 +263,7 @@ class Users(Table):
             "verified": user_data["verified"],
             "permissions": user_data.get("permissions", {}),
             "beta-enroll": user_data.get("beta-enroll", False),
-            # conversts datetime object of expire date in db to linux epoch int. fastapi's json encoder doesnt like datetime objects
-            "sessions": [{k: (round(v.timestamp()) if isinstance(v, datetime.datetime) else v) for k, v in session.items()} for session in session_table.find_items({"owner-hash": Encryption.sha256(user_id + "frii.site")})],  # type: ignore[misc]
+            # conversts datetime object of expire date in db to linux epoch int. fastapi's json encoder doesnt like datetime objects            "sessions": session_data,  # type: ignore[typeddict-item]
             "invites": user_data.get("invites", {}),  # type: ignore[typeddict-item]
         }
 

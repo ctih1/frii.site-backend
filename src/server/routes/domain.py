@@ -143,14 +143,12 @@ class Domain:
     @Session.requires_auth
     def register(self, body: DomainType, session: Session = Depends(converter.create)):
 
-        is_subdomain = "." in body.domain
-
-        user_domain_amount = len(session.user_cache_data["domains"])
-        user_max_domains = session.user_cache_data.get("permissions", {}).get(
-            "max-domains", 3
+        can_user_register = self.dns_validation.can_user_register(
+            body.domain, session.user_cache_data
         )
-        if not is_subdomain and user_domain_amount > user_max_domains:
-            raise HTTPException(status_code=405, detail="Domain limit exceeded")
+
+        if not can_user_register.success:
+            raise HTTPException(status_code=405, detail=can_user_register.comment)
 
         try:
             is_domain_available: bool = self.dns_validation.is_free(

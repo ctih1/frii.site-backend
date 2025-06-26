@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, NamedTuple
 from typing import TYPE_CHECKING
 import logging
 import string
@@ -14,6 +14,9 @@ if TYPE_CHECKING:
 logger: logging.Logger = logging.getLogger("frii.site")
 
 ALLOWED_TYPES: List[str] = ["A", "CNAME", "TXT", "NS"]
+UserCanRegisterResult = NamedTuple(
+    "UserCanRegisterResult", [("success", bool), ("comment", str)]
+)
 
 
 class Validation:
@@ -23,22 +26,20 @@ class Validation:
 
     @staticmethod
     def record_name_valid(name: str, type: str) -> bool:
-        allowed: List[str] = list(string.ascii_letters)
+        always_allowed: List[str] = list(string.ascii_letters)
 
-        allowed.extend(list(string.digits))
+        always_allowed.extend(list(string.digits))
+        allowed = always_allowed.copy()
         allowed.extend([".", "-"])
 
         if type.upper() == "TXT":
             allowed.append("_")
 
         valid: bool = all(char in allowed for char in name)
-        if (
-            valid
-            and type.upper() != "TXT"
-            and (
-                name[0] not in list(string.ascii_letters)
-                or name[-1] not in list(string.ascii_letters)
-            )
+        logger.debug(name[0])
+        logger.debug(name[-1])
+        if type.upper() != "TXT" and (
+            name[0] not in always_allowed or name[-1] not in always_allowed
         ):
             valid = False
         return valid
@@ -136,3 +137,32 @@ class Validation:
         return (
             user_data["domains"].get(self.table.clean_domain_name(domain)) is not None
         )
+
+    @staticmethod
+    def can_user_register(domain: str, user: UserType) -> UserCanRegisterResult:
+        is_subdomain = "." in domain
+        subdomain_amount: int = 0
+
+        user_domain_amount = 0
+        subdomain_amount = 0
+        for domain in user["domains"].keys():
+            if "[dot]" in domain:
+                subdomain_amount += 1
+            else:
+                user_domain_amount += 1
+
+        logger.info(
+            f"User has {subdomain_amount} subdomains and {user_domain_amount} domains"
+        )
+
+        user_max_domains = user.get("permissions", {}).get("max-domains", 3)
+        user_max_subdomains = user.get("permissions", {}).get("max-subdomains", 50)
+
+        if not is_subdomain and user_domain_amount >= user_max_domains:
+            return UserCanRegisterResult(False, "Domain limit exceeded")
+
+        if is_subdomain:
+            if subdomain_amount >= user_max_subdomains:
+                return UserCanRegisterResult(False, "Subdomain limit exceeded")
+
+        return UserCanRegisterResult(True, "")

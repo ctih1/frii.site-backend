@@ -13,6 +13,9 @@ class TestDomainValidation:
     def test_valid_name(self):
         assert Validation.record_name_valid("example-domain", "A")
 
+    def test_valid_subdomain(self):
+        assert Validation.record_name_valid("example.domain", "A")
+
     def test_invalid_name(self):
         assert not Validation.record_name_valid("Invälid_Recörd_Nämë", "A")
 
@@ -79,3 +82,27 @@ class TestDomainUser:
             Validation(domain_table, dns).is_free(
                 "example.not-owned", "A", pytest.example_user["domains"]
             )
+
+    def test_subdomain_limit(self):
+        assert not Validation.can_user_register(
+            "example2.testing-domains", pytest.example_user
+        ).success
+
+    def test_subdomain_limit_pass(self):
+        user_with_more_subdomains = pytest.example_user.copy()
+        user_with_more_subdomains["permissions"]["max-subdomains"] = 4
+        assert Validation.can_user_register(
+            "example2.testing-domains", user_with_more_subdomains
+        ).success
+
+    def test_domain_limit(self):
+        assert not Validation.can_user_register(
+            "testing-domain4", pytest.example_user
+        ).success
+
+    def test_domain_limit_pass(self):
+        user_with_more_subdomains = pytest.example_user.copy()
+        user_with_more_subdomains["permissions"]["max-domains"] = 4
+        assert Validation.can_user_register(
+            "testing-domain4", user_with_more_subdomains
+        ).success
