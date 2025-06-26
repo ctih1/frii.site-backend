@@ -212,17 +212,6 @@ class Session:
         self.valid: bool = self.__is_valid()
 
         self.username: str = self.__get_userid()
-
-        @property
-        def username(self) -> str:
-            logger.warning("Using deprecated `username` property")
-            return self.username
-
-        @username.setter
-        def username(self, val):
-            logger.warning("Using deprecated `username` property")
-            self.username = val
-
         self.user_id = self.__get_userid()
 
         self.user_cache_data: "UserType" = self.__user_cache()
@@ -334,10 +323,10 @@ class Session:
             if not mfa_code:
                 return SessionCreateStatus(success=False, mfa_required=True, code=None)
 
-            totp_object: pyotp.TOTP = pyotp.TOTP(users.encryption.decrypt(user_mfa_key))
+            totp_object: pyotp.TOTP = pyotp.TOTP(users.encryption.decrypt(user_mfa_key))  # type: ignore[arg-type]
             is_valid = totp_object.verify(mfa_code)
             if not is_valid:
-                return SessionCreateStatus(success=False, mfa_required=True, code=-1)
+                return SessionCreateStatus(success=False, mfa_required=True, code="-1")
 
         session_id = Encryption.generate_random_string(SESSION_TOKEN_LENGTH)
         logger.info(f"Setting session username to {username}")
@@ -368,7 +357,10 @@ class Session:
             ignore_no_matches=True,
         )
 
-        if user_data.get("display-name").startswith("gAAAAA") and real_username:
+        if real_username and (
+            not user_data.get("display-name")
+            or user_data.get("display-name").startswith("gAAAAA")  # type: ignore[union-attr]
+        ):
             logger.info("Updating display-name and username")
             users.table.update_one(
                 {"_id": username},
@@ -400,7 +392,7 @@ class Session:
             raise UserNotExistError("User does not exist!")
 
         if user_data.get("totp", {}).get("verified"):
-            return None
+            raise ValueError("Used already has 2FA")
 
         self.users_table.modify_document(
             {"_id": self.username},
@@ -428,9 +420,10 @@ class Session:
         if self.user_cache_data.get("totp", {}).get("verified"):
             raise ValueError("User is already verified")
 
-        totp_object = pyotp.TOTP(
-            self.encryption.decrypt(self.user_cache_data.get("totp", {}).get("key"))
-        )
+        user_key = self.user_cache_data.get("totp", {}).get("key")
+        if user_key is None:
+            raise ValueError("user does not have a key?")
+        totp_object = pyotp.TOTP(self.encryption.decrypt(user_key))
 
         is_valid = totp_object.verify(code)
 
@@ -469,7 +462,7 @@ class Session:
         elif mfa_code:
             logger.info("Checking mfa code")
             totp_object = pyotp.TOTP(
-                self.encryption.decrypt(self.user_cache_data.get("totp", {}).get("key"))
+                self.encryption.decrypt(self.user_cache_data.get("totp", {}).get("key"))  # type: ignore[arg-type]
             )
             is_authenticated = totp_object.verify(mfa_code)
 

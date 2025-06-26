@@ -283,7 +283,7 @@ class User:
         username_hash: str = login_token[0]
         password_hash: str = login_token[1]
 
-        if Encryption.sha256(x_plain_username) != username_hash:
+        if Encryption.sha256(x_plain_username or "") != username_hash:
             logger.warning("Plain username doesnt match login... Setting as none")
             x_plain_username = None
 
@@ -323,13 +323,13 @@ class User:
         if session.user_cache_data.get("totp", {}).get("verified"):
             raise HTTPException(status_code=409, detail="MFA code already exists!")
         status = session.create_2fa()
-        return {"app_link": status["url"], "backup_codes": status["codes"]}
+        return {"app_link": status["url"], "backup_codes": status["codes"]}  # type: ignore[return-value]
 
     def verify_mfa_setup(
         self,
         request: Request,
+        x_mfa_code: Annotated[str, Header()],
         session: Session = Depends(converter.create),
-        x_mfa_code: Annotated[str | None, Header()] = None,
     ) -> None:
         if session.user_cache_data.get("totp", {}).get("verified"):
             raise HTTPException(status_code=409, detail="MFA code already exists!")
