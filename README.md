@@ -9,6 +9,7 @@
 "SENTRY_URL": URL for sentry. Not required, but slight code changes might be required
 ```
 
+
 General contributing guidelines:
 
 * Write code with type hinting

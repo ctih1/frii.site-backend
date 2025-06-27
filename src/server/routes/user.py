@@ -25,7 +25,7 @@ from security.session import (
 from security.api import Api
 from security.convert import Convert
 from mail.email import Email
-
+from security.captcha import Captcha
 
 from dns_.dns import DNS
 
@@ -53,6 +53,7 @@ class User:
         self.email: Email = email
         self.codes: Codes = codes
         self.dns: DNS = dns
+        self.captcha: Captcha = Captcha(os.getenv("TURNSTILE_KEY"))
 
         self.encryption: Encryption = Encryption(os.getenv("ENC_KEY"))  # type: ignore[arg-type]
 
@@ -76,6 +77,7 @@ class User:
                 404: {"description": "User not found"},
                 401: {"description": "Invalid password"},
                 412: {"description": "2FA code required to be passed in X-MFA-Code"},
+                429: {"description": "Invalid captcha"},
             },
             tags=["account", "session"],
         )
@@ -89,6 +91,7 @@ class User:
                 400: {"description": "Invalid invite"},
                 422: {"description": "Email is already in use"},
                 409: {"description": "Username is already in use"},
+                429: {"description": "Invalid captcha"},
             },
             status_code=200,
             tags=["account"],
@@ -273,10 +276,14 @@ class User:
         self,
         request: Request,
         x_auth_request: Annotated[str, Header()],
+        x_captcha_code: Annotated[str, Header()],
         x_mfa_code: Annotated[str | None, Header()] = None,
         x_plain_username: Annotated[str | None, Header()] = None,
     ):
         # x_plain_username is used to mitigate a bug in the backend, causing none of the actual usernames just to be saved, just their hashes
+
+        if not self.captcha.verify(x_captcha_code, request.client.host):
+            raise HTTPException(429, detail="Invalid captcha")
 
         login_token: List[str] = x_auth_request.split("|")
 
@@ -385,7 +392,12 @@ class User:
         except ValueError:
             raise HTTPException(status_code=409)
 
-    def sign_up(self, request: Request, body: SignUp) -> None:
+    def sign_up(
+        self, request: Request, body: SignUp, x_captcha_code: Annotated[str, Header()]
+    ) -> None:
+        if not self.captcha.verify(x_captcha_code, request.client.host):
+            raise HTTPException(429, detail="Invalid captcha")
+
         if not self.invites.is_valid(body.invite):
             raise HTTPException(status_code=400, detail="Invite not valid")
 

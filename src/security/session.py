@@ -341,8 +341,6 @@ class Session:
             "username": Encryption(os.getenv("ENC_KEY")).encrypt(username),  # type: ignore[arg-type]
         }
 
-        logger.info(session)
-
         session_table.delete_in_time(date_key="expire")
         session_table.create_index("owner-hash")
         session_table.insert_document(session)

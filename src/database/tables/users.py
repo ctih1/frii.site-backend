@@ -259,7 +259,7 @@ class Users(Table):
             # NOTE: If you're an admin and want to make a session last forever, this cant handle much lol
             # I tried using 3025 and `.timestamp()` just errored out
             session["expire"] = round(session.get("expire").timestamp())  # type: ignore[union-attr]
- 
+
         return {
             "username": self.encryption.decrypt(user_data["display-name"]),
             "email": self.encryption.decrypt(user_data["email"]),
@@ -269,7 +269,8 @@ class Users(Table):
             "verified": user_data["verified"],
             "permissions": user_data.get("permissions", {}),
             "beta-enroll": user_data.get("beta-enroll", False),
-            # conversts datetime object of expire date in db to linux epoch int. fastapi's json encoder doesnt like datetime objects            "sessions": session_data,  # type: ignore[typeddict-item]
+            # conversts datetime object of expire date in db to linux epoch int. fastapi's json encoder doesnt like datetime objects
+            "sessions": session_data,  # type: ignore[typeddict-item]
             "invites": user_data.get("invites", {}),  # type: ignore[typeddict-item]
             "mfa_enabled": user_data.get("totp", {}).get("verified", False),
         }
