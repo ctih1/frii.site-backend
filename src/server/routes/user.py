@@ -53,7 +53,7 @@ class User:
         self.email: Email = email
         self.codes: Codes = codes
         self.dns: DNS = dns
-        self.captcha: Captcha = Captcha(os.getenv("TURNSTILE_KEY"))
+        self.captcha: Captcha = Captcha(os.getenv("TURNSTILE_KEY") or "")
 
         self.encryption: Encryption = Encryption(os.getenv("ENC_KEY"))  # type: ignore[arg-type]
 
@@ -282,7 +282,7 @@ class User:
     ):
         # x_plain_username is used to mitigate a bug in the backend, causing none of the actual usernames just to be saved, just their hashes
 
-        if not self.captcha.verify(x_captcha_code, request.client.host):
+        if not self.captcha.verify(x_captcha_code, request.client.host):  # type: ignore[union-attr]
             raise HTTPException(429, detail="Invalid captcha")
 
         login_token: List[str] = x_auth_request.split("|")
@@ -395,7 +395,7 @@ class User:
     def sign_up(
         self, request: Request, body: SignUp, x_captcha_code: Annotated[str, Header()]
     ) -> None:
-        if not self.captcha.verify(x_captcha_code, request.client.host):
+        if not self.captcha.verify(x_captcha_code, request.client.host):  # type: ignore[union-attr]
             raise HTTPException(429, detail="Invalid captcha")
 
         if not self.invites.is_valid(body.invite):
