@@ -46,7 +46,7 @@ SESSION_TOKEN_LENGTH: int = 32
 
 
 SessionType = TypedDict(
-    "SessionType", {"user-agent": str, "ip": str, "expire": int, "hash": str}
+    "SessionType", {"user-agent": str, "ip": str, "expire": int, "owner-hash": str}
 )
 
 logger: logging.Logger = logging.getLogger("frii.site")
@@ -281,7 +281,7 @@ class Session:
                     "user-agent": session["user-agent"],
                     "ip": session["ip"],
                     "expire": session["expire"].timestamp(),
-                    "hash": session["_id"],
+                    "owner-hash": session["_id"],
                 }
             )
         return session_list

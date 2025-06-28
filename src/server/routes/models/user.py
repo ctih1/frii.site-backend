@@ -7,7 +7,6 @@ class SignUp(BaseModel):
     password: str
     email: str
     language: str
-    invite: str
 
 
 class PasswordReset(BaseModel):

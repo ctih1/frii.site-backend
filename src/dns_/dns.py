@@ -1,5 +1,5 @@
 import os
-from typing import Dict
+from typing import Dict, List
 import logging
 import json
 from pymongo import MongoClient
@@ -144,6 +144,64 @@ class DNS:
 
         return True
 
+    def register_multiple(self, domains: Dict[str, DomainFormat], user_id: str) -> bool:
+        """
+        Registers a new DNS record for the specified domain.
+        Args:
+            domain (str): The name of the DNS record. NOTE: Must use the normal DNS schema (aka a.b, NOT a[dot]b)
+            content (str): The content of the DNS record.
+            type (str): The type of the DNS record (e.g., A, AAAA, CNAME, etc.).
+            user_id (str): ID of the user creating the record
+        Returns:
+            str: The ID of the newly created DNS record.
+        Raises:
+            DNSException: If the request to register the domain fails.
+            ValueError: If the ID of the newly created DNS record cannot be retrieved.
+        """
+
+        rrsets: List[dict] = []
+
+        for domain, values in domains.items():
+            if (values["type"] == "CNAME" or values["type"] == "NS") and not values[
+                "ip"
+            ].endswith("."):
+                values["ip"] += "."
+
+            if values["type"] == "TXT":
+                content = '"' + values["ip"] + '"'
+
+            rrset = {
+                "name": domain + ".frii.site.",
+                "type": values["type"],
+                "ttl": 3400,
+                "changetype": "REPLACE",
+                "records": [
+                    {
+                        "content": values["ip"],
+                        "disabled": False,
+                        "comment": f"Reinstated from banned user ({user_id})",
+                    }
+                ],
+            }
+
+            rrsets.append(rrset)
+
+        request = requests.patch(
+            f"https://vps.frii.site/api/v1/servers/localhost/zones/frii.site.",
+            data=json.dumps({"rrsets": rrsets}),
+            headers={"Content-Type": "application/json", "X-API-Key": self.key},
+        )
+
+        if not request.ok:
+            logger.error(f"Failed to register domains. {request.json()}")
+
+            if not self.key:
+                logger.error("API key not defined!")
+
+            raise DNSException("Failed to register domain", request.json())
+
+        return True
+
     def delete_domain(self, domain: str, type: str) -> bool:
         """
         Deletes a DNS record for the specified domain ID.
@@ -191,7 +249,12 @@ class DNS:
         logger.info(f"mass deleting records {list(domains.keys())}")
 
         rrsets = [
-            {"name": k, "type": v, "changetype": "DELETE", "records": [{}]}
+            {
+                "name": k + ".frii.site.",
+                "type": v,
+                "changetype": "DELETE",
+                "records": [{}],
+            }
             for k, v in domains.items()
         ]
 

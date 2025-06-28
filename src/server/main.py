@@ -16,6 +16,7 @@ from server.routes.invite import Invite
 from server.routes.domain import Domain
 from server.routes.blog import Blog
 from server.routes.api import API
+from server.routes.admin import Admin
 
 from database.tables.users import Users
 from database.tables.sessions import Sessions
@@ -29,6 +30,7 @@ from dns_.dns import DNS
 from security.session import SessionError, SessionPermissonError
 from security.encryption import Encryption
 from security.api import ApiError, ApiRangeError, ApiPermissionError
+from security.admin import Admin as AdminTools
 from mail.email import Email
 
 logging.basicConfig(
@@ -125,6 +127,12 @@ app.include_router(Blog(v.blogs, v.users, v.sessions).router)
 threads["codes"].join()
 email: Email = Email(v.codes, v.users, Encryption(os.environ["ENC_KEY"]))
 app.include_router(User(v.users, v.sessions, v.invites, email, v.codes, v.dns).router)
+
+app.include_router(
+    Admin(
+        v.users, v.sessions, AdminTools(v.users, v.sessions, v.domains, v.dns, email)
+    ).router
+)
 
 
 @app.get("/status")

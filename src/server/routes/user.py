@@ -88,7 +88,6 @@ class User:
             methods=["POST"],
             responses={
                 200: {"description": "Sign up succesfull"},
-                400: {"description": "Invalid invite"},
                 422: {"description": "Email is already in use"},
                 409: {"description": "Username is already in use"},
                 429: {"description": "Invalid captcha"},
@@ -398,9 +397,6 @@ class User:
         if not self.captcha.verify(x_captcha_code, request.client.host):  # type: ignore[union-attr]
             raise HTTPException(429, detail="Invalid captcha")
 
-        if not self.invites.is_valid(body.invite):
-            raise HTTPException(status_code=400, detail="Invite not valid")
-
         country: CountryType = self.handler.getDetails(request.client.host).all  # type: ignore[union-attr]
         from_url: str = request.headers.get("Origin", "https://www.frii.site")
 
@@ -413,14 +409,12 @@ class User:
                 country,
                 round(time.time()),
                 self.email,
-                body.invite,
                 from_url,
             )
         except EmailException:
             raise HTTPException(status_code=422, detail="Email already in use")
         except UsernameException:
             raise HTTPException(status_code=409, detail="Username already in use")
-        self.invites.use(user_id, body.invite)
 
     @Session.requires_auth
     def get_settings(
