@@ -5,6 +5,8 @@ from typing import Any, List, TYPE_CHECKING, Literal
 from typing_extensions import NotRequired, Dict, Required, TypedDict
 from pymongo import MongoClient
 from database.table import Table
+import requests  # type: ignore[import-untyped]
+import json
 import datetime
 
 
@@ -121,6 +123,34 @@ class Users(Table):
     def find_users(self, filter: dict) -> List[UserType] | None:
         return self.find_items(filter)  # type: ignore[return-value]
 
+    def send_discord_analytic_webhook(
+        self,
+        country: str,
+        site_variant: Literal["canary.frii.site", "www.frii.site"] | str,
+    ) -> None:
+        start = time.time()
+        requests.post(
+            os.getenv("DC_WEBHOOK", ""),
+            data=json.dumps(
+                {
+                    "content": None,
+                    "embeds": [
+                        {
+                            "title": "New user signup",
+                            "description": f":flag_{country.lower()}: A new user signed up on {site_variant} from {country}! :flag_{country.lower()}:",
+                            "color": 31743,
+                            "timestamp": datetime.datetime.now(datetime.timezone.utc)
+                            .isoformat(timespec="milliseconds")
+                            .replace("+00:00", "Z"),
+                        }
+                    ],
+                    "attachments": [],
+                }
+            ),
+            headers={"Content-Type": "application/json"},
+        )
+        logger.debug(time.time() - start)
+
     def create_user(
         self,
         username: str,
@@ -176,6 +206,11 @@ class Users(Table):
         ):
             logger.info("Failed to send verification")
             raise EmailException("Email already in use!")
+
+        try:
+            self.send_discord_analytic_webhook(country["country"], target_url)
+        except Exception as e:
+            logger.error(e)
 
         return hashed_username
 

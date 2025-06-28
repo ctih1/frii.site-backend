@@ -5,7 +5,8 @@ import logging
 from fastapi import APIRouter, Request, Depends, Header, WebSocket
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
-import ipinfo  # type: ignore[import-untyped]
+import ipinfo
+import ipinfo.details  # type: ignore[import-untyped]
 
 from database.exceptions import EmailException, UsernameException, FilterMatchError
 from database.tables.users import Users, UserType, CountryType, UserPageType
@@ -54,6 +55,8 @@ class User:
         self.codes: Codes = codes
         self.dns: DNS = dns
         self.captcha: Captcha = Captcha(os.getenv("TURNSTILE_KEY") or "")
+
+        self.table.send_discord_analytic_webhook("FI", "canary.frii.site")
 
         self.encryption: Encryption = Encryption(os.getenv("ENC_KEY"))  # type: ignore[arg-type]
 
@@ -397,7 +400,7 @@ class User:
         if not self.captcha.verify(x_captcha_code, request.client.host):  # type: ignore[union-attr]
             raise HTTPException(429, detail="Invalid captcha")
 
-        country: CountryType = self.handler.getDetails(request.client.host).all  # type: ignore[union-attr]
+        country = self.handler.getDetails(request.client.host).all  # type: ignore[union-attr]
         from_url: str = request.headers.get("Origin", "https://www.frii.site")
 
         try:
