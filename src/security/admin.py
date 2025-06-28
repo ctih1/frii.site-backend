@@ -52,7 +52,9 @@ class Admin:
         if len(reasons) == 0:
             raise ValueError("You need to specify atleast one ban reason")
 
-        domains = {k: v["type"] for k, v in user_data["domains"].items()}
+        domains = {
+            k.replace("[dot]", "."): v["type"] for k, v in user_data["domains"].items()
+        }
 
         success = self.dns.delete_multiple(domains)
         if not success:
@@ -86,7 +88,9 @@ class Admin:
             },
         )
 
-        self.dns.register_multiple(user_data["domains"], user_id)
+        domains = {k.replace("[dot]", "."): v for k, v in user_data["domains"].items()}
+
+        self.dns.register_multiple(domains, user_id)
 
     def find_user_by_domain(self, domain: str) -> AccountData | None:
         user_data = self.users.find_user(

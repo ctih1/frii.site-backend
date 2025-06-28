@@ -168,7 +168,7 @@ class DNS:
                 values["ip"] += "."
 
             if values["type"] == "TXT":
-                content = '"' + values["ip"] + '"'
+                values["ip"] = '"' + values["ip"] + '"'
 
             rrset = {
                 "name": domain + ".frii.site.",
