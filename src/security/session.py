@@ -326,7 +326,14 @@ class Session:
             totp_object: pyotp.TOTP = pyotp.TOTP(users.encryption.decrypt(user_mfa_key))  # type: ignore[arg-type]
             is_valid = totp_object.verify(mfa_code)
             if not is_valid:
-                return SessionCreateStatus(success=False, mfa_required=True, code="-1")
+                if totp_object.verify(
+                    mfa_code, datetime.datetime.now() - datetime.timedelta(seconds=15)
+                ):
+                    is_valid = True
+                else:
+                    return SessionCreateStatus(
+                        success=False, mfa_required=True, code="-1"
+                    )
 
         session_id = Encryption.generate_random_string(SESSION_TOKEN_LENGTH)
         logger.info(f"Setting session username to {username}")

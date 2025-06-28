@@ -55,8 +55,6 @@ class User:
         self.dns: DNS = dns
         self.captcha: Captcha = Captcha(os.getenv("TURNSTILE_KEY") or "")
 
-        self.table.send_discord_analytic_webhook("FI", "canary.frii.site")
-
         self.encryption: Encryption = Encryption(os.getenv("ENC_KEY"))  # type: ignore[arg-type]
 
         self.handler: ipinfo.Handler = ipinfo.getHandler(os.getenv("IPINFO_KEY"))
