@@ -99,6 +99,19 @@ class Admin:
         )
 
         self.router.add_api_route(
+            "/user/delete/record",
+            self.delete_dns_record,
+            methods=["DELETE"],
+            responses={
+                200: {"description": "User found"},
+                503: {"description": "Failed to delete record"},
+                460: {"description": "Invalid session"},
+                461: {"description": "Invalid permissions"},
+            },
+            tags=["admin"],
+        )
+
+        self.router.add_api_route(
             "/user/get/id",
             self.find_user_by_id,
             methods=["GET"],
@@ -250,6 +263,14 @@ class Admin:
 
         except UserNotExistError:
             raise HTTPException(status_code=404, detail="User not found")
+
+    @Session.requires_auth
+    @Session.requires_permission(permission="dns")
+    def delete_dns_record(
+        self, record: str, type: str, session: Session = Depends(converter.create)
+    ):
+        if not self.admin_tools.dns.delete_domain(record, type):
+            raise HTTPException(status_code=503, detail="Failed to delete record")
 
     @Session.requires_auth
     @Session.requires_permission(permission="manage-permissions")
