@@ -5,8 +5,7 @@ import logging
 from fastapi import APIRouter, Request, Depends, Header, WebSocket
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
-import ipinfo
-import ipinfo.details  # type: ignore[import-untyped]
+import ipinfo  # type: ignore[import-untyped]
 
 from database.exceptions import EmailException, UsernameException, FilterMatchError
 from database.tables.users import Users, UserType, CountryType, UserPageType
