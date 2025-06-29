@@ -10,6 +10,7 @@ import pyotp
 from fastapi import Request
 from cryptography import fernet
 from functools import wraps
+import logging
 
 from database.table import Table
 from security.encryption import Encryption
@@ -33,6 +34,10 @@ class SessionFlagError(Exception):
     success: bool
 
 
+class VerificationError(Exception):
+    pass
+
+
 SessionCreateStatus = TypedDict(
     "SessionCreateStatus", {"success": bool, "mfa_required": bool, "code": str | None}
 )
@@ -41,22 +46,24 @@ SESSION_TOKEN_LENGTH: int = 32
 
 
 SessionType = TypedDict(
-    "SessionType", {"user-agent": str, "ip": str, "expire": int, "hash": str}
+    "SessionType", {"user-agent": str, "ip": str, "expire": int, "owner-hash": str}
 )
+
+logger: logging.Logger = logging.getLogger("frii.site")
 
 
 class UserManager(threading.Thread):
     # a thread to track user data (for security)
-    def __init__(self, users: Users, ip, username):
+    def __init__(self, users: Users, ip, userid):
         super(UserManager, self).__init__()
         self.table: Users = users
         self.daemon = True
         self.ip = ip
-        self.username = username
+        self.userid = userid
 
     def start(self):
         self.table.table.update_one(
-            {"_id": self.username},
+            {"_id": self.userid},
             {"$push": {"accessed-from": self.ip}, "$set": {"last-login": time.time()}},
         )
 
@@ -107,7 +114,7 @@ class Session:
         def wrapper(*args, **kwargs):
             target: Session = Session.find_session_instance(args, kwargs)
             if not target.valid:
-                raise SessionError("Session is not valid")
+                raise SessionError("Session is not valid (requires auth)")
             a = func(*args, **kwargs)
             return a
 
@@ -142,7 +149,7 @@ class Session:
             def wrapper(*args, **kwargs):
                 target: Session = Session.find_session_instance(args, kwargs)
                 if not target.valid:
-                    raise SessionError("Session is not valid")
+                    raise SessionError("Session is not valid (requires permission)")
                 if permission not in target.permissions:
                     raise SessionPermissonError(
                         "User does not have correct permissions"
@@ -175,7 +182,7 @@ class Session:
             def wrapper(*args, **kwargs):
                 target: Session = Session.find_session_instance(args, kwargs)
                 if not target.valid:
-                    raise SessionError("Session is not valid")
+                    raise SessionError("Session is not valid (flag missing)")
                 if flag not in target.flags:
                     raise SessionFlagError(f"User is missing flag {flag}")
                 a = func(*args, **kwargs)
@@ -203,8 +210,9 @@ class Session:
 
         self.session_data: dict | None = self.__cache_data()
         self.valid: bool = self.__is_valid()
-        self.username: str = self.__get_username()
-        self.user_id = self.username
+
+        self.username: str = self.__get_userid()
+        self.user_id = self.__get_userid()
 
         self.user_cache_data: "UserType" = self.__user_cache()
         self.permissions: list = self.__get_permimssions()
@@ -214,15 +222,20 @@ class Session:
         return self.session_table.find_item({"_id": Encryption.sha256(self.id)})
 
     def __is_valid(self):
+        logger.info("Checking validity")
         if len(self.id) != SESSION_TOKEN_LENGTH:
+            logger.info("User session length isnt correct")
             return False
 
         if self.session_data is None:
+            logger.info("Could not fetch session data")
             return False
 
         if self.session_data["ip"] != self.ip:
+            logger.info("Session ip doesnt match")
             return False
 
+        logger.info("Session is valid")
         return True
 
     def __user_cache(self) -> "UserType":
@@ -234,10 +247,9 @@ class Session:
 
         return data
 
-    def __get_username(self) -> str:
+    def __get_userid(self) -> str:
         if not self.valid or self.session_data is None:
             return ""
-
         return self.encryption.decrypt(self.session_data["username"])
 
     def __get_permimssions(self):
@@ -269,19 +281,26 @@ class Session:
                     "user-agent": session["user-agent"],
                     "ip": session["ip"],
                     "expire": session["expire"].timestamp(),
-                    "hash": session["_id"],
+                    "owner-hash": session["_id"],
                 }
             )
         return session_list
 
     @staticmethod
     def create(
-        username: str, ip: str, user_agent: str, users: Users, session_table: Sessions
+        username: str,
+        real_username: str | None,
+        mfa_code: str | None,
+        ip: str,
+        user_agent: str,
+        users: Users,
+        session_table: Sessions,
     ) -> SessionCreateStatus:
         """
         Creates a new session for the given user.
         Args:
-            username (str): The username of the user.
+            username (str): The userid of the user.
+            mfa_code (str): a possible mfa code for the users account
             ip (str): The IP address of the user.
             user_agent (str): The user agent string of the user's browser.
             users (Users): An instance of the Users class for database operations.
@@ -297,11 +316,27 @@ class Session:
         if user_data is None:
             raise UserNotExistError()
 
-        if user_data.get("totp-key") is not None:
-            return SessionCreateStatus(success=False, mfa_required=True, code=None)
+        user_has_mfa = user_data.get("totp", {}).get("verified")
+        user_mfa_key = user_data.get("totp", {}).get("key")
+
+        if user_has_mfa:
+            if not mfa_code:
+                return SessionCreateStatus(success=False, mfa_required=True, code=None)
+
+            totp_object: pyotp.TOTP = pyotp.TOTP(users.encryption.decrypt(user_mfa_key))  # type: ignore[arg-type]
+            is_valid = totp_object.verify(mfa_code)
+            if not is_valid:
+                if totp_object.verify(
+                    mfa_code, datetime.datetime.now() - datetime.timedelta(seconds=15)
+                ):
+                    is_valid = True
+                else:
+                    return SessionCreateStatus(
+                        success=False, mfa_required=True, code="-1"
+                    )
 
         session_id = Encryption.generate_random_string(SESSION_TOKEN_LENGTH)
-
+        logger.info(f"Setting session username to {username}")
         session = {
             "_id": Encryption.sha256(session_id),
             "expire": datetime.datetime.now() + datetime.timedelta(days=7),
@@ -327,51 +362,153 @@ class Session:
             ignore_no_matches=True,
         )
 
+        if real_username and (
+            not user_data.get("display-name")
+            or user_data.get("display-name").startswith("gAAAAA")  # type: ignore[union-attr]
+        ):
+            logger.info("Updating display-name and username")
+            users.table.update_one(
+                {"_id": username},
+                {
+                    "$set": {
+                        "display-name": users.encryption.encrypt(real_username),
+                        "username": Encryption.sha256(real_username.lower()),
+                    }
+                },
+            )
+
         UserManager(
             users, ip, username
         ).start()  # updates `last-login` and `accessed-from` fields of user
         return SessionCreateStatus(success=True, mfa_required=False, code=session_id)
 
-    def create_2fa(self):
+    def create_2fa(self) -> dict:
         if not self.valid:
             raise SessionError()
 
-        key_for_user = base64.b32encode(
-            Encryption.generate_random_string(16).encode("utf-8")
-        ).decode("utf-8")
+        key_for_user = pyotp.random_base32()
 
-        data = self.users_table.find_item({"_id": self.username})
+        backup_keys = [Encryption.generate_random_string(16) for _ in range(5)]
+        encrypted_keys = [self.encryption.encrypt(key) for key in backup_keys]
 
-        if data.get("totp-key") is not None:
-            return None
+        user_data = self.users_table.find_user({"_id": self.username})
+
+        if user_data is None:
+            raise UserNotExistError("User does not exist!")
+
+        if user_data.get("totp", {}).get("verified"):
+            raise ValueError("Used already has 2FA")
 
         self.users_table.modify_document(
             {"_id": self.username},
-            key="totp-key",
-            value=self.encryption.encrypt(key_for_user),
+            key="totp",
+            value={
+                "key": self.encryption.encrypt(key_for_user),
+                "verified": False,
+                "recovery": encrypted_keys,
+            },
             operation="$set",
         )
 
-        return pyotp.totp.TOTP(key_for_user).provisioning_uri(
-            self.username, "frii.site"
+        display_name = self.encryption.decrypt(self.user_cache_data["display-name"])
+        setup_url: str = pyotp.totp.TOTP(
+            key_for_user, interval=30, digits=6
+        ).provisioning_uri(display_name, "frii.site")
+
+        return {"url": setup_url, "codes": backup_keys}
+
+    def verify_2fa(self, code: str):
+        """Verifies that mfa code was succesfully created and set by the user"""
+        if not self.user_cache_data.get("totp"):
+            raise VerificationError("MFA not generated")
+
+        if self.user_cache_data.get("totp", {}).get("verified"):
+            raise ValueError("User is already verified")
+
+        user_key = self.user_cache_data.get("totp", {}).get("key")
+        if user_key is None:
+            raise ValueError("user does not have a key?")
+        totp_object = pyotp.TOTP(self.encryption.decrypt(user_key))
+
+        is_valid = totp_object.verify(code)
+
+        if is_valid:
+            self.users_table.modify_document(
+                {"_id": self.username},
+                key="totp.verified",
+                value=True,
+                operation="$set",
+            )
+
+        return is_valid
+
+    def check_backup_code_valid(self, user_code: str) -> bool:
+        codes = self.user_cache_data.get("totp", {}).get("recovery", [])
+        found_code: bool = False
+
+        for code in codes:
+            decrypted_code = self.encryption.decrypt(code)
+            logger.debug(
+                f"Checking mfa code {user_code[:4]}... to {decrypted_code[:4]}"
+            )
+
+            if user_code == decrypted_code:
+                logger.debug("Found a matching code")
+                found_code = True
+                break
+
+        return found_code
+
+    def remove_mfa(self, backup_code: str | None, mfa_code: str | None):
+        is_authenticated: bool = False
+        if backup_code:
+            logger.info("Checking backup code")
+            is_authenticated = self.check_backup_code_valid(backup_code)
+        elif mfa_code:
+            logger.info("Checking mfa code")
+            totp_object = pyotp.TOTP(
+                self.encryption.decrypt(self.user_cache_data.get("totp", {}).get("key"))  # type: ignore[arg-type]
+            )
+            is_authenticated = totp_object.verify(mfa_code)
+
+        if not is_authenticated:
+            raise ValueError("Invalid authentication")
+
+        self.users_table.remove_key(
+            {
+                "_id": self.username,
+            },
+            "totp",
         )
 
     @staticmethod
-    def verify_2fa(code: str, user_id: str, users: "Users"):
-        """Verify's 2FA TOTP code (as used in google authenticator)
-        Returns boolean if code is correct
-        """
-        user_data: "UserType" | None = users.find_user({"_id": user_id})
-        if user_data is None:
-            raise UserNotExistError()
+    def remove_mfa_static(
+        userid: str, user_table: Users, user: UserType, backup_code: str
+    ):
+        logger.info("Checking backup code")
+        codes = user.get("totp", {}).get("recovery", [])
+        found_code: bool = False
 
-        key: str | None = user_data.get("totp-key")
-        if key is None:
-            raise ValueError("MFA key does not exist")
+        for code in codes:
+            decrypted_code = user_table.encryption.decrypt(code)
+            logger.debug(
+                f"Checking mfa code {backup_code[:4]}... to {decrypted_code[:4]}"
+            )
 
-        decrypted_key: str = Encryption(os.getenv("ENC_KEY")).decrypt(key)  # type: ignore[arg-type]
+            if backup_code == decrypted_code:
+                logger.debug("Found a matching code")
+                found_code = True
+                break
 
-        return pyotp.totp.TOTP(decrypted_key).verify(code)
+        if not found_code:
+            raise ValueError("Invalid backup code")
+
+        user_table.remove_key(
+            {
+                "_id": userid,
+            },
+            "totp",
+        )
 
     @staticmethod
     def clear_sessions(user_id: str, session_table: Sessions):

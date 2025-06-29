@@ -35,10 +35,37 @@
     },
     "created": 1715875251.0667367,
     "last-login": 1743929055.7443907,
-    "permissions": {},
+    "permissions": {
+        "max-domains": 3,
+        "max-subdomains": 2
+    },
     "verified": true,
     "domains": {
         "testing-domains": {
+            "id": "629dc7ce719cc5b852a86faa9183bbe60",
+            "type": "A",
+            "ip": "192.168.100.1",
+            "registered": 1744103140.171228
+        },
+        "testing-domain2": {
+            "id": "629dc7ce719cc5b852a86faa9183bbe60",
+            "type": "A",
+            "ip": "192.168.100.1",
+            "registered": 1744103140.171228
+        },
+        "testing-domain3": {
+            "id": "629dc7ce719cc5b852a86faa9183bbe60",
+            "type": "A",
+            "ip": "192.168.100.1",
+            "registered": 1744103140.171228
+        },
+        "test1[dot]testing-domains": {
+            "id": "629dc7ce719cc5b852a86faa9183bbe60",
+            "type": "A",
+            "ip": "192.168.100.1",
+            "registered": 1744103140.171228
+        },
+        "test2[dot]testing-domains": {
             "id": "629dc7ce719cc5b852a86faa9183bbe60",
             "type": "A",
             "ip": "192.168.100.1",

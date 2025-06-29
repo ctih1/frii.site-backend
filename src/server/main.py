@@ -15,8 +15,8 @@ from server.routes.user import User
 from server.routes.invite import Invite
 from server.routes.domain import Domain
 from server.routes.blog import Blog
-from server.routes.languages import Languages
 from server.routes.api import API
+from server.routes.admin import Admin
 
 from database.tables.users import Users
 from database.tables.sessions import Sessions
@@ -24,13 +24,13 @@ from database.tables.invitation import Invites
 from database.tables.codes import Codes
 from database.tables.domains import Domains
 from database.tables.blogs import Blogs
-from database.tables.translations import Translations
 
 from dns_.dns import DNS
 
 from security.session import SessionError, SessionPermissonError
 from security.encryption import Encryption
 from security.api import ApiError, ApiRangeError, ApiPermissionError
+from security.admin import Admin as AdminTools
 from mail.email import Email
 
 logging.basicConfig(
@@ -95,9 +95,6 @@ class VariableInitializer:
     def gather_blogs(self) -> None:
         self.blogs: Blogs = Blogs(client)
 
-    def gather_translations(self) -> None:
-        self.translations = Translations(client)
-
 
 v = VariableInitializer()
 
@@ -131,8 +128,11 @@ threads["codes"].join()
 email: Email = Email(v.codes, v.users, Encryption(os.environ["ENC_KEY"]))
 app.include_router(User(v.users, v.sessions, v.invites, email, v.codes, v.dns).router)
 
-#threads["translations"].join()
-#app.include_router(Languages(v.translations, v.users, v.sessions).router)
+app.include_router(
+    Admin(
+        v.users, v.sessions, AdminTools(v.users, v.sessions, v.domains, v.dns, email)
+    ).router
+)
 
 
 @app.get("/status")
@@ -150,6 +150,7 @@ async def status():
 
 @app.exception_handler(SessionError)
 async def session_except_handler(request: Request, e: Exception):
+    logger.warning(e.args)
     return JSONResponse(status_code=460, content={"message": "Invalid session"})
 
 

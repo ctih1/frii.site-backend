@@ -7,12 +7,16 @@ class SignUp(BaseModel):
     password: str
     email: str
     language: str
-    invite: str
 
 
 class PasswordReset(BaseModel):
     code: str
     hashed_password: str
+
+
+class MFACreation(BaseModel):
+    backup_codes: List[str]
+    app_link: str
 
 
 class ApiCreationBody(BaseModel):

@@ -1,10 +1,12 @@
 import os
 import time
 import logging
-from typing import List, TYPE_CHECKING
+from typing import Any, List, TYPE_CHECKING, Literal
 from typing_extensions import NotRequired, Dict, Required, TypedDict
 from pymongo import MongoClient
 from database.table import Table
+import requests  # type: ignore[import-untyped]
+import json
 import datetime
 
 
@@ -29,7 +31,7 @@ logger: logging.Logger = logging.getLogger("frii.site")
 
 class CountryType(TypedDict):
     ip: str
-    hostname: str
+    hostname: NotRequired[str]
     city: str
     region: str
     country: str  # 2 char country code (ex. FI)
@@ -53,6 +55,8 @@ class InviteType(TypedDict):
     used_at: NotRequired[int]  # epoch timestamp
 
 
+MFA = TypedDict("MFA", {"verified": bool, "key": str, "recovery": List[str]})
+
 UserPageType = TypedDict(
     "UserPageType",
     {
@@ -62,10 +66,11 @@ UserPageType = TypedDict(
         "country": CountryType,
         "created": int,
         "verified": bool,
-        "permissions": Dict[str, bool],
+        "permissions": Dict[str, Any],
         "beta-enroll": bool,
         "sessions": List[SessionType],
         "invites": Dict[str, InviteType],
+        "mfa_enabled": bool,
     },
 )
 
@@ -97,7 +102,9 @@ UserType = TypedDict(
         "beta-updated": NotRequired[int],
         "invites": NotRequired[Dict[str, InviteType]],
         "invite-code": NotRequired[str],
-        "totp-key": NotRequired[str],
+        "totp": NotRequired[MFA],
+        "banned": NotRequired[Literal[True]],
+        "ban-reasons": NotRequired[List[str]],
     },
 )
 
@@ -107,11 +114,42 @@ class Users(Table):
         super().__init__(mongo_client, "frii.site")
         self.encryption: Encryption = Encryption(os.getenv("ENC_KEY") or "none")
 
-    def find_user(self, filter: dict) -> UserType | None:
-        return self.find_item(filter)  # type: ignore[return-value]
+    def find_user(self, filter: dict, find_banned: bool = False) -> UserType | None:
+        data: UserType = self.find_item(filter)  # type: ignore[return-value,assignment]
+        if data and data.get("banned") and not find_banned:
+            return None
+        return data
 
     def find_users(self, filter: dict) -> List[UserType] | None:
         return self.find_items(filter)  # type: ignore[return-value]
+
+    def send_discord_analytic_webhook(
+        self,
+        country: str,
+        site_variant: Literal["canary.frii.site", "www.frii.site"] | str,
+    ) -> None:
+        start = time.time()
+        requests.post(
+            os.getenv("DC_WEBHOOK", ""),
+            data=json.dumps(
+                {
+                    "content": None,
+                    "embeds": [
+                        {
+                            "title": "New user signup",
+                            "description": f":flag_{country.lower()}: A new user signed up on {site_variant} from {country}! :flag_{country.lower()}:",
+                            "color": 31743,
+                            "timestamp": datetime.datetime.now(datetime.timezone.utc)
+                            .isoformat(timespec="milliseconds")
+                            .replace("+00:00", "Z"),
+                        }
+                    ],
+                    "attachments": [],
+                }
+            ),
+            headers={"Content-Type": "application/json"},
+        )
+        logger.debug(time.time() - start)
 
     def create_user(
         self,
@@ -122,7 +160,6 @@ class Users(Table):
         country,
         time_signed_up,
         email_instance: Email,
-        invite_code: str,
         target_url: str,  # target_url should only be the hostname (e.g canary.frii.site, www.frii.site)
     ) -> str:
 
@@ -130,19 +167,9 @@ class Users(Table):
         original_username: str = username
 
         hashed_username: str = Encryption.sha256(username)
+        lowercase_hashed_username = Encryption.sha256(username.lower())
+
         hashed_password: str = Encryption.sha256(password)
-
-        invite_user: UserType | None = self.find_user(
-            {f"invites.{invite_code}": {"$exists": True}}
-        )
-
-        if invite_user is None:
-            logger.error("Invite isn't valid")
-            raise InviteException("Invite is not valid")
-
-        if invite_user["invites"][invite_code]["used"]:
-            logger.error("Invite has already been used")
-            raise InviteException("Invite has already been used!")
 
         if email_instance.is_taken(email):
             logger.error("Email is already taken")
@@ -155,27 +182,35 @@ class Users(Table):
             "_id": hashed_username,
             "email": self.encryption.encrypt(email),
             "password": self.encryption.create_password(hashed_password),
-            "display-name": self.encryption.encrypt(hashed_username),
-            "username": self.encryption.encrypt(original_username),
+            "display-name": self.encryption.encrypt(original_username),
+            "username": lowercase_hashed_username,
             "lang": language,
             "country": country,
             "email-hash": Encryption.sha256(email + "supahcool"),
             "accessed-from": [],
             "created": time_signed_up,
             "last-login": round(time.time()),
-            "permissions": {"max-domains": 3, "invite": False},
+            "permissions": {"max-domains": 3, "max-subdomains": 50, "invite": False},
             "feature-flags": {},
             "verified": False,
             "domains": {},
             "api-keys": {},
             "credits": 200,
-            "invite-code": invite_code,
         }
 
         self.insert_document(account_data)
-        if not email_instance.send_verification_code(target_url, username, email):
+        self.create_index("username")
+
+        if not email_instance.send_verification_code(
+            target_url, hashed_username, email
+        ):
             logger.info("Failed to send verification")
             raise EmailException("Email already in use!")
+
+        try:
+            self.send_discord_analytic_webhook(country["country"], target_url)
+        except Exception as e:
+            logger.error(e)
 
         return hashed_username
 
@@ -237,13 +272,22 @@ class Users(Table):
         }
 
     def get_user_profile(
-        self, user_id: str, session_table: "SessionTable"
+        self, user_id: str, session_table: "SessionTable", find_banned: bool = False
     ) -> UserPageType:
         logger.info(f"Getting user profile for {user_id}")
-        user_data: UserType | None = self.find_user({"_id": user_id})
+        user_data: UserType | None = self.find_user({"_id": user_id}, find_banned)
 
         if user_data is None:
             raise UserNotExistError("Invalid user")
+
+        session_data = session_table.find_items(
+            {"owner-hash": Encryption.sha256(user_id + "frii.site")}
+        )
+
+        for session in session_data:
+            # NOTE: If you're an admin and want to make a session last forever, this cant handle much lol
+            # I tried using 3025 and `.timestamp()` just errored out
+            session["expire"] = round(session.get("expire").timestamp())  # type: ignore[union-attr]
 
         return {
             "username": self.encryption.decrypt(user_data["display-name"]),
@@ -255,8 +299,9 @@ class Users(Table):
             "permissions": user_data.get("permissions", {}),
             "beta-enroll": user_data.get("beta-enroll", False),
             # conversts datetime object of expire date in db to linux epoch int. fastapi's json encoder doesnt like datetime objects
-            "sessions": [{k: (round(v.timestamp()) if isinstance(v, datetime.datetime) else v) for k, v in session.items()} for session in session_table.find_items({"owner-hash": Encryption.sha256(user_id + "frii.site")})],  # type: ignore[misc]
+            "sessions": session_data,  # type: ignore[typeddict-item]
             "invites": user_data.get("invites", {}),  # type: ignore[typeddict-item]
+            "mfa_enabled": user_data.get("totp", {}).get("verified", False),
         }
 
     def change_beta_enrollment(self, user_id: str, mode: bool = False) -> None:
@@ -264,3 +309,17 @@ class Users(Table):
         self.modify_document(
             {"_id": user_id}, "$set", "beta-updated", round(time.time())
         )
+
+    def mark_deletion_pending(self, userid: str, reasons: List[str]) -> None:
+        self.table.update_one(
+            {"_id": userid},
+            {
+                "$set": {
+                    "banned": True,
+                    "deleted-in": datetime.datetime.now()
+                    + datetime.timedelta(weeks=52),
+                },
+                "$push": {"ban-reasons": reasons},
+            },
+        )
+        self.delete_in_time("deleted-in")

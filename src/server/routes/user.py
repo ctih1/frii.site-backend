@@ -25,11 +25,11 @@ from security.session import (
 from security.api import Api
 from security.convert import Convert
 from mail.email import Email
-
+from security.captcha import Captcha
 
 from dns_.dns import DNS
 
-from server.routes.models.user import SignUp, PasswordReset, ApiGetKeys
+from server.routes.models.user import MFACreation, SignUp, PasswordReset, ApiGetKeys
 
 converter: Convert = Convert()
 logger: logging.Logger = logging.getLogger("frii.site")
@@ -53,6 +53,7 @@ class User:
         self.email: Email = email
         self.codes: Codes = codes
         self.dns: DNS = dns
+        self.captcha: Captcha = Captcha(os.getenv("TURNSTILE_KEY") or "")
 
         self.encryption: Encryption = Encryption(os.getenv("ENC_KEY"))  # type: ignore[arg-type]
 
@@ -76,6 +77,7 @@ class User:
                 404: {"description": "User not found"},
                 401: {"description": "Invalid password"},
                 412: {"description": "2FA code required to be passed in X-MFA-Code"},
+                429: {"description": "Invalid captcha"},
             },
             tags=["account", "session"],
         )
@@ -86,9 +88,9 @@ class User:
             methods=["POST"],
             responses={
                 200: {"description": "Sign up succesfull"},
-                400: {"description": "Invalid invite"},
                 422: {"description": "Email is already in use"},
                 409: {"description": "Username is already in use"},
+                429: {"description": "Invalid captcha"},
             },
             status_code=200,
             tags=["account"],
@@ -218,34 +220,78 @@ class User:
         )
 
         self.router.add_api_route(
-            "/api/get-keys",
-            self.get_api_keys,
-            methods=["GET"],
+            "/mfa/create",
+            self.create_mfa,
+            methods=["POST"],
             responses={
+                409: {"description": "Code already exists"},
                 460: {"description": "Invalid session"},
             },
             status_code=200,
-            tags=["account", "api"],
+            tags=["account", "2fa"],
         )
 
         self.router.add_api_route(
-            "/api/get-keys",
-            self.get_api_keys,
-            methods=["GET"],
+            "/mfa/verify",
+            self.verify_mfa_setup,
+            methods=["POST"],
             responses={
+                401: {"description": "Invalid code"},
+                409: {"description": "Code already exists"},
                 460: {"description": "Invalid session"},
             },
             status_code=200,
-            tags=["account", "api"],
+            tags=["account", "2fa"],
+        )
+
+        self.router.add_api_route(
+            "/mfa/delete",
+            self.delete_mfa,
+            methods=["DELETE"],
+            responses={
+                401: {"description": "Invalid code"},
+                460: {"description": "Invalid session"},
+            },
+            status_code=200,
+            tags=["account", "2fa"],
+        )
+        self.router.add_api_route(
+            "/mfa/recovery",
+            self.delete_mfa_with_username_pass,
+            methods=["DELETE"],
+            responses={
+                401: {"description": "Invalid password"},
+                404: {"description": "Account doesnt exist"},
+                409: {"description": "Invalid recovery code"},
+                412: {"description": "MFA not enabled"},
+            },
+            status_code=200,
+            tags=["account", "2fa"],
         )
 
         logger.info("Initialized")
 
-    def login(self, request: Request, x_auth_request: Annotated[str, Header()]):
+    def login(
+        self,
+        request: Request,
+        x_auth_request: Annotated[str, Header()],
+        x_captcha_code: Annotated[str, Header()],
+        x_mfa_code: Annotated[str | None, Header()] = None,
+        x_plain_username: Annotated[str | None, Header()] = None,
+    ):
+        # x_plain_username is used to mitigate a bug in the backend, causing none of the actual usernames just to be saved, just their hashes
+
+        if not self.captcha.verify(x_captcha_code, request.client.host):  # type: ignore[union-attr]
+            raise HTTPException(429, detail="Invalid captcha")
+
         login_token: List[str] = x_auth_request.split("|")
 
         username_hash: str = login_token[0]
         password_hash: str = login_token[1]
+
+        if Encryption.sha256(x_plain_username or "") != username_hash:
+            logger.warning("Plain username doesnt match login... Setting as none")
+            x_plain_username = None
 
         user_data: UserType | None = self.table.find_user({"_id": username_hash})
 
@@ -258,8 +304,12 @@ class User:
         if not Encryption.check_password(password_hash, user_data["password"]):
             raise HTTPException(status_code=401, detail="Invalid password")
 
+        logger.info(f"Login attempt from {username_hash}")
+
         session_status: SessionCreateStatus = Session.create(
             username_hash,
+            x_plain_username,
+            x_mfa_code,
             request.client.host,  # type: ignore[union-attr]
             request.headers.get("User-Agent", "Unknown"),
             self.table,
@@ -267,17 +317,87 @@ class User:
         )
 
         if session_status["mfa_required"]:
-            if not request.headers.get("X-MFA-Code"):
-                raise HTTPException(status_code=412, detail="MFA required")
+            logger.debug(f'MFA error {session_status["code"]}')
+            raise HTTPException(status_code=412, detail="MFA required")
 
         if session_status["success"]:
             return JSONResponse({"auth-token": session_status["code"]})
 
-    def sign_up(self, request: Request, body: SignUp) -> None:
-        if not self.invites.is_valid(body.invite):
-            raise HTTPException(status_code=400, detail="Invite not valid")
+    def create_mfa(
+        self, request: Request, session: Session = Depends(converter.create)
+    ) -> MFACreation:
+        if session.user_cache_data.get("totp", {}).get("verified"):
+            raise HTTPException(status_code=409, detail="MFA code already exists!")
+        status = session.create_2fa()
+        return {"app_link": status["url"], "backup_codes": status["codes"]}  # type: ignore[return-value]
 
-        country: CountryType = self.handler.getDetails(request.client.host).all  # type: ignore[union-attr]
+    def verify_mfa_setup(
+        self,
+        request: Request,
+        x_mfa_code: Annotated[str, Header()],
+        session: Session = Depends(converter.create),
+    ) -> None:
+        if session.user_cache_data.get("totp", {}).get("verified"):
+            raise HTTPException(status_code=409, detail="MFA code already exists!")
+        if not session.verify_2fa(x_mfa_code):
+            raise HTTPException(status_code=401, detail="Code is invalid")
+
+    def delete_mfa(
+        self,
+        request: Request,
+        session: Session = Depends(converter.create),
+        x_mfa_code: Annotated[str | None, Header()] = None,
+        x_backup_code: Annotated[str | None, Header()] = None,
+    ):
+        if not x_mfa_code and not x_backup_code:
+            raise HTTPException(
+                status_code=412,
+                detail="X-MFA-Code or X-Backup-Code needs to be specified!",
+            )
+
+        try:
+            session.remove_mfa(x_backup_code, x_mfa_code)
+        except ValueError:
+            raise HTTPException(status_code=401, detail="Invalid code")
+
+    def delete_mfa_with_username_pass(
+        self,
+        request: Request,
+        x_auth_request: Annotated[str, Header()],
+        x_backup_code: Annotated[str, Header()],
+    ):
+        # x_plain_username is used to mitigate a bug in the backend, causing none of the actual usernames just to be saved, just their hashes
+
+        login_token: List[str] = x_auth_request.split("|")
+
+        username_hash: str = login_token[0]
+        password_hash: str = login_token[1]
+
+        user_data: UserType | None = self.table.find_user({"_id": username_hash})
+
+        if user_data is None:
+            raise HTTPException(status_code=404, detail="User does not exist")
+
+        if not user_data.get("totp", {}).get("verified"):
+            raise HTTPException(412, detail="User does not have MFA")
+
+        if not Encryption.check_password(password_hash, user_data["password"]):
+            raise HTTPException(status_code=401, detail="Invalid password")
+
+        try:
+            Session.remove_mfa_static(
+                username_hash, self.table, user_data, x_backup_code
+            )
+        except ValueError:
+            raise HTTPException(status_code=409)
+
+    def sign_up(
+        self, request: Request, body: SignUp, x_captcha_code: Annotated[str, Header()]
+    ) -> None:
+        if not self.captcha.verify(x_captcha_code, request.client.host):  # type: ignore[union-attr]
+            raise HTTPException(429, detail="Invalid captcha")
+
+        country = self.handler.getDetails(request.client.host).all  # type: ignore[union-attr]
         from_url: str = request.headers.get("Origin", "https://www.frii.site")
 
         try:
@@ -289,14 +409,12 @@ class User:
                 country,
                 round(time.time()),
                 self.email,
-                body.invite,
                 from_url,
             )
         except EmailException:
             raise HTTPException(status_code=422, detail="Email already in use")
         except UsernameException:
             raise HTTPException(status_code=409, detail="Username already in use")
-        self.invites.use(user_id, body.invite)
 
     @Session.requires_auth
     def get_settings(

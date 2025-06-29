@@ -16,6 +16,7 @@ template_path: str = os.path.join(".", "src", "mail", "templates")
 verify_template: str
 recovery_template: str
 deletion_template: str
+banned_template: str
 
 with open(os.path.join(template_path, "verify.html"), "r") as f:
     verify_template = "\n".join(f.readlines())
@@ -25,6 +26,9 @@ with open(os.path.join(template_path, "deletion.html"), "r") as f:
 
 with open(os.path.join(template_path, "recovery.html"), "r") as f:
     recovery_template = "\n".join(f.readlines())
+
+with open(os.path.join(template_path, "banned.html"), "r") as f:
+    banned_template = "\n".join(f.readlines())
 
 logger: logging.Logger = logging.getLogger("frii.site")
 
@@ -138,3 +142,21 @@ class Email:
 
         logger.info(f"Sent password reset code to username {username}")
         return True
+
+    def send_ban_email(self, target_email: str, reasons: List[str]):
+        reasons_html = ""
+        for reason in reasons:
+            reasons_html += f"<li>{reason}</li>"
+
+        try:
+            resend.Emails.send(
+                {
+                    "from": "send@frii.site",
+                    "to": target_email,
+                    "subject": "Account termination",
+                    "html": banned_template.replace("{{reasons}}", reasons_html),
+                }
+            )
+        except resend.exceptions.ResendError as e:
+            logger.error(f"Failed to send ban email {e.suggested_action}")
+            return False
