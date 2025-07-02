@@ -1,6 +1,8 @@
 from pydantic import BaseModel
 from typing import List
 
+from security.api import ApiPermission
+
 
 class SignUp(BaseModel):
     username: str
@@ -20,12 +22,17 @@ class MFACreation(BaseModel):
 
 
 class ApiCreationBody(BaseModel):
-    permissions: List[str]
+    permissions: List[ApiPermission]
     domains: List[str]
+    comment: str
 
 
 class ApiGetKeys(BaseModel):
     key: str
     domains: List[str]
-    perms: List[str]
+    perms: List[ApiPermission]
     comment: str
+
+
+class ApiDeletion(BaseModel):
+    hash: str

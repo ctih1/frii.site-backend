@@ -142,7 +142,6 @@ class Domain:
 
     @Session.requires_auth
     def register(self, body: DomainType, session: Session = Depends(converter.create)):
-
         can_user_register = self.dns_validation.can_user_register(
             body.domain, session.user_cache_data
         )

@@ -164,14 +164,19 @@ async def session_permission_except_handler(request: Request, e: Exception):
 
 @app.exception_handler(ApiError)
 async def api_except_handler(request: Request, e: Exception):
-    return JSONResponse(status_code=460, content={"message": "Invalid API key"})
+    return JSONResponse(
+        status_code=460, content={"message": "Invalid API key", "detail": e.args}
+    )
 
 
 @app.exception_handler(ApiRangeError)
 async def api_range_except_handler(request: Request, e: Exception):
     return JSONResponse(
         status_code=461,
-        content={"message": "API key cannot do operations on requested domain"},
+        content={
+            "message": "API key cannot do operations on requested domain",
+            "detail": e.args,
+        },
     )
 
 
@@ -180,6 +185,7 @@ async def api_permission_except_handler(request: Request, e: Exception):
     return JSONResponse(
         status_code=462,
         content={
-            "message": "API key does not have the necessary permissions to perform this action"
+            "message": "API key does not have the necessary permissions to perform this action",
+            "detail": e.args,
         },
     )

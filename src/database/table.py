@@ -71,5 +71,4 @@ class Table:
 
     def remove_key(self, filter: Dict[str, Any], key: str) -> bool:
         updateResult = self.table.update_one(filter, {"$unset": {key: ""}})
-        print(updateResult.matched_count != 0)
         return updateResult.matched_count != 0

@@ -26,13 +26,8 @@ class ConvertAPI:
         self.users = users
 
     def create(self, request: Request) -> Api:
-        target_domain: str = request._json.get("domain")
         api_key: str | None = request.headers.get("X-API-Token")
         if api_key is None:
-            raise ApiError("API Key not specified")
+            raise ApiError("API Key not specified (X-API-Token header missing)")
 
-        api = Api(api_key, self.users)
-        if target_domain not in api.affected_domains:
-            raise ApiPermissionError("API Key cannot edit this domain")
-
-        return api
+        return Api(api_key, self.users)

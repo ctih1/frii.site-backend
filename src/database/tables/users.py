@@ -20,6 +20,7 @@ from database.exceptions import (
 from mail.email import Email
 from security.encryption import Encryption
 from security.session import SessionType
+from security.api import ApiType
 
 if TYPE_CHECKING:
     from database.tables.domains import DomainFormat
@@ -74,10 +75,6 @@ UserPageType = TypedDict(
     },
 )
 
-ApiKeys = TypedDict(
-    "ApiKeys", {"string": str, "perms": List[str], "domains": List[str], "comment": str}
-)
-
 UserType = TypedDict(
     "UserType",
     {
@@ -96,7 +93,7 @@ UserType = TypedDict(
         "verified": bool,
         "domains": Required[Dict[str, "DomainFormat"]],
         "feature-flags": NotRequired[Dict[str, bool]],
-        "api-keys": NotRequired[Dict[str, ApiKeys]],
+        "api-keys": NotRequired[Dict[str, ApiType]],
         "credits": NotRequired[int],
         "beta-enroll": NotRequired[bool],
         "beta-updated": NotRequired[int],

@@ -11,6 +11,16 @@ from dns_.validation import Validation
 logger: logging.Logger = logging.getLogger("frii.site")
 
 
+def sanitize(content: str, type: str) -> str:
+    if (type == "CNAME" or type == "NS") and not content.endswith("."):
+        content += "."
+
+    if type == "TXT" and not content.startswith("") and not content.endswith(""):
+        content = '"' + content + '"'
+
+    return content
+
+
 class DNS:
     def __init__(self, domains: Domains):
         """Documentation for functions were created by ai."""
@@ -46,12 +56,7 @@ class DNS:
                 raise DNSException("DNS Modification failed", json={"success": success})
 
         # PowerDNS will complain if these two are not present.
-
-        if (type == "CNAME" or type == "NS") and not content.endswith("."):
-            content += "."
-
-        if type == "TXT":
-            content = '"' + content + '"'
+        content = sanitize(content, type)
 
         request = requests.patch(
             f"https://vps.frii.site/api/v1/servers/localhost/zones/frii.site.",
@@ -104,11 +109,7 @@ class DNS:
             ValueError: If the ID of the newly created DNS record cannot be retrieved.
         """
 
-        if (type == "CNAME" or type == "NS") and not content.endswith("."):
-            content += "."
-
-        if type == "TXT":
-            content = '"' + content + '"'
+        content = sanitize(content, type)
 
         request = requests.patch(
             f"https://vps.frii.site/api/v1/servers/localhost/zones/frii.site.",
@@ -162,13 +163,7 @@ class DNS:
         rrsets: List[dict] = []
 
         for domain, values in domains.items():
-            if (values["type"] == "CNAME" or values["type"] == "NS") and not values[
-                "ip"
-            ].endswith("."):
-                values["ip"] += "."
-
-            if values["type"] == "TXT":
-                values["ip"] = '"' + values["ip"] + '"'
+            values["ip"] = sanitize(values["ip"], values["type"])
 
             rrset = {
                 "name": domain + ".frii.site.",

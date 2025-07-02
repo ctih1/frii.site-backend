@@ -77,6 +77,7 @@ class API:
             self.is_available,
             methods=["GET"],
             status_code=200,
+            description="Check whether a domain is available. No authentication required",
             responses={
                 200: {"description": "Domain is available"},
                 409: {"description": "Domain is not available"},
@@ -85,7 +86,7 @@ class API:
         )
 
         self.router.add_api_route(
-            "/domains/get",
+            "/domains",
             self.get_domains,
             methods=["GET"],
             status_code=200,
@@ -104,6 +105,9 @@ class API:
             responses={
                 200: {"description": "Domain deleted succesfully"},
                 403: {"description": "Domain does not exist, or user does not own it."},
+                404: {
+                    "description": "Domain type couldn't be fetched, specify the type using the query parameter `type`"
+                },
                 460: {"description": "Invalid session"},
                 461: {
                     "description": "API key cannot do operations on requested domain"
@@ -118,11 +122,12 @@ class API:
     @Api.requires_auth
     @Api.requires_permission("register")
     def register(self, body: DomainType, api: Api = Depends(converter.create)) -> None:
+        can_user_register = self.dns_validation.can_user_register(
+            body.domain, api.user_cache_data
+        )
 
-        if len(api.user_cache_data["domains"]) > api.user_cache_data.get(
-            "permissions", {}
-        ).get("max-domains", 3):
-            raise HTTPException(status_code=405, detail="Domain limit exceeded")
+        if not can_user_register.success:
+            raise HTTPException(status_code=405, detail=can_user_register.comment)
 
         try:
             is_domain_available: bool = self.dns_validation.is_free(
@@ -154,10 +159,19 @@ class API:
             logger.error(e)
             raise HTTPException(status_code=500, detail="DNS Registration failed")
 
-        self.domains.modify_domain(api.username, body.domain, body.value, body.type)
+        self.domains.add_domain(
+            api.username,
+            body.domain,
+            {
+                "id": "None",
+                "type": body.type,
+                "ip": body.value,
+                "registered": round(time.time()),
+            },
+        )
 
     @Api.requires_auth
-    @Api.requires_permission("content")
+    @Api.requires_permission("modify")
     def modify(
         self, domain: str, value: str, type: str, api: Api = Depends(converter.create)
     ) -> None:
@@ -196,19 +210,35 @@ class API:
 
     @Api.requires_auth
     @Api.requires_permission("delete")
-    def delete(self, domain: str, api: Api = Depends(converter.create)) -> None:
+    def delete(
+        self, domain: str, type: str | None = None, api: Api = Depends(converter.create)
+    ) -> None:
+        if type is None:
+            try:
+                type = api.user_cache_data["domains"]["ctih"]["type"]
+            except KeyError:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Domain type could not be fetched. Please specify it manually with the `type` query param",
+                )
+
         if not self.domains.delete_domain(api.username, domain):
             raise HTTPException(
                 status_code=403,
                 detail="Domain does not exist, or user does not own it.",
+            )
+        if not self.dns.delete_domain(domain, type):
+            raise HTTPException(
+                status_code=403,
+                detail="DNS deletion failed: maybe the domain doesnt exist? Try specifying a type manually",
             )
 
     @Api.requires_auth
     @Api.requires_permission("list")
     def get_domains(
         self, api: Api = Depends(converter.create)
-    ) -> Dict[str, DomainFormat]:
-        return api.affected_domains
+    ) -> Dict[str, DomainFormat | None]:
+        return api.user_domains
 
     def is_available(self, name: str):
         if not self.dns_validation.is_free(name, "A", {}, raise_exceptions=False):

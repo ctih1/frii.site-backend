@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, TYPE_CHECKING, Dict, Any
+from typing import List, TYPE_CHECKING, Dict, Any, Literal
 from typing_extensions import TypedDict
 import logging
 import os
@@ -32,10 +32,12 @@ class ApiPermissionError(Exception): ...
 class ApiRangeError(Exception): ...
 
 
-SessionType = TypedDict(
-    "SessionType", {"user-agent": str, "ip": str, "expire": int, "hash": str}
-)
+ApiPermission = Literal["register", "modify", "delete", "list"]
 
+ApiType = TypedDict(
+    "ApiType",
+    {"string": str, "perms": List[ApiPermission], "domains": List[str], "comment": str},
+)
 
 logger = logging.getLogger("frii.site")
 
@@ -109,7 +111,7 @@ class Api:
         return wrapper
 
     @staticmethod
-    def requires_permission(permission: str):
+    def requires_permission(permission: ApiPermission):
         """A decorator that checks if the session passed is valid and has the correct permission
         Use the same way as @requires_auth, but pass args into this.
 
@@ -141,11 +143,11 @@ class Api:
                     raise ApiError("API is not valid")
 
                 if permission not in target.permissions:
-                    raise ApiPermissionError("User does not have correct permissions")
+                    raise ApiPermissionError(f"API key missing permission {permission}")
 
                 target_domain: str | None = kwargs.get("domain")
 
-                if permission == "content":
+                if permission == "modify" or permission == "delete":
                     if target_domain is None:
                         logger.error(
                             "Target domain not specified in kwargs as 'domain'"
@@ -155,8 +157,9 @@ class Api:
 
                     logger.info(target_domain)
                     logger.info(target.affected_domains)
+
                     if target_domain not in target.affected_domains:
-                        raise ApiRangeError("User cannot access this domain")
+                        raise ApiRangeError(f"API cannot access domain {target_domain}")
 
                     logger.debug(f"API Key can modify domain {target_domain}")
 
@@ -180,7 +183,7 @@ class Api:
         self.key: str = api_key
         self.encrypted_key: str = Encryption.sha256(api_key + "frii.site")
 
-        self.key_data: dict | None = self.__cache_data()
+        self.key_data: ApiType | None = self.__cache_data()
         self.valid: bool = self.__is_valid()
 
         self.user_cache_data: "UserType" = self.__user_cache()
@@ -188,11 +191,17 @@ class Api:
         self.permissions: list = self.__get_permimssions()
 
         if self.key_data:
-            self.affected_domains: dict = self.key_data.get("domains", {})
-        else:
-            self.affected_domains = {}
+            self.affected_domains: List[str] = self.key_data.get("domains", [])
+            self.user_domains: Dict[str, DomainFormat | None] = {
+                domain: self.user_cache_data["domains"].get(domain)
+                for domain in self.affected_domains
+            }
 
-    def __cache_data(self) -> dict | None:
+        else:
+            self.affected_domains = []
+            self.user_domains = {}
+
+    def __cache_data(self) -> ApiType | None:
         user_data = self.users_table.find_item(
             {f"api-keys.{self.encrypted_key}": {"$exists": True}}
         )
@@ -229,10 +238,14 @@ class Api:
 
     @staticmethod
     def create(
-        username: str, users: Users, comment: str, permissions: List[str]
+        username: str,
+        users: Users,
+        comment: str,
+        permissions: List[ApiPermission],
+        domains: List[str],
     ) -> str:
         """
-        Creates a new session for the given user.
+        Creates a new api key for the given user.
         Args:
             username (str): The username of the user.
             ip (str): The IP address of the user.
@@ -245,21 +258,21 @@ class Api:
                                     and the session ID if successful.
         """
 
-        api_key: str = "$APIV1=" + Encryption.generate_random_string(32)
+        api_key: str = "$APIV2=" + Encryption.generate_random_string(32)
         user_data: UserType | None = users.find_user({"_id": username})
         if user_data is None:
             raise ValueError("User not found")
 
         user_domains: Dict[str, "DomainFormat"] = user_data["domains"]
 
-        for domain in user_domains:
+        for domain in domains:
             if domain not in list(user_domains.keys()):
-                raise PermissionError("User does not own domain")
+                raise PermissionError(f"User does not own domain {domain}")
 
-        key = {
+        key: ApiType = {
             "string": users.encryption.encrypt(api_key),
             "perms": permissions,
-            "domains": user_domains,
+            "domains": domains,
             "comment": comment,
         }
 
@@ -270,7 +283,7 @@ class Api:
         return api_key
 
     def delete(self, key_id: str) -> bool:
-        """Deletes a specific session.
+        """Deletes a specific API key.
 
         Arguements:
             self: being an instance of Session to authenticate that the person trying to delete the session actually has permissions to do so

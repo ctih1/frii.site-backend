@@ -22,14 +22,21 @@ from security.session import (
     SessionPermissonError,
     SESSION_TOKEN_LENGTH,
 )
-from security.api import Api
+from security.api import Api, ApiPermission, ApiType
 from security.convert import Convert
 from mail.email import Email
 from security.captcha import Captcha
 
 from dns_.dns import DNS
 
-from server.routes.models.user import MFACreation, SignUp, PasswordReset, ApiGetKeys
+from server.routes.models.user import (
+    ApiCreationBody,
+    ApiDeletion,
+    MFACreation,
+    SignUp,
+    PasswordReset,
+    ApiGetKeys,
+)
 
 converter: Convert = Convert()
 logger: logging.Logger = logging.getLogger("frii.site")
@@ -213,6 +220,40 @@ class User:
             methods=["POST"],
             responses={
                 403: {"description": "User does not own requested domains"},
+                460: {"description": "Invalid session"},
+            },
+            status_code=200,
+            tags=["account", "api"],
+        )
+
+        self.router.add_api_route(
+            "/api/get-keys",
+            self.get_api_keys,
+            methods=["GET"],
+            responses={
+                460: {"description": "Invalid session"},
+            },
+            status_code=200,
+            tags=["account", "api"],
+        )
+
+        self.router.add_api_route(
+            "/api/get-key",
+            self.get_key,
+            methods=["GET"],
+            responses={
+                460: {"description": "Invalid session"},
+            },
+            status_code=200,
+            tags=["account", "api"],
+        )
+
+        self.router.add_api_route(
+            "/api/delete-key",
+            self.delete_api_key,
+            methods=["DELETE"],
+            responses={
+                404: {"description": "Key does not exist"},
                 460: {"description": "Invalid session"},
             },
             status_code=200,
@@ -483,84 +524,64 @@ class User:
     def create_api_token(
         self,
         request: Request,
-        comment: str,
-        permissions: List[str],
+        body: ApiCreationBody,
         session: Session = Depends(converter.create),
     ) -> str:
         api_key: str
         try:
-            api_key = Api.create(session.username, self.table, comment, permissions)
+            api_key = Api.create(
+                session.username,
+                self.table,
+                body.comment,
+                body.permissions,
+                body.domains,
+            )
         except PermissionError:
-            raise HTTPException(403)
+            raise HTTPException(403, detail="You need to own domains specified")
 
         return api_key
 
     @Session.requires_auth
     def get_api_keys(
         self, request: Request, session: Session = Depends(converter.create)
-    ) -> List[ApiGetKeys]:
+    ) -> Dict[str, ApiType]:
+        api_keys = session.user_cache_data.get("api-keys", {})
 
-        api_keys = session.user_cache_data["api-keys"]
-        user_keys: List[Dict] = []
+        return api_keys
 
-        # convert old api key format into new one:
-        def convert_keys(key: dict) -> Dict:
-            updated_key = {
-                "key": key["key"],
-                "domains": key["domains"],
-                "comment": key["comment"],
-                "perms": [],
-            }
+    @Session.requires_auth
+    def get_key(
+        self,
+        hash: str,
+        request: Request,
+        session: Session = Depends(converter.create),
+    ) -> str:
+        api_keys = session.user_cache_data.get("api-keys", {})
 
-            has_migratable_perms: bool = any(
-                [item in ["content", "type", "domain", "view"] for item in key["perms"]]
-            )
+        if api_keys.get(hash) is None:
+            raise HTTPException(status_code=404, detail="Key does not exist!")
 
-            if not has_migratable_perms:
-                raise ValueError("No keys to migrate!")
+        if api_keys.get(hash, {}).get("string") is None:  # type: ignore [call-overload]
+            raise HTTPException(status_code=412, detail="Wrong API key format!")
 
-            logger.info("Migrating API key...")
+        logger.info(api_keys.get(hash, {}).get("string", ""))
+        return self.encryption.decrypt(api_keys.get(hash, {}).get("string", ""))  # type: ignore [call-overload]
 
-            for perm in key["perms"]:
-                if perm in ["content", "type"] and "modify" not in updated_key["perms"]:
-                    updated_key["perms"].append("content")
-                elif perm == "domain":
-                    updated_key["perms"].append("register")
-                elif perm == "view":
-                    updated_key["perms"].append("list")
-                else:
-                    logger.info("No migrateable keys found")
+    @Session.requires_auth
+    def delete_api_key(
+        self,
+        body: ApiDeletion,
+        request: Request,
+        session: Session = Depends(converter.create),
+    ) -> None:
+        api_keys = session.user_cache_data.get("api-keys", {})
 
-            return key
+        if body.hash not in api_keys:
+            raise HTTPException(status_code=404, detail="Key does not exist")
 
-        for key in api_keys:
-            decrypted_access_key: str = self.table.encryption.decrypt(
-                api_keys[key]["string"]
-            )
-
-            api_key = {
-                "key": decrypted_access_key,
-                "domains": api_keys[key]["domains"],
-                "perms": api_keys[key]["perms"],
-                "comment": api_keys[key]["comment"],
-            }
-
-            try:
-                logger.info(
-                    f"API key {key[:4]}... needs to be migrated. Performing automatic migration"
-                )
-                updated_key: Dict = convert_keys(api_key)
-                self.table.modify_document(
-                    {"_id": session.username}, "$set", f"api-keys.{key}", updated_key
-                )
-
-                user_keys.append(updated_key)
-
-            except ValueError:
-                logger.info("API key is up to date.")
-                user_keys.append(api_key)
-
-        return user_keys  # type: ignore[return-value]
+        self.table.remove_key(
+            {"_id": session.user_cache_data["_id"]}, f"api-keys.{body.hash}"
+        )
 
     @Session.requires_auth
     def get_gdpr(
