@@ -564,7 +564,6 @@ class User:
         if api_keys.get(hash, {}).get("string") is None:  # type: ignore [call-overload]
             raise HTTPException(status_code=412, detail="Wrong API key format!")
 
-        logger.info(api_keys.get(hash, {}).get("string", ""))
         return self.encryption.decrypt(api_keys.get(hash, {}).get("string", ""))  # type: ignore [call-overload]
 
     @Session.requires_auth

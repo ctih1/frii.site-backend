@@ -7,7 +7,7 @@ from database.tables.sessions import Sessions
 valid_key: Api = MagicMock(spec=Api)
 valid_key.valid = True
 
-valid_key.permissions = ["content", "register", "get"]
+valid_key.permissions = ["modify", "register", "list"]
 valid_key.affected_domains = ["test", "affected"]
 
 invalid_key: Api = MagicMock(spec=Api)
@@ -54,7 +54,7 @@ def test_requires_perms_invalid():
 
 def test_modification_domain():
     @Api.requires_auth
-    @Api.requires_permission("content")
+    @Api.requires_permission("modify")
     def mock_function(api, domain):
         return "Executed"
 
@@ -64,7 +64,7 @@ def test_modification_domain():
 
 def test_invalid_modification_domain():
     @Api.requires_auth
-    @Api.requires_permission("content")
+    @Api.requires_permission("modify")
     def mock_function(api, domain):
         return "Executed"
 
