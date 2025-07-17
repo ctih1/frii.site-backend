@@ -63,7 +63,15 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://www.frii.site",
+        "https://development.frii.site",
+        "https://canary.frii.site",
+        "https://red.frii.site",
+        "https://legacy.frii.site",
+        "https://frii-site-frontend.vercel.app",
+        "http://localhost",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
