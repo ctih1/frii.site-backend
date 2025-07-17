@@ -245,6 +245,7 @@ class Session:
         self.token_result: AccessTokenData | InvalidToken = Session.__get_payload(self.token, "access")  # type: ignore
 
         self.valid: bool = True
+        self.expired: bool = False
 
         if isinstance(self.token_result, InvalidToken):
             self.valid = False
@@ -255,9 +256,8 @@ class Session:
             if not self.session_table.get_session(self.data["jti"]):
                 self.valid = False
 
-        self.expired: bool = False
-
         self.username: str = "" if not self.valid else self.data["sub"]
+        self.user_id = self.username
 
         self.user_cache_data: UserType = self.__user_cache()
         self.permissions: list = self.__get_permimssions()
@@ -536,7 +536,7 @@ class Session:
             )
         if session_data.get("type") == "access":
             success = self.session_table.delete_session_pair(
-                session_data.get("parent", "")
+                session_data.get("parent", "")  # type: ignore[arg-type]
             )
         else:
             logger.warning("Old sesssion schema found")

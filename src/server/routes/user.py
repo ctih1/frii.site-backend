@@ -401,12 +401,17 @@ class User:
         if not refresh_token:
             raise HTTPException(status_code=412, detail="refresh-token cookie missing")
 
+        client = request.client
+        if not client:
+            raise HTTPException(status_code=500, detail="Invalid client?")
+
         session_data = Session.refresh(
             refresh_token,
             self.session_table,
             request.headers.get("User-Agent", ""),
-            request.client.host,
+            client.host,  # type: ignore[attr-defined]
         )
+
         if not session_data:
             raise HTTPException(status_code=465, detail="Failed to refresh token")
 
@@ -548,7 +553,7 @@ class User:
 
         try:
             self.table.modify_document(
-                {"_id": code_status["account"]}, "$set", "verified", True
+                {"_id": code_status.get("account", None)}, "$set", "verified", True
             )
         except FilterMatchError:
             raise HTTPException(status_code=404)
@@ -572,15 +577,15 @@ class User:
     def logout(
         self, request: Request, session: Session = Depends(converter.create)
     ) -> None:
-        session_id_hash: str
+        session_id: str
         if request.headers.get("specific") == "true":
             # The following will not be null if since if `specified` then id header must be present
-            session_id_hash = request.headers.get("id")  # type: ignore[assignment]
+            session_id = request.headers.get("id")  # type: ignore[assignment]
         else:
-            session_id_hash = Encryption.sha256(session.id)
+            session_id = session.data.get("jti", "")
 
         try:
-            session.delete(session_id_hash)
+            session.delete(session_id)
         except SessionError:
             raise HTTPException(404)
         except SessionPermissonError:
@@ -675,7 +680,7 @@ class User:
         if not code_status["valid"]:
             raise HTTPException(status_code=400, detail="Code is not valid")
 
-        user_id: str = code_status["account"]
+        user_id: str = code_status.get("account", "")
         user_data: UserType | None = self.table.find_user({"_id": user_id})
 
         if user_data is None:
@@ -701,7 +706,7 @@ class User:
             raise HTTPException(status_code=403, detail="Invalid code")
 
         password: str = self.encryption.create_password(body.hashed_password)
-        username: str = code_status["account"]
+        username: str = code_status.get("account", "")
 
         Session.clear_sessions(username, self.session_table)
 
