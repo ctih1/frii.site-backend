@@ -277,14 +277,23 @@ class Users(Table):
         if user_data is None:
             raise UserNotExistError("Invalid user")
 
+        # Two different filters because in the middle of migrating the session to JWTs
         session_data = session_table.find_items(
-            {"owner-hash": Encryption.sha256(user_id + "frii.site")}
+            {
+                "$or": [
+                    {"owner-hash": Encryption.sha256(user_id + "frii.site")},
+                    {"$and": [{"owner": user_id}, {"type": "refresh"}]},
+                ]
+            }
         )
 
         for session in session_data:
             # NOTE: If you're an admin and want to make a session last forever, this cant handle much lol
             # I tried using 3025 and `.timestamp()` just errored out
-            session["expire"] = round(session.get("expire").timestamp())  # type: ignore[union-attr]
+            if session.get("expire"):
+                session["expires"] = round(session.get("expire").timestamp())  # type: ignore[union-attr]
+            elif session.get("expires"):
+                session["expires"] = round(session.get("expires").timestamp())  # type: ignore[union-attr]
 
         return {
             "username": self.encryption.decrypt(user_data["display-name"]),

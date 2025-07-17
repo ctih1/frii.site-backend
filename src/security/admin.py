@@ -22,7 +22,7 @@ class DomainDeletionError(Exception): ...
 class GenericDeletionError(Exception): ...
 
 
-class AccountData(TypedDict, UserPageType):
+class AccountData(UserPageType):
     domains: Dict[str, DomainFormat]
     id: str
     banned: bool

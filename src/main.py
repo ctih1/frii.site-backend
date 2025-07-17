@@ -14,6 +14,7 @@ os.environ["started-at"] = str(start)
 
 
 if "run" in sys.argv:
+    os.environ["debug"] = "True"
     import uvicorn  # type: ignore
 
     uvicorn.run(app)

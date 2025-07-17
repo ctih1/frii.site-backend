@@ -17,7 +17,7 @@ class Convert:
         if session_id is None:
             raise SessionError("Session id is none")
 
-        return Session(session_id, request.client.host, self.users, self.sessions)  # type: ignore[union-attr]
+        return Session(session_id, self.users, self.sessions)  # type: ignore[union-attr]
 
 
 class ConvertAPI:

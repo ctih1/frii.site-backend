@@ -20,7 +20,7 @@ from security.session import (
     SessionCreateStatus,
     SessionError,
     SessionPermissonError,
-    SESSION_TOKEN_LENGTH,
+    REFRESH_AMOUNT,
 )
 from security.api import Api, ApiPermission, ApiType
 from security.convert import Convert
@@ -77,7 +77,8 @@ class User:
                     "description": "Login succesfull",
                     "content": {
                         "application/json": {
-                            "code": f"String with the length of {SESSION_TOKEN_LENGTH}"
+                            "auth-token": f"Token you can use for accessing things",
+                            "refresh-token": "Refreshing your auth-token after it expires in 15 minutes",
                         }
                     },
                 },
@@ -85,6 +86,25 @@ class User:
                 401: {"description": "Invalid password"},
                 412: {"description": "2FA code required to be passed in X-MFA-Code"},
                 429: {"description": "Invalid captcha"},
+            },
+            tags=["account", "session"],
+        )
+
+        self.router.add_api_route(
+            "/refresh",
+            self.refresh,
+            methods=["POST"],
+            responses={
+                200: {
+                    "description": "Refreshed tokens succesfully",
+                    "content": {
+                        "application/json": {
+                            "auth-token": f"Token you can use for accessing things",
+                            "refresh-token": "Refreshing your auth-token after it expires in 15 minutes",
+                        }
+                    },
+                },
+                460: {"description": "Invalid key"},
             },
             tags=["account", "session"],
         )
@@ -358,11 +378,51 @@ class User:
         )
 
         if session_status["mfa_required"]:
-            logger.debug(f'MFA error {session_status["code"]}')
+            logger.debug(f"MFA error")
             raise HTTPException(status_code=412, detail="MFA required")
 
         if session_status["success"]:
-            return JSONResponse({"auth-token": session_status["code"]})
+            resp = JSONResponse({"auth-token": session_status["access_token"]})
+
+            resp.set_cookie(
+                "refresh-token",
+                session_status["refresh_token"] or "invalid code",
+                max_age=REFRESH_AMOUNT,
+                path="/refresh",
+                httponly=True,
+                samesite="strict",
+            )
+
+            return resp
+
+    def refresh(self, request: Request):
+        refresh_token: str | None = request.cookies.get("refresh-token")
+
+        if not refresh_token:
+            raise HTTPException(status_code=412, detail="refresh-token cookie missing")
+
+        session_data = Session.refresh(
+            refresh_token,
+            self.session_table,
+            request.headers.get("User-Agent", ""),
+            request.client.host,
+        )
+        if not session_data:
+            raise HTTPException(status_code=465, detail="Failed to refresh token")
+
+        access_token, refresh_token = session_data
+        resp = JSONResponse({"auth-token": access_token})
+
+        resp.set_cookie(
+            "refresh-token",
+            refresh_token,
+            path="/refresh",
+            samesite="strict",
+            httponly=True,
+            max_age=REFRESH_AMOUNT,
+        )
+
+        return resp
 
     def create_mfa(
         self, request: Request, session: Session = Depends(converter.create)
@@ -497,8 +557,14 @@ class User:
 
     @Session.requires_auth
     def send_account_deletion(
-        self, request: Request, session: Session = Depends(converter.create)
+        self,
+        request: Request,
+        x_mfa_code: Annotated[str, Header()],
+        session: Session = Depends(converter.create),
     ):
+        if not session.check_code(x_mfa_code):
+            raise HTTPException(status_code=412, detail="Invalid MFA code")
+
         email: str = self.encryption.decrypt(session.user_cache_data["email"])
         self.email.send_delete_code(session.username, email)
 
