@@ -390,7 +390,8 @@ class User:
                 max_age=REFRESH_AMOUNT,
                 path="/refresh",
                 httponly=True,
-                samesite="strict",
+                samesite="none",
+                secure=os.environ.get("debug", "False") == "False",
             )
 
             return resp
@@ -422,9 +423,10 @@ class User:
             "refresh-token",
             refresh_token,
             path="/refresh",
-            samesite="strict",
+            samesite="none",
             httponly=True,
             max_age=REFRESH_AMOUNT,
+            secure=os.environ.get("debug", "False") == "False",
         )
 
         return resp
