@@ -248,12 +248,15 @@ class Session:
         self.expired: bool = False
 
         if isinstance(self.token_result, InvalidToken):
+            logger.info("Token is not valid!")
             self.valid = False
             if self.token_result == InvalidToken.expired:
+                logger.info("Token has expired.")
                 self.expired = True
         else:
             self.data: AccessTokenData = self.token_result
             if not self.session_table.get_session(self.data["jti"]):
+                logger.info(f"Couldnt find session {self.data['jti']} in db")
                 self.valid = False
 
         self.username: str = "" if not self.valid else self.data["sub"]
