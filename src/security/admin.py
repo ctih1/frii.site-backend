@@ -26,8 +26,10 @@ class AccountData(UserPageType):
     domains: Dict[str, DomainFormat]
     id: str
     banned: bool
-    ban_reasons: List[str]
+    ban_reasons: List[str] | None
     last_login: int
+    api_key_amount: int
+    accessed_from: List[str]
 
 
 logger: logging.Logger = logging.getLogger("frii.site")
@@ -96,23 +98,57 @@ class Admin:
         user_data = self.users.find_user(
             {f"domains.{domain}": {"$exists": True}}, find_banned=True
         )
-        if user_data is None:
+
+        if not user_data:
+            logger.info("Failed to find user")
             return None
 
-        user_page_data = self.users.get_user_profile(
-            user_data["_id"], self.sessions, True
+        return self.get_user_details_by_id(user_data["_id"])
+
+    def find_by_username(self, username: str) -> AccountData | None:
+        """
+        ALmost the same as get_user_details_by_id, but usernames are not case sensitive
+        """
+
+        user: UserType | None = self.users.find_user(
+            {
+                "$or": [
+                    {"_id": username},
+                    {"username": Encryption.sha256(username.lower())},
+                ]
+            }
         )
 
-        if user_page_data is None:
-            logger.warning("Couldnt find in second stage?")
+        if not user:
             return None
 
-        account_data: AccountData = user_page_data  # type: ignore[assignment]
+        return self.get_user_details_by_id(user["_id"])
+
+    def get_user_details_by_id(self, user_id: str) -> AccountData | None:
+        user_profile: UserPageType | None = self.users.get_user_profile(
+            user_id, self.sessions, True
+        )
+
+        if not user_profile:
+            logger.info("User profile did not yield results")
+            return None
+
+        user_data: UserType | None = self.users.find_user({"_id": user_id}, True)
+
+        if user_data is None:
+            raise ValueError("Could not get user from db")
+
+        account_data: AccountData = user_profile  # type: ignore[assignment]
         account_data["domains"] = user_data["domains"]
         account_data["id"] = user_data["_id"]
         account_data["banned"] = user_data.get("banned", False)
-        account_data["ban_reasons"] = user_data.get("ban-reasons", [])
-        account_data["last_login"] = user_data.get("last-login", 0)
+        account_data["ban_reasons"] = user_data.get("ban-reasons")
+        account_data["last_login"] = round(user_data.get("last-login", 0))
+        account_data["created"] = round(user_data.get("created", 0))
+        account_data["api_key_amount"] = len(user_data.get("api-keys", []))
+        account_data["accessed_from"] = list(set(user_data.get("accessed-from", [])))[
+            :50
+        ]
 
         return account_data
 

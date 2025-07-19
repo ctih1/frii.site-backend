@@ -125,6 +125,19 @@ class Admin:
         )
 
         self.router.add_api_route(
+            "/user/get/username",
+            self.find_user_by_username,
+            methods=["GET"],
+            responses={
+                200: {"description": "User found"},
+                404: {"description": "User not found"},
+                460: {"description": "Invalid session"},
+                461: {"description": "Invalid permissions"},
+            },
+            tags=["admin"],
+        )
+
+        self.router.add_api_route(
             "/user/get/email",
             self.find_user_by_email,
             methods=["GET"],
@@ -184,31 +197,47 @@ class Admin:
     @Session.requires_auth
     @Session.requires_permission(permission="account")
     def delete_domain(
-        self, domain: str, userid: str, session: Session = Depends(converter.create)
+        self,
+        domain: str,
+        userid: str,
+        reason: str,
+        session: Session = Depends(converter.create),
     ):
-        self.admin_tools.domains.delete_domain(userid, domain)
+        target_user = self.admin_tools.get_user_details_by_id(userid)
+        if not target_user:
+            raise HTTPException(status_code=404, detail="Couldnt find a user")
+
+        email: str = target_user["email"]
+
+        dns_success = self.admin_tools.dns.delete_domain(
+            self.admin_tools.domains.beautify_domain_name(domain),
+            target_user["domains"][self.admin_tools.domains.clean_domain_name(domain)][
+                "type"
+            ],
+        )
+
+        if dns_success:
+            if self.admin_tools.domains.delete_domain(userid, domain):
+                self.admin_tools.email.send_domain_termination_email(
+                    email, self.admin_tools.domains.beautify_domain_name(domain), reason
+                )
+                logger.info(f"Deleted domain {domain}")
+            else:
+                logger.warning("Failed to delete domain (DB)")
+        else:
+            logger.warning("Failed to delete domain (DNS)")
+            raise HTTPException(status_code=500, detail="Failed to delete domain")
 
     @Session.requires_auth
     @Session.requires_permission(permission="userdetails")
     def find_user_by_domain(
         self, domain: str, session: Session = Depends(converter.create)
     ) -> AccountData:
-        user_profile: UserPageType | None = self.admin_tools.find_user_by_domain(domain)
+        user_profile: AccountData | None = self.admin_tools.find_user_by_domain(domain)
         if user_profile is None:
             raise HTTPException(status_code=404, detail="User not found")
 
-        user_data = self.users.find_user({f"domains.{domain}": {"$exists": True}}, True)
-        if user_data is None:
-            raise HTTPException(status_code=404, detail="User not found (find_item)")
-
-        account_data: AccountData = user_profile  # type: ignore[assignment]
-        account_data["domains"] = user_data["domains"]
-        account_data["id"] = user_data["_id"]
-        account_data["banned"] = user_data.get("banned", False)
-        account_data["ban_reasons"] = user_data.get("ban-reasons", [])
-        account_data["last_login"] = user_data.get("last-login", 0)
-
-        return account_data
+        return user_profile
 
     @Session.requires_auth
     @Session.requires_permission(permission="userdetails")
@@ -221,48 +250,38 @@ class Admin:
         if user_data is None:
             raise HTTPException(status_code=404, detail="User not found (find_item)")
 
-        user_profile: UserPageType | None = self.users.get_user_profile(
-            user_data["_id"], self.sessions, find_banned=True
+        user_profile: AccountData | None = self.admin_tools.get_user_details_by_id(
+            user_data["_id"]
         )
 
-        if user_profile is None:
-            raise HTTPException(status_code=404, detail="User not found")
+        if not user_profile:
+            raise HTTPException(status_code=404, detail="User not found (get profile)")
 
-        account_data: AccountData = user_profile  # type: ignore[assignment]
-        account_data["domains"] = user_data["domains"]
-        account_data["id"] = user_data["_id"]
-        account_data["banned"] = user_data.get("banned", False)
-        account_data["ban_reasons"] = user_data.get("ban-reasons", [])
-        account_data["last_login"] = user_data.get("last-login", 0)
-
-        return account_data
+        return user_profile
 
     @Session.requires_auth
     @Session.requires_permission(permission="userdetails")
     def find_user_by_id(
         self, id: str, session: Session = Depends(converter.create)
     ) -> AccountData:
-        try:
-            user_profile: UserPageType = self.users.get_user_profile(
-                id, self.sessions, find_banned=True
-            )
-            user_data = self.users.find_user({"_id": id}, True)
-            if user_data is None:
-                raise HTTPException(
-                    status_code=404, detail="User not found (find_item)"
-                )
+        user_data: AccountData | None = self.admin_tools.get_user_details_by_id(id)
 
-            account_data: AccountData = user_profile  # type: ignore[assignment]
-            account_data["domains"] = user_data["domains"]
-            account_data["id"] = user_data["_id"]
-            account_data["banned"] = user_data.get("banned", False)
-            account_data["ban_reasons"] = user_data.get("ban-reasons", [])
-            account_data["last_login"] = user_data.get("last-login", 0)
-
-            return account_data
-
-        except UserNotExistError:
+        if not user_data:
             raise HTTPException(status_code=404, detail="User not found")
+
+        return user_data
+
+    @Session.requires_auth
+    @Session.requires_permission(permission="userdetails")
+    def find_user_by_username(
+        self, username: str, session: Session = Depends(converter.create)
+    ) -> AccountData:
+        user_data: AccountData | None = self.admin_tools.find_by_username(username)
+
+        if not user_data:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        return user_data
 
     @Session.requires_auth
     @Session.requires_permission(permission="dns")

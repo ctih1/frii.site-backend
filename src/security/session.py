@@ -83,8 +83,19 @@ class RefreshTokenData(TypedDict):
 REFRESH_AMOUNT = 14 * 60 * 60 * 24
 
 
-SessionType = TypedDict(
-    "SessionType", {"user-agent": str, "ip": str, "expire": int, "id": str}
+OldSessionType = TypedDict(
+    "OldSessionType", {"user-agent": str, "ip": str, "expires": int, "id": str}
+)
+NewSessionType = TypedDict(
+    "NewSessionType",
+    {
+        "owner": str,
+        "type": Literal["refresh", "access"],
+        "created": int,
+        "expires": int,
+        "agent": str,
+        "ip": str,
+    },
 )
 
 logger: logging.Logger = logging.getLogger("frii.site")
@@ -107,129 +118,6 @@ class UserManager(threading.Thread):
 
 
 class Session:
-    @staticmethod
-    def find_session_instance(args: tuple, kwargs: dict) -> Session | None:
-        """Finds session from args or kwargs."""
-        target: Session | None = None
-        if kwargs.get("session") is not None:
-            target = kwargs.get("session")  # type: ignore
-        else:
-            for arg in args:
-                if type(arg) is Session:
-                    target = arg
-        return target
-
-    @staticmethod
-    def requires_auth(func):
-        """A decorator that checks if the session passed is valid.
-        How to use:
-
-        To use:
-            A: pass a key word arguement "session"
-            B: pass an arguement with the sesson type
-
-            Example:
-                ```
-                a = Session() # a session object
-                get_user_domains("domain", a, "1.2.3.4")
-                ```
-
-                or
-
-                `get_user_domains(domain="domain", session=a, content="1.2.3.4") # note the "session" must be the keyword if you use keyword args`
-        To create:
-            ```
-            @Session.requires_auth
-            def get_user_data(domain:str, session:Session, content:str) ->  None:
-                ...
-            ```
-
-        Throws:
-            SessionError if session is not valid
-        """
-
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            target: Session | None = Session.find_session_instance(args, kwargs)
-            if not target or not target.valid:
-                raise SessionError("Session is not valid (requires auth)")
-            a = func(*args, **kwargs)
-            return a
-
-        return wrapper
-
-    @staticmethod
-    def requires_permission(permission: str):
-        """A decorator that checks if the session passed is valid and has the correct permission
-        Use the same way as @requires_auth, but pass args into this.
-
-        To create:
-            List of permissions:
-                - admin: Not used anywhere atp
-                - reports: Used to manage and view vulnerabilities
-                - wildcards: To use wildcards in domains (*.frii.site)
-                - userdetails: To view user details for abuse complaints
-            ```
-            @requires_permission(perm="admin")
-            def ban_user(target_user:str, reason:str, session:Session) -> None:
-                ...
-            ```
-        To use:
-            Same way as @requires_auth
-
-        Throws:
-            SessionError if session is invalid
-            SessionPermissionError: if permission is not met
-        """
-
-        def decor(func):
-            @wraps(func)
-            def wrapper(*args, **kwargs):
-                target: Session | None = Session.find_session_instance(args, kwargs)
-                if not target or not target.valid:
-                    raise SessionError("Session is not valid (requires permission)")
-                if permission not in target.permissions:
-                    raise SessionPermissonError(
-                        "User does not have correct permissions"
-                    )
-                a = func(*args, **kwargs)
-                return a
-
-            return wrapper
-
-        return decor
-
-    @staticmethod
-    def requires_flag(flag: str):
-        """To check if user has a specific feature flag
-        To use:
-            Same as @requires_auth
-        To create:
-            ```
-            @requires_flag(flag="store")
-            def get_store_credits(session:Session) -> None:
-                ...
-            ```
-        Throws:
-            SessionError if session is not valid
-            SessionFlagError if user does not have the flag.
-        """
-
-        def decor(func):
-            @wraps(func)
-            def wrapper(*args, **kwargs):
-                target: Session | None = Session.find_session_instance(args, kwargs)
-                if not target or not target.valid:
-                    raise SessionError("Session is not valid (flag missing)")
-                if flag not in target.flags:
-                    raise SessionFlagError(f"User is missing flag {flag}")
-                a = func(*args, **kwargs)
-                return a
-
-            return wrapper
-
-        return decor
-
     def __init__(self, access_token: str, users: Users, sessions: Sessions) -> None:
         """Creates a Session object.
         Arguements:
@@ -266,6 +154,8 @@ class Session:
         self.permissions: list = self.__get_permimssions()
         self.flags: list = self.__get_flags()
 
+        threading.Thread(target=self.__perform_migrations).start()
+
     def __user_cache(self) -> UserType:
         """
         Caches the user data of the session. You should use session.user_cache for every query,
@@ -280,6 +170,29 @@ class Session:
             return {}  # type: ignore[typeddict-item]
 
         return data
+
+    def __perform_migrations(self) -> None:
+        logger.info("Starting migrations")
+
+        repaired_domains = {}
+        domains_fixed: int = 0
+        for domain, data in self.user_cache_data["domains"].items():
+            if domain.lower() != domain:
+                logger.info("Detected domain that isnt lowercase")
+                domains_fixed += 1
+
+            repaired_domains[domain.lower()] = data
+
+        if (
+            len(repaired_domains) > 0
+            and len(repaired_domains) == self.user_cache_data["domains"]
+        ):
+            logger.info(f"Fixed {domains_fixed} out of {len(repaired_domains)} domains")
+
+            self.users_table.modify_document(
+                {"_id": self.username}, "$set", "domains", repaired_domains
+            )
+            self.user_cache_data["domains"] = repaired_domains
 
     def __get_permimssions(self):
         if not self.valid:
@@ -348,7 +261,7 @@ class Session:
 
         target_session = session_table.get_session(token_data["jti"])
         if target_session is None:
-            logger.error("Session has been nuked already")
+            logger.error(f"Token {token_data['jti']} has been nuked already")
             return False
 
         delete_thread = threading.Thread(
@@ -505,7 +418,7 @@ class Session:
                 ip,
             )
 
-        threading.Thread(target=submit_into_db).start()
+        submit_into_db()
 
         return access_token, refresh_token
 
@@ -695,3 +608,126 @@ class Session:
             },
             "totp",
         )
+
+    @staticmethod
+    def find_session_instance(args: tuple, kwargs: dict) -> Session | None:
+        """Finds session from args or kwargs."""
+        target: Session | None = None
+        if kwargs.get("session") is not None:
+            target = kwargs.get("session")  # type: ignore
+        else:
+            for arg in args:
+                if type(arg) is Session:
+                    target = arg
+        return target
+
+    @staticmethod
+    def requires_auth(func):
+        """A decorator that checks if the session passed is valid.
+        How to use:
+
+        To use:
+            A: pass a key word arguement "session"
+            B: pass an arguement with the sesson type
+
+            Example:
+                ```
+                a = Session() # a session object
+                get_user_domains("domain", a, "1.2.3.4")
+                ```
+
+                or
+
+                `get_user_domains(domain="domain", session=a, content="1.2.3.4") # note the "session" must be the keyword if you use keyword args`
+        To create:
+            ```
+            @Session.requires_auth
+            def get_user_data(domain:str, session:Session, content:str) ->  None:
+                ...
+            ```
+
+        Throws:
+            SessionError if session is not valid
+        """
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            target: Session | None = Session.find_session_instance(args, kwargs)
+            if not target or not target.valid:
+                raise SessionError("Session is not valid (requires auth)")
+            a = func(*args, **kwargs)
+            return a
+
+        return wrapper
+
+    @staticmethod
+    def requires_permission(permission: str):
+        """A decorator that checks if the session passed is valid and has the correct permission
+        Use the same way as @requires_auth, but pass args into this.
+
+        To create:
+            List of permissions:
+                - admin: Not used anywhere atp
+                - reports: Used to manage and view vulnerabilities
+                - wildcards: To use wildcards in domains (*.frii.site)
+                - userdetails: To view user details for abuse complaints
+            ```
+            @requires_permission(perm="admin")
+            def ban_user(target_user:str, reason:str, session:Session) -> None:
+                ...
+            ```
+        To use:
+            Same way as @requires_auth
+
+        Throws:
+            SessionError if session is invalid
+            SessionPermissionError: if permission is not met
+        """
+
+        def decor(func):
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                target: Session | None = Session.find_session_instance(args, kwargs)
+                if not target or not target.valid:
+                    raise SessionError("Session is not valid (requires permission)")
+                if permission not in target.permissions:
+                    raise SessionPermissonError(
+                        "User does not have correct permissions"
+                    )
+                a = func(*args, **kwargs)
+                return a
+
+            return wrapper
+
+        return decor
+
+    @staticmethod
+    def requires_flag(flag: str):
+        """To check if user has a specific feature flag
+        To use:
+            Same as @requires_auth
+        To create:
+            ```
+            @requires_flag(flag="store")
+            def get_store_credits(session:Session) -> None:
+                ...
+            ```
+        Throws:
+            SessionError if session is not valid
+            SessionFlagError if user does not have the flag.
+        """
+
+        def decor(func):
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                target: Session | None = Session.find_session_instance(args, kwargs)
+                if not target or not target.valid:
+                    raise SessionError("Session is not valid (flag missing)")
+                if flag not in target.flags:
+                    raise SessionFlagError(f"User is missing flag {flag}")
+                a = func(*args, **kwargs)
+                return a
+
+            return wrapper
+
+        return decor

@@ -70,7 +70,7 @@ app.add_middleware(
         "https://red.frii.site",
         "https://legacy.frii.site",
         "https://frii-site-frontend.vercel.app",
-        "http://localhost",
+        "http://localhost:5173",
     ],
     allow_credentials=True,
     allow_methods=["*"],

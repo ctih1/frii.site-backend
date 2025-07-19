@@ -57,21 +57,6 @@ class Domains(Users):
         if user_data is None:
             raise UserNotExistError("User does not exist")
 
-        repaired_domains = {}
-        for domain, data in user_data["domains"].items():
-            if domain.lower() == domain:
-                logger.info("Skipping domain due to it being lowercase already")
-                continue
-
-            repaired_domains[domain.lower()] = data
-
-        logger.info(f"Fixed {len(repaired_domains)} domains")
-        if len(repaired_domains) > 0:
-            self.modify_document(
-                {"_id": target_user}, "$set", "domains", repaired_domains
-            )
-            user_data["domains"] = repaired_domains
-
         return user_data["domains"]
 
     def modify_domain(

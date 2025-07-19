@@ -5,6 +5,7 @@ funcs/__pycache__/
 key.pem
 cert.pem
 .env
+.env.testing
 .venv/
 venv/
 .vercel

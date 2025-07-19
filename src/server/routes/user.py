@@ -384,14 +384,16 @@ class User:
         if session_status["success"]:
             resp = JSONResponse({"auth-token": session_status["access_token"]})
 
+            is_debug = os.environ.get("debug", "False") == "True"
+
             resp.set_cookie(
                 "refresh-token",
                 session_status["refresh_token"] or "invalid code",
                 max_age=REFRESH_AMOUNT,
                 path="/refresh",
                 httponly=True,
-                samesite="none",
-                secure=os.environ.get("debug", "False") == "False",
+                samesite="lax" if is_debug else "none",
+                secure=False if is_debug else True,
             )
 
             return resp
@@ -419,14 +421,16 @@ class User:
         access_token, refresh_token = session_data
         resp = JSONResponse({"auth-token": access_token})
 
+        is_debug = os.environ.get("debug", "False") == "True"
+
         resp.set_cookie(
             "refresh-token",
             refresh_token,
             path="/refresh",
-            samesite="none",
             httponly=True,
             max_age=REFRESH_AMOUNT,
-            secure=os.environ.get("debug", "False") == "False",
+            samesite="lax" if is_debug else "none",
+            secure=False if is_debug else True,
         )
 
         return resp

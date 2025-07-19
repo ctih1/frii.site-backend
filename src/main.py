@@ -18,3 +18,7 @@ if "run" in sys.argv:
     import uvicorn  # type: ignore
 
     uvicorn.run(app)
+else:
+    print(
+        "WARNING: If you are trying to self host and want to use uvicorn for debug mode, please run `python src/main.py run`"
+    )

@@ -17,6 +17,7 @@ verify_template: str
 recovery_template: str
 deletion_template: str
 banned_template: str
+domain_delete_template: str
 
 with open(os.path.join(template_path, "verify.html"), "r") as f:
     verify_template = "\n".join(f.readlines())
@@ -29,6 +30,9 @@ with open(os.path.join(template_path, "recovery.html"), "r") as f:
 
 with open(os.path.join(template_path, "banned.html"), "r") as f:
     banned_template = "\n".join(f.readlines())
+
+with open(os.path.join(template_path, "domain_removal.html"), "r") as f:
+    domain_delete_template = "\n".join(f.readlines())
 
 logger: logging.Logger = logging.getLogger("frii.site")
 
@@ -159,4 +163,28 @@ class Email:
             )
         except resend.exceptions.ResendError as e:
             logger.error(f"Failed to send ban email {e.suggested_action}")
+            return False
+
+    def send_domain_termination_email(
+        self, target_email: str, domain: str, reason: str
+    ):
+        """
+        Sends an email to the user that one of their domains have been deleted
+
+        domain should be the domain without the frii.site suffix
+        """
+
+        try:
+            resend.Emails.send(
+                {
+                    "from": "send@frii.site",
+                    "to": target_email,
+                    "subject": "Domain removed",
+                    "html": domain_delete_template.replace(
+                        "{{reason}}", reason
+                    ).replace("{{domain}}", domain),
+                }
+            )
+        except resend.exceptions.ResendError as e:
+            logger.error(f"Failed to send domain email {e.suggested_action}")
             return False
