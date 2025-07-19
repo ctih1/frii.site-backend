@@ -303,6 +303,7 @@ class Users(Table):
             if session.get("expire"):
                 logger.debug("Found old schema session")
                 session["expires"] = round(session.get("expire").timestamp())  # type: ignore[union-attr]
+                del session["expire"]
 
             elif session.get("expires"):
                 logger.debug("Found new schema session")

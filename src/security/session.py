@@ -172,6 +172,10 @@ class Session:
         return data
 
     def __perform_migrations(self) -> None:
+        if not self.user_cache_data["_id"]:
+            logger.info("Skipping migrations invalid data")
+            return
+
         logger.info("Starting migrations")
 
         repaired_domains = {}
