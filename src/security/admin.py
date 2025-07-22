@@ -26,7 +26,7 @@ class AccountData(UserPageType):
     domains: Dict[str, DomainFormat]
     id: str
     banned: bool
-    ban_reasons: List[str] | None
+    ban_reasons: List[str] | List[List[str]] | None
     last_login: int
     api_key_amount: int
     accessed_from: List[str]
