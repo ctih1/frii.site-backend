@@ -4,6 +4,12 @@ import json
 from database.tables.users import UserType
 from pymongo import MongoClient
 
+os.environ["RESEND_EMAIL"] = "ignore@example.com"
+os.environ["PDNS_API_KEY"] = "testingtest"
+os.environ["PDNS_SERVER_URL"] = "testingtest.com"
+os.environ["TARGET_ZONE"] = "frii.site"
+os.environ["WEBSITE_URL"] = "gääh"
+
 
 def load_user() -> UserType:
     example_normal = {}
