@@ -126,6 +126,11 @@ class Users(Table):
         site_variant: Literal["canary.frii.site", "www.frii.site"] | str,
     ) -> None:
         start = time.time()
+        if not os.getenv("DC_WEBHOOK", ""):
+            logger.debug("Skipping discord analytics due to DC_WEBHOOK not being set")
+            return
+
+            
         requests.post(
             os.getenv("DC_WEBHOOK", ""),
             data=json.dumps(

@@ -41,8 +41,18 @@ class Email:
     def __init__(self, codes: "Codes", users: "Users", encryption: Encryption):
         self.codes: Codes = codes
         self.users: "Users" = users
+        self.email = os.getenv("RESEND_EMAIL") or ""
+        self.frontend_url = os.getenv("WEBSITE_URL") or ""
         self.encryption: Encryption = encryption  # type: ignore[arg-type]
         resend.api_key = os.getenv("RESEND_KEY")
+
+        if not self.email:
+            logger.critical("Missing RESEND_EMAIL!")
+            quit(50)
+
+        if not self.frontend_url:
+            logger.critical("Missing WEBSITE_URL from .env!")
+            quit(51)
 
     def is_taken(self, email: str) -> bool:
         replaced_email: str = email.replace(
@@ -60,7 +70,7 @@ class Email:
         try:
             resend.Emails.send(
                 {
-                    "from": "send@frii.site",
+                    "from": self.email,
                     "to": email,
                     "subject": "Verify your account",
                     "html": verify_template.replace(
@@ -101,13 +111,14 @@ class Email:
         try:
             resend.Emails.send(
                 {
-                    "from": "send@frii.site",
+                    "from": self.email,
                     "to": email,
                     "subject": "Account deletion",
                     "html": deletion_template.replace(
-                        "{{link}}", f"https://www.frii.site/verify/{code}"
+                        "{{link}}",
+                        f"{self.frontend_url}/account/verify/deletion/{code}",
                     ),
-                    "text": f"Go to https://www.frii.site/verify/{code} to verify your account",
+                    "text": f"Go to {self.frontend_url}/account/verify/deletion/{code} to verify your account",
                 }
             )
 
@@ -120,7 +131,7 @@ class Email:
 
     def send_password_code(self, username: str) -> bool:
         hash_username: str = Encryption.sha256(username)
-        user_data: "UserType" | None = self.users.find_user({"_id": hash_username})
+        user_data: UserType | None = self.users.find_user({"_id": hash_username})
 
         if user_data is None:
             logger.debug(f"User {username} does not exist")
@@ -132,11 +143,11 @@ class Email:
         try:
             resend.Emails.send(
                 {
-                    "from": "send@frii.site",
+                    "from": self.email,
                     "to": user_email,
                     "subject": "Password recovery",
                     "html": recovery_template.replace(
-                        "{{link}}", f"https://www.frii.site/account/recover?c={code}"
+                        "{{link}}", f"{self.frontend_url}/account/recover?c={code}"
                     ),
                 }
             )
@@ -155,7 +166,7 @@ class Email:
         try:
             resend.Emails.send(
                 {
-                    "from": "send@frii.site",
+                    "from": self.email,
                     "to": target_email,
                     "subject": "Account termination",
                     "html": banned_template.replace("{{reasons}}", reasons_html),
@@ -177,7 +188,7 @@ class Email:
         try:
             resend.Emails.send(
                 {
-                    "from": "send@frii.site",
+                    "from": self.email,
                     "to": target_email,
                     "subject": "Domain removed",
                     "html": domain_delete_template.replace(

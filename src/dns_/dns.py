@@ -26,7 +26,22 @@ class DNS:
         """Documentation for functions were created by ai."""
         self.table = domains
         self.key: str = os.getenv("PDNS_API_KEY") or ""
+        self.url: str = os.getenv("PDNS_SERVER_URL") or ""
+        self.domain: str = os.getenv("TARGET_ZONE") or ""
 
+        if not self.key:
+            logger.critical("PDNS_API_KEY missing from .env! (or .env not loaded properly?)")
+            quit(1)
+        if not self.url:
+            logger.critical("PDNS_SERVER_URL missing from .env! (or .env not loaded proplerly?)")
+            quit(2)
+        if not self.domain:
+            logger.critical("TARGET_ZONE missing from .env! (or .env not loaded proplerly?)")
+            quit(3)
+
+        logger.info(f"Initializing {self.url} with zone {self.domain}")
+
+        
     def modify_domain(
         self,
         content: str,
@@ -43,7 +58,7 @@ class DNS:
             type (str): The type of DNS record (e.g., A, CNAME, TXT, NS).
             domain (str): The domain name for the DNS record.
             user_id (str): The ID of the user registering the domain
-        Returns:
+        Returns:ac
             bool: if record was modified succesfully
         Raises:
             DNSException: If the request to modify the DNS record fails.
@@ -59,12 +74,12 @@ class DNS:
         content = sanitize(content, type)
 
         request = requests.patch(
-            f"https://vps.frii.site/api/v1/servers/localhost/zones/frii.site.",
+            f"{self.url}/api/v1/servers/localhost/zones/{self.domain}.",
             data=json.dumps(
                 {
                     "rrsets": [
                         {
-                            "name": domain + ".frii.site.",
+                            "name": domain + f".{self.domain}.",
                             "type": type,
                             "ttl": ttl,
                             "changetype": "REPLACE",
@@ -112,12 +127,12 @@ class DNS:
         content = sanitize(content, type)
 
         request = requests.patch(
-            f"https://vps.frii.site/api/v1/servers/localhost/zones/frii.site.",
+            f"{self.url}/api/v1/servers/localhost/zones/{self.domain}.",
             data=json.dumps(
                 {
                     "rrsets": [
                         {
-                            "name": domain + ".frii.site.",
+                            "name": domain + f".{self.domain}.",
                             "type": type,
                             "ttl": 3400,
                             "changetype": "REPLACE",
@@ -166,7 +181,7 @@ class DNS:
             values["ip"] = sanitize(values["ip"], values["type"])
 
             rrset = {
-                "name": domain + ".frii.site.",
+                "name": domain + f".{self.domain}.",
                 "type": values["type"],
                 "ttl": 3400,
                 "changetype": "REPLACE",
@@ -182,7 +197,7 @@ class DNS:
             rrsets.append(rrset)
 
         request = requests.patch(
-            f"https://vps.frii.site/api/v1/servers/localhost/zones/frii.site.",
+            f"{self.url}/api/v1/servers/localhost/zones/{self.domain}.",
             data=json.dumps({"rrsets": rrsets}),
             headers={"Content-Type": "application/json", "X-API-Key": self.key},
         )
@@ -209,12 +224,12 @@ class DNS:
         logger.info(f"deleting record {domain}")
 
         request = requests.patch(
-            f"https://vps.frii.site/api/v1/servers/localhost/zones/frii.site.",
+            f"{self.url}/api/v1/servers/localhost/zones/{self.domain}.",
             data=json.dumps(
                 {
                     "rrsets": [
                         {
-                            "name": domain + ".frii.site.",
+                            "name": domain + f".{self.domain}.",
                             "type": type,
                             "changetype": "DELETE",
                             "records": [{}],
@@ -245,7 +260,7 @@ class DNS:
 
         rrsets = [
             {
-                "name": k + ".frii.site.",
+                "name": k + f".{self.domain}.",
                 "type": v,
                 "changetype": "DELETE",
                 "records": [{}],
@@ -254,7 +269,7 @@ class DNS:
         ]
 
         request = requests.patch(
-            f"https://vps.frii.site/api/v1/servers/localhost/zones/frii.site.",
+            f"{self.url}/api/v1/servers/localhost/zones/{self.domain}.",
             data=json.dumps({"rrsets": rrsets}),
             headers={"Content-Type": "application/json", "X-API-Key": self.key},
         )
