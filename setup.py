@@ -21,7 +21,7 @@ class ColorLogger(logging.Formatter):
     def __init__(self, colors: bool = True):  # Disable colors for text output
         self.colors = colors
 
-        self._format = f"[ %(levelname)-8s ]: %(message)s {DEBUG} [%(asctime)s.%(msecs)03d] (%(filename)s:%(funcName)s) {RESET}"
+        self._format = f"[ %(levelname)-8s ]: %(message)s {DEBUG} [%(asctime)s.%(msecs)03d] {RESET}"
 
         self.FORMATS = {
             logging.DEBUG: DEBUG + self._format + RESET,
@@ -188,9 +188,6 @@ def setup() -> None:
         }
     )
 
-    logger.info("Setting up requirements...")
-    subprocess.run(sys.executable)
-
 
 def write_env_file(env_keys: Dict[str, str]) -> None:
     logger.info(f"Generating .env file with {len(env_keys)} keys")
@@ -210,3 +207,7 @@ if __name__ == "__main__":
     logger.info("Tweak CORS supported domains in src/server/main.py")
     logger.info("Install uvicorn (pip install uvicorn) to run the server")
     logger.info("Run the server with 'python (or python3) src/main.py run'")
+    logger.info("Create an account")
+    logger.info(
+        "Give yourself admin priviliges (permissions.userdetails: true, permissions.dns: true, permissions.manage-permissions: true, permissions.account: true)"
+    )
