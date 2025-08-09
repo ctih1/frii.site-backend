@@ -157,10 +157,7 @@ class Api:
 
                     logger.info(target_domain)
                     logger.info(target.affected_domains)
-                    if (
-                        target_domain != "*"
-                        and target_domain not in target.affected_domains
-                    ):
+                    if target_domain not in target.affected_domains:
                         raise ApiRangeError("User cannot access this domain")
 
                     logger.debug(f"API Key can modify domain {target_domain}")
@@ -194,6 +191,13 @@ class Api:
 
         if self.key_data:
             self.affected_domains: List[str] = self.key_data.get("domains", [])
+
+            if "*" in self.affected_domains:
+                logger.info(
+                    "Wildcard in affected domains! Filling with users domains..."
+                )
+                self.affected_domains = list(self.user_cache_data["domains"].keys())
+
             self.user_domains: Dict[str, DomainFormat | None] = {
                 domain: self.user_cache_data["domains"].get(domain)
                 for domain in self.affected_domains
