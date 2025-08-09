@@ -157,9 +157,11 @@ class Api:
 
                     logger.info(target_domain)
                     logger.info(target.affected_domains)
-
-                    if target_domain not in target.affected_domains:
-                        raise ApiRangeError(f"API cannot access domain {target_domain}")
+                    if (
+                        target_domain != "*"
+                        and target_domain not in target.affected_domains
+                    ):
+                        raise ApiRangeError("User cannot access this domain")
 
                     logger.debug(f"API Key can modify domain {target_domain}")
 
@@ -265,8 +267,8 @@ class Api:
 
         user_domains: Dict[str, "DomainFormat"] = user_data["domains"]
 
-        for domain in domains:
-            if domain not in list(user_domains.keys()):
+        for domain in user_domains:
+            if domain not in list(user_domains.keys()) and domain != "*":
                 raise PermissionError(f"User does not own domain {domain}")
 
         key: ApiType = {
