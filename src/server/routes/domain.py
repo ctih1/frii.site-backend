@@ -249,9 +249,19 @@ class Domain:
                 status_code=403,
                 detail="Domain does not exist, or user does not own it.",
             )
-        domain_type: str = session.user_cache_data["domains"][
-            self.domains.clean_domain_name(domain)
-        ]["type"]
+
+        if not session.user_cache_data:
+            return None
+
+        domain_type: str | None = (
+            session.user_cache_data.get("domains", {})
+            .get(self.domains.clean_domain_name(domain), {})
+            .get("type")
+        )
+
+        if domain_type is None:
+            return None
+
         self.dns.delete_domain(domain, domain_type)
 
     def is_available(self, name: str):
