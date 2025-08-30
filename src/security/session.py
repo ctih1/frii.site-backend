@@ -265,7 +265,7 @@ class Session:
 
         target_session = session_table.get_session(token_data["jti"])
         if target_session is None:
-            logger.error(f"Token {token_data['jti']} has been nuked already")
+            logger.warning(f"Token {token_data['jti']} has been nuked already")
             return False
 
         delete_thread = threading.Thread(
