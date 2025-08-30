@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pymongo import MongoClient
 from dotenv import load_dotenv
-import json
+import sentry_sdk
 
 from server.routes.user import User
 from server.routes.invite import Invite
@@ -58,6 +58,13 @@ tags_metadata: List[Dict[str, str]] = [
     {"name": "api", "description": "Routes that can be used with the public API"},
 ]
 
+sentry_sdk.init(
+    dsn=os.environ.get("SENTRY_DSN"),
+    environment=(
+        "development" if os.environ.get("debug", "") == "True" else "production"
+    ),
+    send_default_pii=True,
+)
 
 app = FastAPI()
 
@@ -141,6 +148,11 @@ app.include_router(
         v.users, v.sessions, AdminTools(v.users, v.sessions, v.domains, v.dns, email)
     ).router
 )
+
+
+@app.get("/sentry-debug")
+async def trigger_error():
+    division_by_zero = 1 / 0
 
 
 @app.get("/status")
