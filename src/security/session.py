@@ -172,7 +172,7 @@ class Session:
         return data
 
     def __perform_migrations(self) -> None:
-        if not self.user_cache_data["_id"]:
+        if not self.user_cache_data.get("_id"):
             logger.info("Skipping migrations invalid data")
             return
 
