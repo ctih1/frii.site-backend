@@ -15,8 +15,10 @@ def sanitize(content: str, type: str) -> str:
     if (type == "CNAME" or type == "NS") and not content.endswith("."):
         content += "."
 
-    if type == "TXT" and not content.startswith("") and not content.endswith(""):
-        content = '"' + content + '"'
+    if type == "TXT" and not content.startswith('"'):
+        content = '"' + content
+    if type == "TXT" and not content.endswith('"'):
+        content += '"'
 
     return content
 

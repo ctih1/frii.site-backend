@@ -11,7 +11,7 @@ from database.tables.invitation import Invites as InviteTable
 from database.tables.sessions import Sessions as SessionTable
 from database.exceptions import UserNotExistError, InviteException
 from security.encryption import Encryption
-from security.session import Session, SessionCreateStatus, SESSION_TOKEN_LENGTH
+from security.session import Session, SessionCreateStatus
 from security.convert import Convert
 from mail.email import Email
 

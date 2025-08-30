@@ -61,13 +61,13 @@ class Table:
         logger.info(f"Creating delete index for key {date_key} on table {self.name}")
         self.table.create_index(date_key, expireAfterSeconds=1)
 
-    def delete_document(self, filter: Dict[str, Any]) -> None:
+    def delete_document(self, filter: Dict[str, Any]) -> int:
         logger.info(f"Deleting document with filter {filter} on table {self.name}")
-        self.table.delete_one(filter)
+        return self.table.delete_one(filter).deleted_count
 
-    def delete_many(self, filter: Dict[str, Any]) -> None:
+    def delete_many(self, filter: Dict[str, Any]) -> int:
         logger.info(f"Deleting many with filter {filter} on table {self.name}")
-        self.table.delete_many(filter)
+        return self.table.delete_many(filter).deleted_count
 
     def remove_key(self, filter: Dict[str, Any], key: str) -> bool:
         updateResult = self.table.update_one(filter, {"$unset": {key: ""}})

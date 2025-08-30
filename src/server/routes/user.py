@@ -20,7 +20,7 @@ from security.session import (
     SessionCreateStatus,
     SessionError,
     SessionPermissonError,
-    SESSION_TOKEN_LENGTH,
+    REFRESH_AMOUNT,
 )
 from security.api import Api, ApiPermission, ApiType
 from security.convert import Convert
@@ -77,7 +77,8 @@ class User:
                     "description": "Login succesfull",
                     "content": {
                         "application/json": {
-                            "code": f"String with the length of {SESSION_TOKEN_LENGTH}"
+                            "auth-token": f"Token you can use for accessing things",
+                            "refresh-token": "Refreshing your auth-token after it expires in 15 minutes",
                         }
                     },
                 },
@@ -85,6 +86,25 @@ class User:
                 401: {"description": "Invalid password"},
                 412: {"description": "2FA code required to be passed in X-MFA-Code"},
                 429: {"description": "Invalid captcha"},
+            },
+            tags=["account", "session"],
+        )
+
+        self.router.add_api_route(
+            "/refresh",
+            self.refresh,
+            methods=["POST"],
+            responses={
+                200: {
+                    "description": "Refreshed tokens succesfully",
+                    "content": {
+                        "application/json": {
+                            "auth-token": f"Token you can use for accessing things",
+                            "refresh-token": "Refreshing your auth-token after it expires in 15 minutes",
+                        }
+                    },
+                },
+                460: {"description": "Invalid key"},
             },
             tags=["account", "session"],
         )
@@ -358,11 +378,62 @@ class User:
         )
 
         if session_status["mfa_required"]:
-            logger.debug(f'MFA error {session_status["code"]}')
+            logger.debug(f"MFA error")
             raise HTTPException(status_code=412, detail="MFA required")
 
         if session_status["success"]:
-            return JSONResponse({"auth-token": session_status["code"]})
+            resp = JSONResponse({"auth-token": session_status["access_token"]})
+
+            is_debug = os.environ.get("debug", "False") == "True"
+
+            resp.set_cookie(
+                "refresh-token",
+                session_status["refresh_token"] or "invalid code",
+                max_age=REFRESH_AMOUNT,
+                path="/refresh",
+                httponly=True,
+                samesite="lax" if is_debug else "none",
+                secure=False if is_debug else True,
+            )
+
+            return resp
+
+    def refresh(self, request: Request):
+        refresh_token: str | None = request.cookies.get("refresh-token")
+
+        if not refresh_token:
+            raise HTTPException(status_code=412, detail="refresh-token cookie missing")
+
+        client = request.client
+        if not client:
+            raise HTTPException(status_code=500, detail="Invalid client?")
+
+        session_data = Session.refresh(
+            refresh_token,
+            self.session_table,
+            request.headers.get("User-Agent", ""),
+            client.host,  # type: ignore[attr-defined]
+        )
+
+        if not session_data:
+            raise HTTPException(status_code=465, detail="Failed to refresh token")
+
+        access_token, refresh_token = session_data
+        resp = JSONResponse({"auth-token": access_token})
+
+        is_debug = os.environ.get("debug", "False") == "True"
+
+        resp.set_cookie(
+            "refresh-token",
+            refresh_token,
+            path="/refresh",
+            httponly=True,
+            max_age=REFRESH_AMOUNT,
+            samesite="lax" if is_debug else "none",
+            secure=False if is_debug else True,
+        )
+
+        return resp
 
     def create_mfa(
         self, request: Request, session: Session = Depends(converter.create)
@@ -488,7 +559,7 @@ class User:
 
         try:
             self.table.modify_document(
-                {"_id": code_status["account"]}, "$set", "verified", True
+                {"_id": code_status.get("account", None)}, "$set", "verified", True
             )
         except FilterMatchError:
             raise HTTPException(status_code=404)
@@ -497,24 +568,31 @@ class User:
 
     @Session.requires_auth
     def send_account_deletion(
-        self, request: Request, session: Session = Depends(converter.create)
+        self,
+        request: Request,
+        x_mfa_code: Annotated[str, Header()],
+        session: Session = Depends(converter.create),
     ):
+        from_url: str = request.headers.get("Origin", "https://www.frii.site")
+        if not session.check_code(x_mfa_code):
+            raise HTTPException(status_code=412, detail="Invalid MFA code")
+
         email: str = self.encryption.decrypt(session.user_cache_data["email"])
-        self.email.send_delete_code(session.username, email)
+        self.email.send_delete_code(from_url, session.username, email)
 
     @Session.requires_auth
     def logout(
         self, request: Request, session: Session = Depends(converter.create)
     ) -> None:
-        session_id_hash: str
+        session_id: str
         if request.headers.get("specific") == "true":
             # The following will not be null if since if `specified` then id header must be present
-            session_id_hash = request.headers.get("id")  # type: ignore[assignment]
+            session_id = request.headers.get("id")  # type: ignore[assignment]
         else:
-            session_id_hash = Encryption.sha256(session.id)
+            session_id = session.data.get("jti", "")
 
         try:
-            session.delete(session_id_hash)
+            session.delete(session_id)
         except SessionError:
             raise HTTPException(404)
         except SessionPermissonError:
@@ -609,7 +687,7 @@ class User:
         if not code_status["valid"]:
             raise HTTPException(status_code=400, detail="Code is not valid")
 
-        user_id: str = code_status["account"]
+        user_id: str = code_status.get("account", "")
         user_data: UserType | None = self.table.find_user({"_id": user_id})
 
         if user_data is None:
@@ -635,7 +713,7 @@ class User:
             raise HTTPException(status_code=403, detail="Invalid code")
 
         password: str = self.encryption.create_password(body.hashed_password)
-        username: str = code_status["account"]
+        username: str = code_status.get("account", "")
 
         Session.clear_sessions(username, self.session_table)
 

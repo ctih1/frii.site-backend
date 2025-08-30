@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pymongo import MongoClient
 from dotenv import load_dotenv
-import json
+import sentry_sdk
 
 from server.routes.user import User
 from server.routes.invite import Invite
@@ -58,12 +58,27 @@ tags_metadata: List[Dict[str, str]] = [
     {"name": "api", "description": "Routes that can be used with the public API"},
 ]
 
+sentry_sdk.init(
+    dsn=os.environ.get("SENTRY_DSN"),
+    environment=(
+        "development" if os.environ.get("debug", "") == "True" else "production"
+    ),
+    send_default_pii=True,
+)
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://www.frii.site",
+        "https://development.frii.site",
+        "https://canary.frii.site",
+        "https://red.frii.site",
+        "https://legacy.frii.site",
+        "https://frii-site-frontend.vercel.app",
+        "http://localhost:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -135,6 +150,11 @@ app.include_router(
 )
 
 
+@app.get("/sentry-debug")
+async def trigger_error():
+    division_by_zero = 1 / 0
+
+
 @app.get("/status")
 async def status():
     return JSONResponse(
@@ -188,4 +208,14 @@ async def api_permission_except_handler(request: Request, e: Exception):
             "message": "API key does not have the necessary permissions to perform this action",
             "detail": e.args,
         },
+    )
+
+
+@app.exception_handler(KeyError)
+async def key_error_handler(request: Request, e: Exception):
+    logger.error(e)
+    logger.error(e.__traceback__)
+    return JSONResponse(
+        status_code=500,
+        content={"message": "KeyError"},
     )

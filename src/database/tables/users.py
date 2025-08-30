@@ -19,7 +19,7 @@ from database.exceptions import (
 
 from mail.email import Email
 from security.encryption import Encryption
-from security.session import SessionType
+from security.session import NewSessionType, OldSessionType
 from security.api import ApiType
 
 if TYPE_CHECKING:
@@ -69,7 +69,7 @@ UserPageType = TypedDict(
         "verified": bool,
         "permissions": Dict[str, Any],
         "beta-enroll": bool,
-        "sessions": List[SessionType],
+        "sessions": List[NewSessionType | OldSessionType] | List[dict],
         "invites": Dict[str, InviteType],
         "mfa_enabled": bool,
     },
@@ -172,7 +172,17 @@ class Users(Table):
             logger.error("Email is already taken")
             raise EmailException("Email is already in use!")
 
-        if self.find_item({"_id": hashed_username}) is not None:
+        if (
+            self.find_item(
+                {
+                    "$or": [
+                        {"_id": hashed_username},
+                        {"username": lowercase_hashed_username},
+                    ]
+                }
+            )
+            is not None
+        ):
             raise UsernameException("Username already taken!")
 
         account_data: UserType = {
@@ -277,14 +287,27 @@ class Users(Table):
         if user_data is None:
             raise UserNotExistError("Invalid user")
 
+        # Two different filters because in the middle of migrating the session to JWTs
         session_data = session_table.find_items(
-            {"owner-hash": Encryption.sha256(user_id + "frii.site")}
-        )
+            {
+                "$or": [
+                    {"owner-hash": Encryption.sha256(user_id + "frii.site")},
+                    {"$and": [{"owner": user_id}, {"type": "refresh"}]},
+                ]
+            }
+        )  # type: ignore[assignment]
 
         for session in session_data:
             # NOTE: If you're an admin and want to make a session last forever, this cant handle much lol
             # I tried using 3025 and `.timestamp()` just errored out
-            session["expire"] = round(session.get("expire").timestamp())  # type: ignore[union-attr]
+            if session.get("expire"):
+                logger.debug("Found old schema session")
+                session["expires"] = round(session.get("expire").timestamp())  # type: ignore[union-attr]
+                del session["expire"]
+
+            elif session.get("expires"):
+                logger.debug("Found new schema session")
+                session["expires"] = round(session.get("expires").timestamp())  # type: ignore[union-attr]
 
         return {
             "username": self.encryption.decrypt(user_data["display-name"]),
@@ -316,7 +339,7 @@ class Users(Table):
                     "deleted-in": datetime.datetime.now()
                     + datetime.timedelta(weeks=52),
                 },
-                "$push": {"ban-reasons": reasons},
+                "$set": {"ban-reasons": reasons},
             },
         )
         self.delete_in_time("deleted-in")

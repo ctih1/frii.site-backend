@@ -17,6 +17,7 @@ verify_template: str
 recovery_template: str
 deletion_template: str
 banned_template: str
+domain_delete_template: str
 
 with open(os.path.join(template_path, "verify.html"), "r") as f:
     verify_template = "\n".join(f.readlines())
@@ -29,6 +30,9 @@ with open(os.path.join(template_path, "recovery.html"), "r") as f:
 
 with open(os.path.join(template_path, "banned.html"), "r") as f:
     banned_template = "\n".join(f.readlines())
+
+with open(os.path.join(template_path, "domain_removal.html"), "r") as f:
+    domain_delete_template = "\n".join(f.readlines())
 
 logger: logging.Logger = logging.getLogger("frii.site")
 
@@ -92,18 +96,17 @@ class Email:
 
         return True
 
-    def send_delete_code(self, username: str, email: str) -> bool:
+    def send_delete_code(self, base_url: str, username: str, email: str) -> bool:
         code: str = self.codes.create_code("deletion", username)
+        url = base_url + f"/account/verify/deletion?code={code}"
         try:
             resend.Emails.send(
                 {
                     "from": "send@frii.site",
                     "to": email,
                     "subject": "Account deletion",
-                    "html": deletion_template.replace(
-                        "{{link}}", f"https://www.frii.site/verify/{code}"
-                    ),
-                    "text": f"Go to https://www.frii.site/verify/{code} to verify your account",
+                    "html": deletion_template.replace("{{link}}", url),
+                    "text": f"Go to {url} to delete your account",
                 }
             )
 
@@ -159,4 +162,28 @@ class Email:
             )
         except resend.exceptions.ResendError as e:
             logger.error(f"Failed to send ban email {e.suggested_action}")
+            return False
+
+    def send_domain_termination_email(
+        self, target_email: str, domain: str, reason: str
+    ):
+        """
+        Sends an email to the user that one of their domains have been deleted
+
+        domain should be the domain without the frii.site suffix
+        """
+
+        try:
+            resend.Emails.send(
+                {
+                    "from": "send@frii.site",
+                    "to": target_email,
+                    "subject": "Domain removed",
+                    "html": domain_delete_template.replace(
+                        "{{reason}}", reason
+                    ).replace("{{domain}}", domain),
+                }
+            )
+        except resend.exceptions.ResendError as e:
+            logger.error(f"Failed to send domain email {e.suggested_action}")
             return False

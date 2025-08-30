@@ -35,7 +35,7 @@ class Domains(Users):
 
     @staticmethod
     def clean_domain_name(input: str) -> str:
-        return input.replace(".", "[dot]")
+        return input.replace(".", "[dot]").lower()
 
     def beautify_domain_name(self, input: str) -> str:
         return input.replace("[dot]", ".")
@@ -56,6 +56,7 @@ class Domains(Users):
         user_data: UserType | None = self.find_user({"_id": target_user})
         if user_data is None:
             raise UserNotExistError("User does not exist")
+
         return user_data["domains"]
 
     def modify_domain(
