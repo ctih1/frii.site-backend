@@ -96,18 +96,17 @@ class Email:
 
         return True
 
-    def send_delete_code(self, username: str, email: str) -> bool:
+    def send_delete_code(self, base_url: str, username: str, email: str) -> bool:
         code: str = self.codes.create_code("deletion", username)
+        url = base_url + f"/account/verify/deletion?code={code}"
         try:
             resend.Emails.send(
                 {
                     "from": "send@frii.site",
                     "to": email,
                     "subject": "Account deletion",
-                    "html": deletion_template.replace(
-                        "{{link}}", f"https://www.frii.site/verify/{code}"
-                    ),
-                    "text": f"Go to https://www.frii.site/verify/{code} to verify your account",
+                    "html": deletion_template.replace("{{link}}", url),
+                    "text": f"Go to {url} to delete your account",
                 }
             )
 

@@ -573,11 +573,12 @@ class User:
         x_mfa_code: Annotated[str, Header()],
         session: Session = Depends(converter.create),
     ):
+        from_url: str = request.headers.get("Origin", "https://www.frii.site")
         if not session.check_code(x_mfa_code):
             raise HTTPException(status_code=412, detail="Invalid MFA code")
 
         email: str = self.encryption.decrypt(session.user_cache_data["email"])
-        self.email.send_delete_code(session.username, email)
+        self.email.send_delete_code(from_url, session.username, email)
 
     @Session.requires_auth
     def logout(
