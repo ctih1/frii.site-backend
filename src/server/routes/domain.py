@@ -254,7 +254,7 @@ class Domain:
             return None
 
         domain_type: str | None = (
-            session.user_cache_data.get("domains", {})
+            session.user_cache_data.get("domains", {})  # type: ignore[call-overload]
             .get(self.domains.clean_domain_name(domain), {})
             .get("type")
         )

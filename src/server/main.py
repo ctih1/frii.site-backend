@@ -197,3 +197,13 @@ async def api_permission_except_handler(request: Request, e: Exception):
             "detail": e.args,
         },
     )
+
+
+@app.exception_handler(KeyError)
+async def key_error_handler(request: Request, e: Exception):
+    logger.error(e)
+    logger.error(e.__traceback__)
+    return JSONResponse(
+        status_code=500,
+        content={"message": "KeyError"},
+    )
