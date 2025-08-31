@@ -339,7 +339,7 @@ class Users(Table):
                     "deleted-in": datetime.datetime.now()
                     + datetime.timedelta(weeks=52),
                 },
-                "$set": {"ban-reasons": reasons},
+                "$push": {"ban-reasons": {"$each": reasons}},
             },
         )
         self.delete_in_time("deleted-in")
