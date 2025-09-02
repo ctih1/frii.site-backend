@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 logger: logging.Logger = logging.getLogger("frii.site")
 
-ALLOWED_TYPES: List[str] = ["A", "CNAME", "TXT", "NS"]
+ALLOWED_TYPES: List[str] = ["A", "AAAA", "CNAME", "TXT", "NS"]
 UserCanRegisterResult = NamedTuple(
     "UserCanRegisterResult", [("success", bool), ("comment", str)]
 )
@@ -53,10 +53,17 @@ class Validation:
         if type.upper() == "A":
             allowed: List[str] = list(string.digits)
             allowed.append(".")
-        else:  # If type is not in checks
-            return False
 
-        return all(char in allowed for char in value)
+            return all(char in allowed for char in value)
+
+        if type.upper() == "AAAA":
+            ipv6_pattern = re.compile(
+                "(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))"
+            )
+            return re.match(string=value, pattern=ipv6_pattern) is not None
+        else:  # If type is not in checks
+            logger.error(f"Type {type} is not valid!")
+            return False
 
     def is_free(
         self,
@@ -105,7 +112,7 @@ class Validation:
         required_domain: str = domain_parts[-1]
 
         if required_domain and is_subdomain and required_domain not in domains:
-            logger.error(f"User does not own {required_domain}")
+            logger.warn(f"User does not own {required_domain}")
             if raise_exceptions:
                 raise SubdomainError(
                     f"User doesn't own '{required_domain}'", required_domain

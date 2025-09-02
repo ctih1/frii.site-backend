@@ -169,7 +169,7 @@ class Users(Table):
         hashed_password: str = Encryption.sha256(password)
 
         if email_instance.is_taken(email):
-            logger.error("Email is already taken")
+            logger.warning("Email is already taken")
             raise EmailException("Email is already in use!")
 
         if (

@@ -31,12 +31,18 @@ class TestDomainValidation:
 
     def test_valid_content(self):
         assert Validation.record_value_valid("1.2.3.4", "A")
+        assert Validation.record_value_valid(
+            "2001:0db8:130f:0000:0000:09c0:876a:130b", "AAAA"
+        )
+        assert Validation.record_value_valid("example.com", "CNAME")
+        assert Validation.record_value_valid("example.com", "NS")
 
     def test_invalid_type(self):
         assert not Validation.record_value_valid("0.0.0.0", "C")
 
     def test_invalid_content_for_type(self):
         assert not Validation.record_value_valid("test.cname.fi", "A")
+        assert not Validation.record_value_valid("testipv6::anothertest", "AAAA")
 
     def test_domain_clean(self):
         assert Domains.clean_domain_name("a.b") == "a[dot]b"
