@@ -8,8 +8,6 @@ from database.tables.sessions import Sessions
 from dns_.validation import Validation
 from dns_.dns import DNS
 from security.encryption import Encryption
-from security.session import Session
-from pymongo import MongoClient
 
 
 def load_user() -> UserType:
@@ -27,12 +25,11 @@ import secrets
 from database.tables.users import Users
 from mail.email import Email
 import time
-from mock import MagicMock
 from dotenv import load_dotenv
 
 load_dotenv()
 
-client = pymongo.MongoClient(os.environ["MONGODB_TEST_URL"])
+client: pymongo.MongoClient = pymongo.MongoClient(os.environ["MONGODB_TEST_URL"])
 
 country_data = (
     {
