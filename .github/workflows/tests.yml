@@ -6,6 +6,20 @@ jobs:
     pytest:
         runs-on: ubuntu-latest
 
+        services:
+          mongodb:
+            image: mongo:7.0
+            ports:
+              - 27017:27017
+            options: >-
+              --health-cmd "mongo --eval 'db.runCommand({ ping: 1 })'" 
+              --health-interval 10s
+              --health-timeout 5s
+              --health-retries 5
+
+        env:
+          MONGODB_TEST_URL: mongodb://localhost:27017/
+
         steps:
             - name: Checkout code
               uses: actions/checkout@v3
@@ -19,6 +33,13 @@ jobs:
               run: |
                 python3 -m pip install --upgrade pip
                 pip3 install -r requirements.txt
+
+            - name: Wait for MongoDB to be ready
+              run: |
+                until mongo --eval "db.adminCommand('ping')" &>/dev/null; do
+                  echo "Waiting for MongoDB..."
+                  sleep 2
+                done
 
             - name: Run pytest
               run: |
