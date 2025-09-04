@@ -21,9 +21,9 @@ class Status(Table):
     def __init__(self, mongo_client: MongoClient):
         super().__init__(mongo_client, "status")
 
-    def get(self) -> StatusType:
+    def get(self) -> StatusType | None:
         logger.info("Getting active status")
-        return self.find_item({"active": True})
+        return self.find_item({"active": True})  # type: ignore
 
     def set(self, message: str):
         self.modify_document({"active": True}, "$set", "active", False, False, True)
