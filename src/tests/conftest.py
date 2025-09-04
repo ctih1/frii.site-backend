@@ -76,7 +76,10 @@ def init_env():
         if db == "admin":
             continue
 
-        print(f"Dropping db {db}")
+        dab = client.get_database(db)
+        for collection in dab.list_collection_names():
+            dab.get_collection(collection).drop()
+
         client.drop_database(db)
 
 
@@ -104,6 +107,7 @@ def create_first_user():
         time.time(),
         _email,
         "TESTING_ENV",
+        dont_send_email=True,
     )
 
     _users.modify_document({"_id": user_id}, "$set", "verified", True)

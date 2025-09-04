@@ -158,6 +158,7 @@ class Users(Table):
         time_signed_up,
         email_instance: Email,
         target_url: str,  # target_url should only be the hostname (e.g canary.frii.site, www.frii.site)
+        dont_send_email: bool = False,
     ) -> str:
 
         logger.info(f"Creating user with username {username}")
@@ -210,16 +211,21 @@ class Users(Table):
         self.insert_document(account_data)
         self.create_index("username")
 
-        if not email_instance.send_verification_code(
-            target_url, hashed_username, email
-        ):
-            logger.info("Failed to send verification")
-            raise EmailException("Email already in use!")
+        if dont_send_email:
+            logger.warning(
+                "Don't send info activated in create_user. This is only meant for testing environments"
+            )
+        else:
+            if not email_instance.send_verification_code(
+                target_url, hashed_username, email
+            ):
+                logger.info("Failed to send verification")
+                raise EmailException("Email already in use!")
 
-        try:
-            self.send_discord_analytic_webhook(country["country"], target_url)
-        except Exception as e:
-            logger.warning(e)
+            try:
+                self.send_discord_analytic_webhook(country["country"], target_url)
+            except Exception as e:
+                logger.warning(e)
 
         return hashed_username
 
