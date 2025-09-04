@@ -205,6 +205,8 @@ class Users(Table):
             "credits": 200,
         }
 
+        print(account_data)
+
         self.insert_document(account_data)
         self.create_index("username")
 
@@ -217,7 +219,7 @@ class Users(Table):
         try:
             self.send_discord_analytic_webhook(country["country"], target_url)
         except Exception as e:
-            logger.error(e)
+            logger.warning(e)
 
         return hashed_username
 

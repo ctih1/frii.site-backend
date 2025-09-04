@@ -85,7 +85,9 @@ class Email:
             return False
 
         logger.info(f"Code {code} is valid... continuing")
-        user_id: str = self.codes.verification_codes[code]["account"]
+        user_id: str = self.encryption.decrypt(
+            self.codes.verification_codes[code]["account"]
+        )
         self.users.modify_document(
             {"_id": user_id}, key="verified", value=True, operation="$set"
         )
@@ -119,7 +121,7 @@ class Email:
 
     def send_password_code(self, username: str) -> bool:
         hash_username: str = Encryption.sha256(username)
-        user_data: "UserType" | None = self.users.find_user({"_id": hash_username})
+        user_data: UserType | None = self.users.find_user({"_id": hash_username})
 
         if user_data is None:
             logger.debug(f"User {username} does not exist")

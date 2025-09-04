@@ -465,7 +465,7 @@ class Session:
         return success
 
     def create_2fa(self) -> dict:
-        """Starts 2FA setup, creats backup keys, and the key itself.
+        """Starts 2FA setup, creates backup keys, and the key itself.
         Users have to verify their 2fa setup (self.verify_2fa) with a seperate request
         to confirm that they have correctly setup 2fa.
 
@@ -574,6 +574,7 @@ class Session:
         if not is_authenticated:
             raise ValueError("Invalid authentication")
 
+        logger.info("Removing MFA from account...")
         self.users_table.remove_key(
             {
                 "_id": self.username,

@@ -93,6 +93,7 @@ class Codes(Table):
                 + datetime.timedelta(seconds=EXPIRE_TIME),
             }
         )
+        logger.info(f"Created code for user {target_username}")
 
         self.delete_in_time("expiresAfter")
 

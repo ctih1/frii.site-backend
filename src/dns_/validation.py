@@ -36,8 +36,6 @@ class Validation:
             allowed.append("_")
 
         valid: bool = all(char in allowed for char in name)
-        logger.debug(name[0])
-        logger.debug(name[-1])
         if type.upper() != "TXT" and (
             name[0] not in always_allowed or name[-1] not in always_allowed
         ):
@@ -147,6 +145,7 @@ class Validation:
 
     @staticmethod
     def can_user_register(domain: str, user: UserType) -> UserCanRegisterResult:
+        """Checks whether user's domain limit is enough to register a domain"""
         is_subdomain = "." in domain
         subdomain_amount: int = 0
 
