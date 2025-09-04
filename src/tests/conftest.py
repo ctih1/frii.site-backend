@@ -64,7 +64,9 @@ def init_env():
     os.environ["JWT_KEY"] = secrets.token_urlsafe(64)
 
     client = pymongo.MongoClient(os.environ["MONGODB_TEST_URL"])
-    if not os.environ["MONGODB_TEST_URL"].startswith("mongodb://192.168"):
+    if not os.environ["MONGODB_TEST_URL"].startswith(
+        "mongodb://192.168"
+    ) and not os.environ["MONGODB_TEST_URL"].startswith("mongodb://localhost"):
         print(
             f"WARNING: test db url: {os.environ['MONGODB_TEST_URL']}. Are you sure it's real?"
         )
