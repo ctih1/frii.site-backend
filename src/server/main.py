@@ -24,6 +24,7 @@ from database.tables.invitation import Invites
 from database.tables.codes import Codes
 from database.tables.domains import Domains
 from database.tables.blogs import Blogs
+from database.tables.status import Status
 
 from dns_.dns import DNS
 
@@ -110,6 +111,9 @@ class VariableInitializer:
     def gather_blogs(self) -> None:
         self.blogs: Blogs = Blogs(client)
 
+    def gather_status(self) -> None:
+        self.status = Status(client)
+
 
 v = VariableInitializer()
 
@@ -120,6 +124,7 @@ threads: Dict[str, threading.Thread] = {
     "codes": threading.Thread(target=v.gather_codes),
     "domains": threading.Thread(target=v.gather_domains),
     "blogs": threading.Thread(target=v.gather_blogs),
+    "status": threading.Thread(target=v.gather_status),
 }
 
 for thread in threads.values():
@@ -150,22 +155,22 @@ app.include_router(
 )
 
 
-@app.get("/sentry-debug")
-async def trigger_error():
-    division_by_zero = 1 / 0
-
-
 @app.get("/status")
 async def status():
-    return JSONResponse(
-        status_code=200,
-        content={
-            "started-at": datetime.datetime.fromtimestamp(
-                float(os.environ.get("started-at"))
-            ).isoformat(),
-            "start-elapsed": f"{os.environ.get('start-elapsed')}s",
-        },
-    )
+    if not v.status:
+        threads["status"].join()
+
+    content = {
+        "started-at": datetime.datetime.fromtimestamp(
+            float(os.environ.get("started-at", "0"))
+        ).isoformat(),
+        "start-elapsed": f"{os.environ.get('start-elapsed')}s",
+    }
+    status = v.status.get()
+    if status != None:
+        content["message"] = status["message"]
+
+    return JSONResponse(status_code=200, content=content)
 
 
 @app.exception_handler(SessionError)
