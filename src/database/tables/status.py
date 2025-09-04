@@ -19,9 +19,10 @@ class StatusType(TypedDict):
 
 class Status(Table):
     def __init__(self, mongo_client: MongoClient):
-        super().__init__(mongo_client, "Status")
+        super().__init__(mongo_client, "status")
 
     def get(self) -> StatusType:
+        logger.info("Getting active status")
         return self.find_item({"active": True})
 
     def set(self, message: str):
