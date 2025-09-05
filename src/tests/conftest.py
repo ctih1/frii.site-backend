@@ -8,6 +8,7 @@ from database.tables.sessions import Sessions
 from dns_.validation import Validation
 from dns_.dns import DNS
 from security.encryption import Encryption
+from security.session import Session
 
 
 def load_user() -> UserType:
@@ -81,6 +82,7 @@ def init_env():
             dab.get_collection(collection).drop()
 
         client.drop_database(db)
+    time.sleep(1)
 
 
 init_env()
@@ -160,6 +162,20 @@ def validation():
 @pytest.fixture(scope="session")
 def sessions():
     yield _sessions
+
+
+@pytest.fixture(scope="session")
+def test_session():
+    session_data = Session.create(
+        _test_user["_id"],  # type: ignore
+        "testing",
+        None,
+        "192.168.1.1",
+        "frii.site-pytest-suite",
+        _users,
+        _sessions,
+    )
+    yield session_data
 
 
 @pytest.fixture(scope="session")
