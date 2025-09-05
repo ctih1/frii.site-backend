@@ -73,37 +73,10 @@ class Api:
 
     @staticmethod
     def requires_auth(func):
-        """A decorator that checks if the session passed is valid.
-        How to use:
-
-        To use:
-            A: pass a key word arguement "session"
-            B: pass an arguement with the sesson type
-
-            Example:
-                ```
-                a = Session() # a session object
-                get_user_domains("domain", a, "1.2.3.4")
-                ```
-
-                or
-
-                `get_user_domains(domain="domain", session=a, content="1.2.3.4") # note the "session" must be the keyword if you use keyword args`
-        To create:
-            ```
-            @Session.requires_auth
-            def get_user_data(domain:str, session:Session, content:str) ->  None:
-                ...
-            ```
-
-        Throws:
-            SessionError if session is not valid
-        """
-
         @wraps(func)
         def wrapper(*args, **kwargs):
-            target: Api = Api.find_api_instance(args, kwargs)
-            if not target.valid:
+            target: Api | None = Api.find_api_instance(args, kwargs)
+            if target is None or not target.valid:
                 raise ApiError("API key is not valid")
             a = func(*args, **kwargs)
             return a
@@ -112,28 +85,6 @@ class Api:
 
     @staticmethod
     def requires_permission(permission: ApiPermission):
-        """A decorator that checks if the session passed is valid and has the correct permission
-        Use the same way as @requires_auth, but pass args into this.
-
-        To create:
-            List of permissions:
-                - admin: Not used anywhere atp
-                - reports: Used to manage and view vulnerabilities
-                - wildcards: To use wildcards in domains (*.frii.site)
-                - userdetails: To view user details for abuse complaints
-            ```
-            @requires_permission(perm="admin")
-            def ban_user(target_user:str, reason:str, session:Session) -> None:
-                ...
-            ```
-        To use:
-            Same way as @requires_auth
-
-        Throws:
-            SessionError if session is invalid
-            SessionPermissionError: if permission is not met
-        """
-
         def decor(func):
             @wraps(func)
             def wrapper(*args, **kwargs) -> Any:
@@ -157,7 +108,11 @@ class Api:
 
                     logger.info(target_domain)
                     logger.info(target.affected_domains)
-                    if target_domain not in target.affected_domains:
+                    if (
+                        target_domain.replace(".", "[dot]")
+                        not in target.affected_domains
+                    ):
+                        logger.warning(f"{target_domain} not in affected domain")
                         raise ApiRangeError("User cannot access this domain")
 
                     logger.debug(f"API Key can modify domain {target_domain}")
@@ -237,7 +192,7 @@ class Api:
         return self.user_cache_data["_id"]
 
     def __get_permimssions(self):
-        if not self.valid:
+        if not self.valid or self.key_data is None:
             return []
 
         return self.key_data["perms"]
@@ -250,19 +205,6 @@ class Api:
         permissions: List[ApiPermission],
         domains: List[str],
     ) -> str:
-        """
-        Creates a new api key for the given user.
-        Args:
-            username (str): The username of the user.
-            ip (str): The IP address of the user.
-            user_agent (str): The user agent string of the user's browser.
-            users (Users): An instance of the Users class for database operations.
-            session_table (Sessions): An instance of the Sessions class for session management.
-        Returns:
-            SessionCreateStatus: An object indicating the success of the session creation,
-                                    whether multi-factor authentication (MFA) is required,
-                                    and the session ID if successful.
-        """
 
         api_key: str = "$APIV2=" + Encryption.generate_random_string(32)
         user_data: UserType | None = users.find_user({"_id": username})
@@ -271,8 +213,9 @@ class Api:
 
         user_domains: Dict[str, "DomainFormat"] = user_data["domains"]
 
-        for domain in user_domains:
+        for domain in domains:
             if domain not in list(user_domains.keys()) and domain != "*":
+                logger.warning(f"Domain {domain} not in user_domain")
                 raise PermissionError(f"User does not own domain {domain}")
 
         key: ApiType = {
