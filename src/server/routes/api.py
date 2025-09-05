@@ -215,7 +215,9 @@ class API:
     ) -> None:
         if type is None:
             try:
-                type = api.user_cache_data["domains"]["ctih"]["type"]
+                type = api.user_cache_data["domains"][
+                    self.domains.clean_domain_name(domain)
+                ]["type"]
             except KeyError:
                 raise HTTPException(
                     status_code=404,
