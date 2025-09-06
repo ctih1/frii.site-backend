@@ -13,3 +13,4 @@ venv/
 server_key
 server_key.pub
 .mypy_cache/
+.pytest_cache
