@@ -3,6 +3,9 @@ import string
 from hashlib import sha256
 import bcrypt
 from cryptography.fernet import Fernet
+import logging
+
+logger = logging.getLogger("frii.site")
 
 
 class Encryption:
@@ -20,9 +23,9 @@ class Encryption:
         )
 
     @staticmethod
-    def check_password(encrypted_password: str, target_hash: str) -> bool:
+    def check_password(password: str, encrypted_password: str) -> bool:
         return bcrypt.checkpw(
-            encrypted_password.encode("utf-8"), target_hash.encode("utf-8")
+            password.encode("utf-8"), encrypted_password.encode("utf-8")
         )
 
     @staticmethod

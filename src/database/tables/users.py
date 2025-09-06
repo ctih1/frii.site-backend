@@ -206,8 +206,6 @@ class Users(Table):
             "credits": 200,
         }
 
-        print(account_data)
-
         self.insert_document(account_data)
         self.create_index("username")
 
