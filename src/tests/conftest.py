@@ -32,30 +32,28 @@ load_dotenv()
 
 client: pymongo.MongoClient = pymongo.MongoClient(os.environ["MONGODB_TEST_URL"])
 
-country_data = (
-    {
-        "ip": "176.92.136.59",
-        "hostname": "176-92-136-59.example.isp",
-        "city": "Helsinki",
-        "region": "Uusimaa",
-        "country": "FI",
-        "loc": "60.1695,24.9354",
-        "org": "AS16086 Example ISP",
-        "postal": "00100",
-        "timezone": "Europe/Helsinki",
-        "country_name": "Finland",
-        "isEU": True,
-        "country_flag_url": "https://cdn.ipinfo.io/static/images/countries-flags/FI.svg",
-        "country_flag": {
-            "emoji": "🇫🇮",
-            "unicode": "U+1F1EB U+1F1EE",
-        },
-        "country_currency": {"code": "EUR", "symbol": "€"},
-        "continent": {"code": "EU", "name": "Europe"},
-        "latitude": "60.1695",
-        "longitude": "24.9354",
+country_data = {
+    "ip": "176.92.136.59",
+    "hostname": "176-92-136-59.example.isp",
+    "city": "Helsinki",
+    "region": "Uusimaa",
+    "country": "FI",
+    "loc": "60.1695,24.9354",
+    "org": "AS16086 Example ISP",
+    "postal": "00100",
+    "timezone": "Europe/Helsinki",
+    "country_name": "Finland",
+    "isEU": True,
+    "country_flag_url": "https://cdn.ipinfo.io/static/images/countries-flags/FI.svg",
+    "country_flag": {
+        "emoji": "🇫🇮",
+        "unicode": "U+1F1EB U+1F1EE",
     },
-)
+    "country_currency": {"code": "EUR", "symbol": "€"},
+    "continent": {"code": "EU", "name": "Europe"},
+    "latitude": "60.1695",
+    "longitude": "24.9354",
+}
 
 
 # The database is wiped every run, so it's okay to reset these
@@ -121,6 +119,15 @@ def create_first_user():
 create_first_user()
 
 _test_user = _users.find_user({"_id": _encryption.sha256("testing")})
+_test_session = Session.create(
+    _test_user["_id"],  # type: ignore
+    "testing",
+    None,
+    "192.168.1.1",
+    "frii.site-pytest-suite",
+    _users,
+    _sessions,
+)
 
 
 @pytest.fixture(scope="session")
@@ -166,16 +173,13 @@ def sessions():
 
 @pytest.fixture(scope="session")
 def test_session():
-    session_data = Session.create(
-        _test_user["_id"],  # type: ignore
-        "testing",
-        None,
-        "192.168.1.1",
-        "frii.site-pytest-suite",
-        _users,
-        _sessions,
-    )
-    yield session_data
+    assert _test_session["access_token"]
+    yield Session(_test_session["access_token"], _users, _sessions)
+
+
+@pytest.fixture(scope="session")
+def test_session_refresh():
+    yield _test_session["refresh_token"]
 
 
 @pytest.fixture(scope="session")

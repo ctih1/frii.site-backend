@@ -5,6 +5,7 @@ from security.session import (
     SessionError,
     SessionFlagError,
     SessionPermissonError,
+    InvalidToken,
 )
 from database.tables.users import Users, UserType
 from database.tables.sessions import Sessions
@@ -68,6 +69,46 @@ class TestCreation:
 
         session.remove_mfa(backup_code=backup[0], mfa_code=None)
 
+    def test_refresh(
+        self,
+        test_user: UserType,
+        test_session: Session,
+        test_session_refresh: str,
+        sessions: Sessions,
+        users: Users,
+    ):
+        logger.info(test_user["country"])
+        old_access_token = test_session.token
+        with pytest.raises(ValueError):
+            Session.refresh(
+                old_access_token,
+                sessions,
+                "BACKEND_TESTING",
+                test_user["country"]["ip"],
+            )
+
+        result = Session.refresh(
+            test_session_refresh,
+            sessions,
+            "BACKEND_TESTING",
+            test_user["country"]["ip"],
+        )
+
+        if result == False:
+            pytest.fail("Invalid session refresh!")
+
+        access, refresh = result
+
+        assert not Session(old_access_token, users, sessions).valid
+        assert Session(access, users, sessions).valid
+
+    def test_object(self, test_session: Session, test_user: UserType, users: Users):
+        assert test_session.token_result != InvalidToken
+        user = users.find_user({"_id": test_user["_id"]})
+        assert user != None
+
+        assert test_session.user_cache_data == user
+
     def test_logging_out(self, test_user: UserType, users: Users, sessions: Sessions):
         session_data = Session.create(
             test_user["_id"],
@@ -85,6 +126,9 @@ class TestCreation:
 
         session = Session(session_data["access_token"], users, sessions)
         assert session.delete(session.data["jti"])
+
+    def test_attributes(self, test_session: Session):
+        assert test_session.user_id == test_session.username  # backwards compatability
 
 
 valid_session = MagicMock(spec=Session)
