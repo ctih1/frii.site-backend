@@ -8,7 +8,7 @@ from database.table import Table
 import requests  # type: ignore[import-untyped]
 import json
 import datetime
-
+from threading import Thread
 
 from database.exceptions import (
     InviteException,
@@ -113,8 +113,12 @@ class Users(Table):
 
     def find_user(self, filter: dict, find_banned: bool = False) -> UserType | None:
         data: UserType = self.find_item(filter)  # type: ignore[return-value,assignment]
-        if data and data.get("banned") and not find_banned:
-            return None
+
+        if data:
+            data = self.perform_migrations(data)
+            if data.get("banned") and not find_banned:
+                return None
+
         return data
 
     def find_users(self, filter: dict) -> List[UserType] | None:
@@ -349,3 +353,24 @@ class Users(Table):
             },
         )
         self.delete_in_time("deleted-in")
+
+    def perform_migrations(self, user: UserType) -> UserType:
+        logger.debug(f"Running migrations for user {user['_id'][:12]}...")
+        domains: Dict[str, DomainFormat] = {}
+        fixed_domains = False
+
+        for domain, contents in user["domains"].items():
+            if domain.lower() != domain:
+                fixed_domains = True
+
+            domains[domain.lower()] = contents
+
+        if len(domains) != len(user["domains"]):
+            logger.warning("Domain amount does not match!")
+
+        elif fixed_domains:
+            logger.info("Found domains which were fixed")
+            self.modify_document({"_id": user["_id"]}, "$set", "domains", domains)
+            user["domains"] = domains
+
+        return user

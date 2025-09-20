@@ -43,7 +43,7 @@ class Domains(Users):
     def add_domain(
         self, target_user: str, domain: str, domain_data: DomainFormat
     ) -> None:
-        cleaned_domain: str = Domains.clean_domain_name(domain)
+        cleaned_domain: str = Domains.clean_domain_name(domain.lower())
 
         self.modify_document(
             {"_id": target_user},

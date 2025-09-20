@@ -51,8 +51,29 @@ class TestDomainValidation:
 
 
 class TestDomainUser:
-    def test_register(self, domains: Domains, test_user: UserType):
-        domains.add_domain(test_user["_id"], "test", {"id": None, "ip": "1.2.3.4", "registered": round(time.time()), "type": "A"})  # type: ignore
+    def test_register(self, domains: Domains, users: Users, test_user: UserType):
+        domains.add_domain(test_user["_id"], "TEST", {"id": None, "ip": "1.2.3.4", "registered": round(time.time()), "type": "A"})  # type: ignore
+        updated_user_data: UserType | None = users.find_user({"_id": test_user["_id"]})
+        if updated_user_data is None:
+            pytest.fail("Could not retrieve new user data")
+
+        assert updated_user_data.get("domains", {}).get("TEST") is None
+        assert updated_user_data.get("domains", {}).get("test") is not None
+
+        users.modify_document(
+            {"_id": test_user["_id"]},
+            "$set",
+            "domains.TEST3",
+            {"ip": "0.0.0.0", "type": "A", "registered": time.time()},
+        )
+
+        updated_user_data = users.find_user({"_id": test_user["_id"]})
+        if updated_user_data is None:
+            pytest.fail("Could not retrieve new user data")
+
+        assert updated_user_data.get("domains", {}).get("TEST3") is None
+        assert updated_user_data.get("domains", {}).get("test3") is not None
+        users.remove_key({"_id": test_user["_id"]}, "domains.test2")
 
     def test_domain_not_free(self, validation: Validation, domains: Domains):
         assert not validation.is_free("test", "A", {}, False)

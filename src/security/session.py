@@ -154,8 +154,6 @@ class Session:
         self.permissions: list = self.__get_permimssions()
         self.flags: list = self.__get_flags()
 
-        threading.Thread(target=self.__perform_migrations).start()
-
     def __user_cache(self) -> UserType:
         """
         Caches the user data of the session. You should use session.user_cache for every query,
@@ -170,33 +168,6 @@ class Session:
             return {}  # type: ignore[typeddict-item]
 
         return data
-
-    def __perform_migrations(self) -> None:
-        if not self.user_cache_data.get("_id"):
-            logger.info("Skipping migrations invalid data")
-            return
-
-        logger.info("Starting migrations")
-
-        repaired_domains = {}
-        domains_fixed: int = 0
-        for domain, data in self.user_cache_data["domains"].items():
-            if domain.lower() != domain:
-                logger.info("Detected domain that isnt lowercase")
-                domains_fixed += 1
-
-            repaired_domains[domain.lower()] = data
-
-        if (
-            len(repaired_domains) > 0
-            and len(repaired_domains) == self.user_cache_data["domains"]
-        ):
-            logger.info(f"Fixed {domains_fixed} out of {len(repaired_domains)} domains")
-
-            self.users_table.modify_document(
-                {"_id": self.username}, "$set", "domains", repaired_domains
-            )
-            self.user_cache_data["domains"] = repaired_domains
 
     def __get_permimssions(self):
         if not self.valid:
