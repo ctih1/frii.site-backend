@@ -119,7 +119,7 @@ class Validation:
             )
             != 0
         ):
-            logger.error(f"Domain {cleaned_domain} already exists in database")
+            logger.warning(f"Domain {cleaned_domain} already exists in database")
 
             if raise_exceptions:
                 raise DomainExistsError("Domain is already registered")
