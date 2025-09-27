@@ -54,7 +54,10 @@ class UserManager(threading.Thread):
     def start(self):
         self.table.table.update_one(
             {"_id": self.userid},
-            {"$push": {"accessed-from": self.ip}, "$set": {"last-login": time.time()}},
+            {
+                "$addToSet": {"accessed-from": self.ip},
+                "$set": {"last-login": time.time()},
+            },
         )
 
 

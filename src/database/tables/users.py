@@ -56,6 +56,8 @@ class InviteType(TypedDict):
     used_at: NotRequired[int]  # epoch timestamp
 
 
+SignupType = Literal["email", "google"]
+
 MFA = TypedDict("MFA", {"verified": bool, "key": str, "recovery": List[str]})
 
 UserPageType = TypedDict(
@@ -72,6 +74,7 @@ UserPageType = TypedDict(
         "sessions": List[NewSessionType | OldSessionType] | List[dict],
         "invites": Dict[str, InviteType],
         "mfa_enabled": bool,
+        "google-connected": bool,
     },
 )
 
@@ -80,7 +83,8 @@ UserType = TypedDict(
     {
         "_id": str,
         "email": str,
-        "password": str,
+        # Password is none if registered with another auth provider (e.g google). Is a bcrypt hash of a sha256 hash of the password if registered with email
+        "password": str | None,
         "display-name": str,
         "username": NotRequired[str],
         "lang": str,
@@ -91,6 +95,8 @@ UserType = TypedDict(
         "last-login": int,  # Epoch timestamp
         "permissions": dict,
         "verified": bool,
+        "registered-with": NotRequired[SignupType],
+        "has-linked-google": NotRequired[bool],
         "domains": Required[Dict[str, "DomainFormat"]],
         "feature-flags": NotRequired[Dict[str, bool]],
         "api-keys": NotRequired[Dict[str, ApiType]],
@@ -155,7 +161,7 @@ class Users(Table):
     def create_user(
         self,
         username: str,
-        password: str,
+        password: str | None,
         email: str,
         language: str,
         country,
@@ -163,6 +169,8 @@ class Users(Table):
         email_instance: Email,
         target_url: str,  # target_url should only be the hostname (e.g canary.frii.site, www.frii.site)
         dont_send_email: bool = False,
+        signup_method: SignupType = "email",
+        skip_verification: bool = False,
     ) -> str:
 
         logger.info(f"Creating user with username {username}")
@@ -170,8 +178,6 @@ class Users(Table):
 
         hashed_username: str = Encryption.sha256(username)
         lowercase_hashed_username = Encryption.sha256(username.lower())
-
-        hashed_password: str = Encryption.sha256(password)
 
         if email_instance.is_taken(email):
             logger.warning("Email is already taken")
@@ -193,7 +199,11 @@ class Users(Table):
         account_data: UserType = {
             "_id": hashed_username,
             "email": self.encryption.encrypt(email),
-            "password": self.encryption.create_password(hashed_password),
+            "password": (
+                None
+                if password is None
+                else self.encryption.create_password(Encryption.sha256(password))
+            ),
             "display-name": self.encryption.encrypt(original_username),
             "username": lowercase_hashed_username,
             "lang": language,
@@ -204,9 +214,11 @@ class Users(Table):
             "last-login": round(time.time()),
             "permissions": {"max-domains": 3, "max-subdomains": 50, "invite": False},
             "feature-flags": {},
-            "verified": False,
+            "verified": True if skip_verification else False,
             "domains": {},
             "api-keys": {},
+            "registered-with": signup_method,
+            "has-linked-google": signup_method == "google",
             "credits": 200,
         }
 
@@ -217,17 +229,17 @@ class Users(Table):
             logger.warning(
                 "Don't send info activated in create_user. This is only meant for testing environments"
             )
-        else:
+        elif not skip_verification:
             if not email_instance.send_verification_code(
                 target_url, hashed_username, email
             ):
                 logger.info("Failed to send verification")
                 raise EmailException("Email already in use!")
 
-            try:
-                self.send_discord_analytic_webhook(country["country"], target_url)
-            except Exception as e:
-                logger.warning(e)
+        try:
+            self.send_discord_analytic_webhook(country["country"], target_url)
+        except Exception as e:
+            logger.warning(e)
 
         return hashed_username
 
@@ -328,6 +340,7 @@ class Users(Table):
             "verified": user_data["verified"],
             "permissions": user_data.get("permissions", {}),
             "beta-enroll": user_data.get("beta-enroll", False),
+            "google-connected": user_data.get("has-linked-google") == True,
             # conversts datetime object of expire date in db to linux epoch int. fastapi's json encoder doesnt like datetime objects
             "sessions": session_data,  # type: ignore[typeddict-item]
             "invites": user_data.get("invites", {}),  # type: ignore[typeddict-item]
@@ -355,6 +368,7 @@ class Users(Table):
         self.delete_in_time("deleted-in")
 
     def perform_migrations(self, user: UserType) -> UserType:
+        start = time.time()
         logger.debug(f"Running migrations for user {user['_id'][:12]}...")
         domains: Dict[str, DomainFormat] = {}
         fixed_domains = False
@@ -372,5 +386,27 @@ class Users(Table):
             logger.info("Found domains which were fixed")
             self.modify_document({"_id": user["_id"]}, "$set", "domains", domains)
             user["domains"] = domains
+
+        if not user.get("email-hash"):
+            logger.info("Fixing user email hash")
+            user["email-hash"] = self.encryption.sha256(
+                self.encryption.decrypt(user.get("email")) + "supahcool"
+            )
+            self.modify_document(
+                {"_id": user["_id"]}, "$set", "email-hash", user["email-hash"]
+            )
+
+        if len(set(user.get("accessed-from", []))) != len(
+            user.get("accessed-from", [])
+        ):
+            logger.info("Fixing invalid accessed-from property")
+            self.modify_document(
+                {"_id": user["_id"]},
+                "$set",
+                "accessed-from",
+                list(set(user.get("accessed-from", []))),
+            )
+
+        logger.debug(f"Migrations took {time.time() - start :.5f}s")
 
         return user

@@ -68,18 +68,18 @@ sentry_sdk.init(
 )
 
 app = FastAPI()
-
+app.state.safe_domains = [
+    "https://www.frii.site",
+    "https://development.frii.site",
+    "https://canary.frii.site",
+    "https://red.frii.site",
+    "https://legacy.frii.site",
+    "https://frii-site-frontend.vercel.app",
+    "http://localhost:5173",
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://www.frii.site",
-        "https://development.frii.site",
-        "https://canary.frii.site",
-        "https://red.frii.site",
-        "https://legacy.frii.site",
-        "https://frii-site-frontend.vercel.app",
-        "http://localhost:5173",
-    ],
+    allow_origins=app.state.safe_domains,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

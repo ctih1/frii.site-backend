@@ -2,9 +2,10 @@ import os
 from typing import List, Dict, Annotated, Any
 import time
 import logging
-from fastapi import APIRouter, Request, Depends, Header, WebSocket
+import json
+from fastapi import APIRouter, Request, Depends, Header, Query
 from fastapi.exceptions import HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 import ipinfo  # type: ignore[import-untyped]
 
 from database.exceptions import EmailException, UsernameException, FilterMatchError
@@ -15,12 +16,14 @@ from database.tables.codes import Codes, CodeStatus
 from database.tables.domains import DomainFormat
 
 from security.encryption import Encryption
+from security.oauth import EmailError, OAuth, DuplicateAccount
 from security.session import (
     Session,
     SessionCreateStatus,
     SessionError,
     SessionPermissonError,
     REFRESH_AMOUNT,
+    ACCESS_AMOUNT,
 )
 from security.api import Api, ApiPermission, ApiType
 from security.convert import Convert
@@ -107,6 +110,13 @@ class User:
                 460: {"description": "Invalid key"},
             },
             tags=["account", "session"],
+        )
+
+        self.router.add_api_route(
+            "/auth/google/callback", self.google_oauth2, methods=["GET", "POST"]
+        )
+        self.router.add_api_route(
+            "/auth/link", self.create_linking_code, methods=["POST"]
         )
 
         self.router.add_api_route(
@@ -493,7 +503,11 @@ class User:
         if not user_data.get("totp", {}).get("verified"):
             raise HTTPException(412, detail="User does not have MFA")
 
-        if not Encryption.check_password(password_hash, user_data["password"]):
+        if user_data.get(
+            "registered-with", "email"
+        ) == "email" and not Encryption.check_password(
+            password_hash, user_data["password"]  # type: ignore
+        ):
             raise HTTPException(status_code=401, detail="Invalid password")
 
         try:
@@ -502,6 +516,82 @@ class User:
             )
         except ValueError:
             raise HTTPException(status_code=409)
+
+    @Session.requires_auth
+    def create_linking_code(self, session: Session = Depends(converter.create)) -> dict:
+        code = self.codes.create_code("link", session.token)
+        return {"code": code}
+
+    def google_oauth2(self, request: Request, code: str = Query()) -> RedirectResponse:
+        access = refresh = ""
+        state: dict = json.loads(request.query_params.get("state", "{}"))
+        origin = state.get("url", "https://www.frii.site")
+        mode = state.get("mode", "login")
+
+        logger.info(f"Request {mode} coming from origin {origin}")
+
+        oauth = OAuth(self.table, self.session_table, self.email)
+
+        if origin not in request.app.state.safe_domains:
+            raise HTTPException(status_code=403, detail=f"Invalid origin {origin}")
+
+        if mode == "login":
+            try:
+                access, refresh = oauth.create_google_session(
+                    request, self.handler, code
+                )
+            except ValueError:
+                return RedirectResponse(f"{origin}/login?c=500&r=/")
+            except DuplicateAccount:
+                return RedirectResponse(f"{origin}/login?c=469&r=/")
+
+            resp = RedirectResponse(f"{origin}/account/manage")
+
+            is_debug = os.environ.get("debug", "False") == "True"
+
+            resp.set_cookie(
+                "auth-token",
+                access,
+                max_age=ACCESS_AMOUNT,
+                samesite="lax" if is_debug else "none",
+                secure=False if is_debug else True,
+            )
+            resp.set_cookie(
+                "refresh-token",
+                refresh,
+                max_age=REFRESH_AMOUNT,
+                path="/refresh",
+                httponly=True,
+                samesite="lax" if is_debug else "none",
+                secure=False if is_debug else True,
+            )
+
+            return resp
+        elif mode == "link":
+            status = self.codes.is_valid(state.get("linking-code", ""), "link")
+            if not status["valid"]:
+                logger.info(f"Invalid linking code! {state.get('linking-code')}")
+                raise SessionError("Invalid session!")
+
+            session: Session = Session(
+                status.get("account", ""), self.table, self.session_table
+            )
+            if not session.valid:
+                logger.info("Linking code's session was invalid!")
+                raise SessionError("Invalid session!")
+
+            resp = RedirectResponse(f"{origin}/account/manage")
+
+            try:
+                oauth.link_google_account(session, request, code)
+            except EmailError:
+                resp = RedirectResponse(f"{origin}/login?c=472")
+            except ValueError:
+                resp = RedirectResponse(f"{origin}/login?c=409")
+
+            return resp
+
+        raise HTTPException(status_code=412, detail=f"Invalid mode {mode}")
 
     def sign_up(
         self, request: Request, body: SignUp, x_captcha_code: Annotated[str, Header()]
@@ -574,7 +664,9 @@ class User:
         session: Session = Depends(converter.create),
     ):
         from_url: str = request.headers.get("Origin", "https://www.frii.site")
-        if not session.check_code(x_mfa_code):
+        if session.user_cache_data.get("totp", {}).get(
+            "verified"
+        ) and not session.check_code(x_mfa_code):
             raise HTTPException(status_code=412, detail="Invalid MFA code")
 
         email: str = self.encryption.decrypt(session.user_cache_data["email"])

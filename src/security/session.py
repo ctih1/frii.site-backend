@@ -81,7 +81,7 @@ class RefreshTokenData(TypedDict):
 
 
 REFRESH_AMOUNT = 14 * 60 * 60 * 24
-
+ACCESS_AMOUNT = 900
 
 OldSessionType = TypedDict(
     "OldSessionType", {"user-agent": str, "ip": str, "expires": int, "id": str}
@@ -121,7 +121,7 @@ class Session:
     def __init__(self, access_token: str, users: Users, sessions: Sessions) -> None:
         """Creates a Session object.
         Arguements:
-            session_id: Access token found in X-Auth-Token
+            session_id: Access token found in X-Auth-Token header
             users: Instance of the user table
             sessions: Instance of the session table
         """
@@ -159,6 +159,7 @@ class Session:
         Caches the user data of the session. You should use session.user_cache for every query,
         as user_cache gets reset everytime a session object is created, aka it refreshes every request
         """
+        start = time.time()
         if not self.valid:
             return {}  # type: ignore[typeddict-item]
         data: UserType | None = self.users_table.find_user({"_id": self.data["sub"]})
@@ -167,6 +168,7 @@ class Session:
             self.valid = False
             return {}  # type: ignore[typeddict-item]
 
+        logger.debug(f"Retrieving user data took {(time.time() - start):.4f}s")
         return data
 
     def __get_permimssions(self):
@@ -182,7 +184,6 @@ class Session:
     def __get_flags(self):
         if not self.valid:
             return []
-
         return list(self.user_cache_data.get("feature-flags", {}).keys())  # type: ignore
 
     @staticmethod
@@ -260,6 +261,7 @@ class Session:
         user_agent: str,
         users: Users,
         session_table: Sessions,
+        skip_mfa: bool = False,
     ) -> SessionCreateStatus:
         """
         Creates a new session for the given user.
@@ -270,6 +272,7 @@ class Session:
             user_agent (str): The user agent string of the user's browser.
             users (Users): An instance of the Users class for database operations.
             session_table (Sessions): An instance of the Sessions class for session management.
+            skip_mfa (bool): Skips the MFA verification process. Used for social logins
         Returns:
             SessionCreateStatus: An object indicating the success of the session creation,
                                     whether multi-factor authentication (MFA) is required,
@@ -284,7 +287,7 @@ class Session:
         user_has_mfa = user_data.get("totp", {}).get("verified")
         user_mfa_key = user_data.get("totp", {}).get("key")
 
-        if user_has_mfa:
+        if user_has_mfa and not skip_mfa:
             if not mfa_code:
                 return SessionCreateStatus(
                     success=False,
@@ -301,6 +304,7 @@ class Session:
                 ):
                     is_valid = True
                 else:
+                    logger.warning("Invalid MFA")
                     return SessionCreateStatus(
                         success=False,
                         mfa_required=True,

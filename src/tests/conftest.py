@@ -116,18 +116,19 @@ def create_first_user():
     client.close()
 
 
-create_first_user()
+if __name__ == "__main__":
+    create_first_user()
 
-_test_user = _users.find_user({"_id": _encryption.sha256("testing")})
-_test_session = Session.create(
-    _test_user["_id"],  # type: ignore
-    "testing",
-    None,
-    "192.168.1.1",
-    "frii.site-pytest-suite",
-    _users,
-    _sessions,
-)
+    _test_user = _users.find_user({"_id": _encryption.sha256("testing")})
+    _test_session = Session.create(
+        _test_user["_id"],  # type: ignore
+        "testing",
+        None,
+        "192.168.1.1",
+        "frii.site-pytest-suite",
+        _users,
+        _sessions,
+    )
 
 
 @pytest.fixture(scope="session")

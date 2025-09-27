@@ -31,6 +31,7 @@ class Codes(Table):
         self.verification_codes: Dict[str, GenericCodeFormat] = {}
         self.recovery_codes: Dict[str, GenericCodeFormat] = {}
         self.deletion_codes: Dict[str, GenericCodeFormat] = {}
+        self.link_codes: Dict[str, GenericCodeFormat] = {}
 
         self.encryption: Encryption = Encryption(os.getenv("ENC_KEY"))  # type: ignore[arg-type]
 
@@ -79,6 +80,12 @@ class Codes(Table):
                 "expire": round(time.time()) + EXPIRE_TIME,
             }
             local_code = self.recovery_codes
+        elif type == "link":
+            self.link_codes[code] = {
+                "account": self.encryption.encrypt(target_username),
+                "expire": round(time.time() + EXPIRE_TIME),
+            }
+            local_code = self.link_codes
 
         else:
             raise ValueError("Code type is not valid")
