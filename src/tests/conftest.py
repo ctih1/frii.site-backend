@@ -116,10 +116,7 @@ def create_first_user():
     client.close()
 
 
-print(__name__)
-
 create_first_user()
-
 _test_user = _users.find_user({"_id": _encryption.sha256("testing")})
 _test_session = Session.create(
     _test_user["_id"],  # type: ignore
