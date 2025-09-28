@@ -390,7 +390,7 @@ class Users(Table):
         if not user.get("email-hash"):
             logger.info("Fixing user email hash")
             user["email-hash"] = self.encryption.sha256(
-                self.encryption.decrypt(user.get("email")) + "supahcool"
+                self.encryption.decrypt(user.get("email", "")) + "supahcool"
             )
             self.modify_document(
                 {"_id": user["_id"]}, "$set", "email-hash", user["email-hash"]

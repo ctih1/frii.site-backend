@@ -1,10 +1,10 @@
 import os
 import logging
 import json
-import requests
+import requests  # type: ignore[import-untyped]
 import time
 from typing import TypedDict, Tuple
-from ipinfo import Handler
+from ipinfo import Handler  # type: ignore[import-untyped]
 
 from database.tables.users import Users, UserType
 from database.tables.sessions import Sessions
@@ -50,7 +50,9 @@ class OAuth:
         self.users: Users = users
         self.emails: Email = emails
 
-    def get_google_callback_data(self, code: str) -> GoogleUserResponse:
+    def get_google_callback_data(
+        self, callback_url: str, code: str
+    ) -> GoogleUserResponse:
         logger.info(f"Checking google with code {code}")
         req = requests.post(
             "https://oauth2.googleapis.com/token",
@@ -59,7 +61,7 @@ class OAuth:
                 "code": code,
                 "client_id": self.google_client_id,
                 "client_secret": self.google_client_secret,
-                "redirect_uri": "http://localhost:8000/auth/google/callback",
+                "redirect_uri": callback_url,
                 "grant_type": "authorization_code",
             },
         )
@@ -79,7 +81,7 @@ class OAuth:
         return data
 
     def create_google_session(
-        self, request: Request, ipinfo_handler: Handler, code: str
+        self, request: Request, ipinfo_handler: Handler, code: str, callback_url: str
     ) -> Tuple[str, str]:
         """Creates a session pair from a google auth callback
 
@@ -95,7 +97,7 @@ class OAuth:
         :rtype: Tuple[str, str]
         """
 
-        data = self.get_google_callback_data(code)
+        data = self.get_google_callback_data(callback_url, code)
 
         if not data.get("email_verified", False):
             raise EmailError("Google email not verified")
@@ -146,9 +148,9 @@ class OAuth:
         return (session["access_token"], session["refresh_token"])  # type: ignore
 
     def link_google_account(
-        self, session: Session, request: Request, code: str
+        self, session: Session, request: Request, code: str, callback_url: str
     ) -> bool:
-        data: GoogleUserResponse = self.get_google_callback_data(code)
+        data: GoogleUserResponse = self.get_google_callback_data(callback_url, code)
 
         if session.user_cache_data.get(
             "registered-with"

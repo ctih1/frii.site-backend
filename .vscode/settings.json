@@ -8,5 +8,6 @@
     },
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
-    "autoDocstring.docstringFormat": "sphinx"
+    "autoDocstring.docstringFormat": "sphinx",
+    "python.testing.autoTestDiscoverOnSaveEnabled": false
 }
