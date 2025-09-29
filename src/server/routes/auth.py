@@ -275,7 +275,7 @@ class Auth:
         if mode == "login":
             try:
                 access, refresh = oauth.create_google_session(
-                    request, self.handler, code, redirect_url, state.get("refer")
+                    request, self.handler, code, redirect_url, state.get("referrer")
                 )
             except ValueError:
                 return RedirectResponse(f"{origin}/login?c=500&r=/")
