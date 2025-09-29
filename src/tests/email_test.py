@@ -18,8 +18,3 @@ class TestMail:
         assert email.is_taken("testing@email.com")
         assert email.is_taken("testing+alt@email.com")
         assert not email.is_taken("free@email.com")
-
-    def test_verification(self, codes: Codes, email: Email, test_user: UserType):
-        code = codes.create_code("verification", test_user["_id"])
-        assert email.verify(code)
-        assert not email.verify("fakecode")

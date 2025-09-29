@@ -81,7 +81,12 @@ class OAuth:
         return data
 
     def create_google_session(
-        self, request: Request, ipinfo_handler: Handler, code: str, callback_url: str
+        self,
+        request: Request,
+        ipinfo_handler: Handler,
+        code: str,
+        callback_url: str,
+        refer_code: str | None,
     ) -> Tuple[str, str]:
         """Creates a session pair from a google auth callback
 
@@ -102,10 +107,9 @@ class OAuth:
         if not data.get("email_verified", False):
             raise EmailError("Google email not verified")
 
+        email_hash: str = Encryption.sha256(data["email"] + "supahcool")
         # supahcool is a basic salt that we made in ~march 2024 and just never got rid of as the emails were already using it
-        target_user: UserType | None = self.users.find_user(
-            {"email-hash": Encryption.sha256(data["email"] + "supahcool")}
-        )
+        target_user: UserType | None = self.users.find_user({"email-hash": email_hash})
 
         country = ipinfo_handler.getDetails(request.client.host).all  # type: ignore[union-attr]
         user_id = ""
@@ -121,6 +125,7 @@ class OAuth:
                 target_url=request.headers.get("Origin", "https://www.frii.site"),
                 signup_method="google",
                 skip_verification=True,
+                refer_code=refer_code,
             )
         else:
             if not target_user.get("has-linked-google"):
@@ -145,7 +150,7 @@ class OAuth:
             logger.error(f"Failed to create session for user {data['email']}")
             raise SessionError("Failed to create session")
 
-        return (session["access_token"], session["refresh_token"])  # type: ignore
+        return (session["access_token" ], session["refresh_token"])  # type: ignore
 
     def link_google_account(
         self, session: Session, request: Request, code: str, callback_url: str

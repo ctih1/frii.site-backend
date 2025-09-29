@@ -5,6 +5,7 @@ from typing import Any, List, TYPE_CHECKING, Literal
 from typing_extensions import NotRequired, Dict, Required, TypedDict
 from pymongo import MongoClient
 from database.table import Table
+from database.tables.referrals import Referrals
 import requests  # type: ignore[import-untyped]
 import json
 import datetime
@@ -13,6 +14,7 @@ from threading import Thread
 from database.exceptions import (
     InviteException,
     EmailException,
+    ReferralError,
     UsernameException,
     UserNotExistError,
 )
@@ -75,6 +77,8 @@ UserPageType = TypedDict(
         "invites": Dict[str, InviteType],
         "mfa_enabled": bool,
         "google-connected": bool,
+        "referral-code": NotRequired[str],
+        "referred-people": NotRequired[int],
     },
 )
 
@@ -108,6 +112,9 @@ UserType = TypedDict(
         "totp": NotRequired[MFA],
         "banned": NotRequired[Literal[True]],
         "ban-reasons": NotRequired[List[str]],
+        "referral-code": NotRequired[str],
+        "referred-by": NotRequired[str],
+        "referred-count": NotRequired[int],
     },
 )
 
@@ -116,6 +123,7 @@ class Users(Table):
     def __init__(self, mongo_client: MongoClient):
         super().__init__(mongo_client, "frii.site")
         self.encryption: Encryption = Encryption(os.getenv("ENC_KEY") or "none")
+        self.referrals: Referrals = Referrals(mongo_client, self)
 
     def find_user(self, filter: dict, find_banned: bool = False) -> UserType | None:
         data: UserType = self.find_item(filter)  # type: ignore[return-value,assignment]
@@ -170,6 +178,7 @@ class Users(Table):
         target_url: str,  # target_url should only be the hostname (e.g canary.frii.site, www.frii.site)
         dont_send_email: bool = False,
         signup_method: SignupType = "email",
+        refer_code: str | None = None,
         skip_verification: bool = False,
     ) -> str:
 
@@ -212,7 +221,11 @@ class Users(Table):
             "accessed-from": [],
             "created": time_signed_up,
             "last-login": round(time.time()),
-            "permissions": {"max-domains": 3, "max-subdomains": 50, "invite": False},
+            "permissions": {
+                "max-domains": 3,
+                "max-subdomains": 50,
+                "invite": False,
+            },
             "feature-flags": {},
             "verified": True if skip_verification else False,
             "domains": {},
@@ -221,6 +234,15 @@ class Users(Table):
             "has-linked-google": signup_method == "google",
             "credits": 200,
         }
+
+        if refer_code:
+            if self.referrals.check(refer_code):
+                logger.info("User was referred, adding extra domain")
+                account_data["permissions"]["max-domains"] += 1
+                account_data["referred-by"] = refer_code
+            else:
+                logger.warning("Invalid referral code!")
+                raise ReferralError("Invalid referral code!")
 
         self.insert_document(account_data)
         self.create_index("username")
@@ -345,6 +367,8 @@ class Users(Table):
             "sessions": session_data,  # type: ignore[typeddict-item]
             "invites": user_data.get("invites", {}),  # type: ignore[typeddict-item]
             "mfa_enabled": user_data.get("totp", {}).get("verified", False),
+            "referral-code": user_data.get("referral-code"),
+            "referred-people": user_data.get("referred-count"),
         }
 
     def change_beta_enrollment(self, user_id: str, mode: bool = False) -> None:

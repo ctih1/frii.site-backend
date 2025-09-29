@@ -74,30 +74,6 @@ class Email:
             return False
         return True
 
-    def verify(self, code: str) -> bool:
-        if code not in self.codes.verification_codes:
-            logger.debug(f"Code {code} is not valid: Nonexistant")
-            return False
-
-        if time.time() > self.codes.verification_codes[code]["expire"]:
-            logger.debug(f"Code {code} is not valid: Expired")
-            del self.codes.verification_codes[code]
-            return False
-
-        logger.info(f"Code {code} is valid... continuing")
-        user_id: str = self.encryption.decrypt(
-            self.codes.verification_codes[code]["account"]
-        )
-        self.users.modify_document(
-            {"_id": user_id}, key="verified", value=True, operation="$set"
-        )
-
-        logger.info(f"Verified user {user_id}")
-
-        del self.codes.verification_codes[code]
-
-        return True
-
     def send_delete_code(self, base_url: str, username: str, email: str) -> bool:
         code: str = self.codes.create_code("deletion", username)
         url = base_url + f"/account/verify/deletion?code={code}"

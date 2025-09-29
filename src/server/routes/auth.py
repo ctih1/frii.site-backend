@@ -275,7 +275,7 @@ class Auth:
         if mode == "login":
             try:
                 access, refresh = oauth.create_google_session(
-                    request, self.handler, code, redirect_url
+                    request, self.handler, code, redirect_url, state.get("refer")
                 )
             except ValueError:
                 return RedirectResponse(f"{origin}/login?c=500&r=/")
@@ -339,6 +339,9 @@ class Auth:
         country = self.handler.getDetails(request.client.host).all  # type: ignore[union-attr]
         from_url: str = request.headers.get("Origin", "https://www.frii.site")
 
+        refer = request.headers.get("x-refer-code")
+        if refer:
+            logger.info(f"Using refer {refer}")
         try:
             user_id: str = self.table.create_user(
                 body.username,
@@ -349,6 +352,7 @@ class Auth:
                 round(time.time()),
                 self.email,
                 from_url,
+                refer_code=refer,
             )
         except EmailException:
             raise HTTPException(status_code=422, detail="Email already in use")

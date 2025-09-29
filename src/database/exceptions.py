@@ -18,6 +18,18 @@ class FilterMatchError(Exception):
     pass
 
 
+class ConflictingReferralCode(Exception):
+    pass
+
+
+class UserConflictError(Exception):
+    pass
+
+
+class ReferralError(Exception):
+    pass
+
+
 class SubdomainError(Exception):
     def __init__(self, message: str, required_domain: str):
         self.required_domain: str = required_domain

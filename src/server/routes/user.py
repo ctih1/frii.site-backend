@@ -8,7 +8,12 @@ from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse, RedirectResponse
 import ipinfo  # type: ignore[import-untyped]
 
-from database.exceptions import EmailException, UsernameException, FilterMatchError
+from database.exceptions import (
+    ConflictingReferralCode,
+    EmailException,
+    UsernameException,
+    FilterMatchError,
+)
 from database.tables.users import Users, UserType, CountryType, UserPageType
 from database.tables.invitation import Invites
 from database.tables.sessions import Sessions
@@ -161,12 +166,26 @@ class User:
             self.get_gdpr,
             methods=["GET"],
             responses={
-                404: {"description": "Session does not exist"},
+                200: {"description": "GDPR data sent"},
                 460: {"description": "Invalid session"},
-                461: {"description": "User does not have access to use that session"},
             },
             status_code=200,
             tags=["account", "privacy"],
+        )
+
+        self.router.add_api_route(
+            "/referral",
+            self.create_referral,
+            methods=["POST"],
+            responses={
+                200: {"description": "Created referral"},
+                400: {"description": "Invalid code length"},
+                409: {"description": "Referral code has already been created"},
+                412: {"description": "User has already created a codee"},
+                460: {"description": "Invalid session"},
+            },
+            status_code=200,
+            tags=["account", "referral"],
         )
 
         self.router.add_api_route(
@@ -372,6 +391,19 @@ class User:
             self.table.modify_document(
                 {"_id": code_status.get("account", None)}, "$set", "verified", True
             )
+
+            user: UserType | None = self.table.find_user(
+                {"_id": code_status.get("account")}
+            )
+            if not user:
+                raise FilterMatchError("User not found")
+
+            referred_by: str | None = user.get("referred-by")
+
+            if referred_by:
+                logger.info("Using referral code")
+                self.table.referrals.use(user, referred_by)
+
         except FilterMatchError:
             raise HTTPException(status_code=404)
 
@@ -472,9 +504,26 @@ class User:
             "domains",
             "feature-flags",
             "beta-enroll",
+            "registered-with",
         ]
 
         return {k: v for k, v in user_data.items() if k in gdpr_keys}  # type: ignore[has-type, misc]
+
+    @Session.requires_auth
+    def create_referral(
+        self, code: str, request: Request, session: Session = Depends(converter.create)
+    ) -> None:
+        if session.user_cache_data.get("referral-code"):
+            raise HTTPException(
+                status_code=412, detail="User already has referral code!"
+            )
+
+        try:
+            self.table.referrals.create(session.user_id, code)
+        except ConflictingReferralCode:
+            raise HTTPException(status_code=409, detail="Referral code taken")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid code length")
 
     def verify_deletion(self, code: str):
         code_status: CodeStatus = self.codes.is_valid(code, "deletion")
