@@ -498,6 +498,7 @@ class User:
             "lang",
             "country",
             "created",
+            "credits",
             "last-login",
             "permissions",
             "verified",
@@ -505,6 +506,7 @@ class User:
             "feature-flags",
             "beta-enroll",
             "registered-with",
+            "has-linked-google",
         ]
 
         return {k: v for k, v in user_data.items() if k in gdpr_keys}  # type: ignore[has-type, misc]
