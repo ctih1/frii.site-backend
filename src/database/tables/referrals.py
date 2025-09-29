@@ -104,27 +104,7 @@ class Referrals(Table):
     def find_user_and_append(self, user_id: str, list: List["UserType | None"]) -> None:
         list.append(self.users.find_user({"_id": user_id}))
 
-    def get_users(self, referral_code: str) -> List["UserType | None"]:
-        lookup_request_code: str = self.users.encryption.sha256(referral_code)
+    def get_users(self, referral_code: str) -> List["UserType"]:
+        referrals: List["UserType"] = self.find_items({"referred-by": referral_code})  # type: ignore
 
-        referral: ReferralType | None = self.find_item({"_id": lookup_request_code})  # type: ignore
-
-        if referral is None:
-            return []
-
-        users: List["UserType | None"] = []
-        threads = []
-        for user_id in referral["users"]:
-            thread = Thread(
-                target=self.find_user_and_append,
-                args=(
-                    user_id,
-                    users,
-                ),
-            )
-            thread.start()
-            threads.append(thread)
-
-        [thread.join() for thread in threads]
-
-        return users
+        return referrals

@@ -77,8 +77,8 @@ UserPageType = TypedDict(
         "invites": Dict[str, InviteType],
         "mfa_enabled": bool,
         "google-connected": bool,
-        "referral-code": NotRequired[str],
-        "referred-people": NotRequired[int],
+        "referral-code": str | None,
+        "referred-people": int | None,
     },
 )
 
