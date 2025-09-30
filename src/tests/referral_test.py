@@ -25,7 +25,10 @@ class TestMail:
         with pytest.raises(ValueError):
             users.referrals.create(test_user["_id"], "1" * 51)
 
-        users.referrals.create(test_user["_id"], "nice-code")
+        users.referrals.create(test_user["_id"], "NICE-CODE")
+        assert users.referrals.check("nice-code")
+        assert users.referrals.check("NICE-code")
+
         with pytest.raises(ValueError):
             users.referrals.create(test_user["_id"], "nice-code")
 

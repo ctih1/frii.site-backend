@@ -34,13 +34,14 @@ class Referrals(Table):
         return super().insert_document(document)
 
     def create(self, user_id: str, requested_code: str) -> None:
+        requested_code = requested_code.lower()
         logger.info("Creating referral code")
         if len(requested_code) < 3 or len(requested_code) > 50:
             raise ValueError(
                 f"requested code is too long or too short! {requested_code}"
             )
 
-        if not re.fullmatch("[a-zA-Z0-9-]+", requested_code):
+        if not re.fullmatch("[a-z0-9-]+", requested_code):
             raise ValueError("Invalid code regex!")
 
         lookup_request_code: str = self.users.encryption.sha256(requested_code)
@@ -70,6 +71,14 @@ class Referrals(Table):
         )
 
     def check(self, referral_code: str) -> bool:
+        """Checks if referral code is valid
+
+        :param referral_code: the referral code
+        :type referral_code: str
+        :return: whether the code is valid
+        :rtype: bool
+        """
+        referral_code = referral_code.lower()
         lookup_request_code: str = self.users.encryption.sha256(referral_code)
 
         referral: ReferralType | None = self.find_item({"_id": lookup_request_code})  # type: ignore
@@ -84,6 +93,8 @@ class Referrals(Table):
         :type referral_code: str
         :raises ValueError: if referral code isnt valid
         """
+
+        referral_code = referral_code.lower()
         logger.info(f"Using referral {referral_code}")
         lookup_request_code: str = self.users.encryption.sha256(referral_code)
 
@@ -101,10 +112,8 @@ class Referrals(Table):
 
         self.modify_document({"_id": referral["_id"]}, "$push", "users", user["_id"])
 
-    def find_user_and_append(self, user_id: str, list: List["UserType | None"]) -> None:
-        list.append(self.users.find_user({"_id": user_id}))
-
     def get_users(self, referral_code: str) -> List["UserType"]:
+        referral_code = referral_code.lower()
         referrals: List["UserType"] = self.find_items({"referred-by": referral_code})  # type: ignore
 
         return referrals
