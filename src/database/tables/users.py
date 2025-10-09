@@ -223,7 +223,7 @@ class Users(Table):
             "last-login": round(time.time()),
             "permissions": {
                 "max-domains": 3,
-                "max-subdomains": 50,
+                "max-subdomains": 5,
                 "invite": False,
             },
             "feature-flags": {},

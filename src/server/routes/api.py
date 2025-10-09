@@ -91,8 +91,9 @@ class API:
             methods=["GET"],
             status_code=200,
             responses={
-                200: {"description": "Domain is available"},
-                409: {"description": "Domain is not available"},
+                200: {"description": "Retrieved domains"},
+                460: {"description": "Invalid API"},
+                461: {"description": "Invalid API permissions"},
             },
             tags=["api", "domain"],
         )
