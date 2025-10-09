@@ -201,12 +201,29 @@ class Domain:
         if not self.dns_validation.record_value_valid(body.value, body.type):
             raise HTTPException(status_code=412, detail=f"Invalid value {body.value}")
 
-        if not self.dns_validation.user_owns_domain(session.username, body.domain):
+        if not self.dns_validation.user_owns_domain(
+            session.username, body.domain, session.user_cache_data
+        ):
             raise HTTPException(
                 status_code=403, detail=f"You do not own the domain {body.domain}"
             )
 
         old_type: str = session.user_cache_data["domains"][clean_domain_name]["type"]
+
+        db_thread = Thread(
+            target=self.domains.add_domain,
+            args=(
+                session.username,
+                body.domain,
+                {
+                    "id": "None",
+                    "ip": body.value,
+                    "registered": round(time.time()),
+                    "type": body.type,
+                },
+            ),
+        )
+        db_thread.start()
 
         try:
             success = self.dns.modify_domain(
@@ -218,22 +235,15 @@ class Domain:
             )
 
             if not success:
+                db_thread.join()
+                self.domains.delete_domain(session.user_cache_data["_id"], body.domain)
                 raise DNSException("Not succesful", {"success": success})
 
         except DNSException as e:
             print(e.json)
             raise HTTPException(status_code=500)
 
-        self.domains.add_domain(
-            session.username,
-            body.domain,
-            {
-                "id": "None",
-                "ip": body.value,
-                "registered": round(time.time()),
-                "type": body.type,
-            },
-        )
+        db_thread.join()
 
     @Session.requires_auth
     def get_domains(

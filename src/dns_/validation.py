@@ -134,8 +134,13 @@ class Validation:
 
         return True
 
-    def user_owns_domain(self, user_id: str, domain: str) -> bool:
-        user_data: UserType | None = self.table.find_user({"_id": user_id})
+    def user_owns_domain(
+        self, user_id: str, domain: str, user: UserType | None = None
+    ) -> bool:
+        if not user:
+            user_data: UserType | None = self.table.find_user({"_id": user_id})
+        else:
+            user_data = user
         if user_data is None:
             raise UserNotExistError("User does not exist!")
 
