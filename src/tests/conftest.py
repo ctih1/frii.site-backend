@@ -5,6 +5,7 @@ from database.tables.users import UserType, Users
 from database.tables.codes import Codes
 from database.tables.domains import Domains
 from database.tables.sessions import Sessions
+from database.tables.reward_codes import Rewards
 from dns_.validation import Validation
 from dns_.dns import DNS
 from security.encryption import Encryption
@@ -93,6 +94,7 @@ _domains = Domains(client)
 _dns = DNS(_domains)
 _validation = Validation(_domains, _dns)
 _sessions = Sessions(client)
+_rewards = Rewards(client, _users)
 
 
 def create_first_user():
@@ -168,6 +170,11 @@ def validation():
 @pytest.fixture(scope="session")
 def sessions():
     yield _sessions
+
+
+@pytest.fixture(scope="session")
+def rewards():
+    yield _rewards
 
 
 @pytest.fixture(scope="session")

@@ -18,6 +18,7 @@ from server.routes.blog import Blog
 from server.routes.api import API
 from server.routes.admin import Admin
 from server.routes.auth import Auth
+from server.routes.kofi import Kofi
 
 from database.tables.users import Users
 from database.tables.sessions import Sessions
@@ -26,6 +27,7 @@ from database.tables.codes import Codes
 from database.tables.domains import Domains
 from database.tables.blogs import Blogs
 from database.tables.status import Status
+from database.tables.reward_codes import Rewards
 
 from dns_.dns import DNS
 
@@ -95,6 +97,7 @@ class VariableInitializer:
 
     def gather_users(self) -> None:
         self.users: Users = Users(client)
+        self.rewards = Rewards(client, self.users)
 
     def gather_sessions(self) -> None:
         self.sessions: Sessions = Sessions(client)
@@ -136,6 +139,7 @@ threads["users"].join()
 threads["domains"].join()
 app.include_router(API(v.users, v.domains, v.dns).router)
 
+
 threads["sessions"].join()
 app.include_router(Domain(v.users, v.sessions, v.domains, v.dns).router)
 
@@ -146,9 +150,14 @@ threads["blogs"].join()
 app.include_router(Blog(v.blogs, v.users, v.sessions).router)
 
 threads["codes"].join()
+
 email: Email = Email(v.codes, v.users, Encryption(os.environ["ENC_KEY"]))
-app.include_router(User(v.users, v.sessions, v.invites, email, v.codes, v.dns).router)
+app.include_router(
+    User(v.users, v.sessions, v.invites, email, v.codes, v.dns, v.rewards).router
+)
 app.include_router(Auth(v.users, v.sessions, v.invites, email, v.codes, v.dns).router)
+app.include_router(Kofi(email, v.rewards).router)
+
 app.include_router(
     Admin(
         v.users, v.sessions, AdminTools(v.users, v.sessions, v.domains, v.dns, email)

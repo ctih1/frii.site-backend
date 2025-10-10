@@ -14,7 +14,7 @@ from database.exceptions import ConflictingReferralCode
 logger = logging.getLogger(__name__)
 
 
-class TestMail:
+class TestReferrals:
     def test_creation(self, users: Users, test_user: UserType):
         with pytest.raises(ValueError):
             users.referrals.create(test_user["_id"], "1")

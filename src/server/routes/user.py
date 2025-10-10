@@ -19,6 +19,7 @@ from database.tables.invitation import Invites
 from database.tables.sessions import Sessions
 from database.tables.codes import Codes, CodeStatus
 from database.tables.domains import DomainFormat
+from database.tables.reward_codes import Rewards
 
 from security.encryption import Encryption
 from security.oauth import EmailError, OAuth, DuplicateAccount
@@ -59,6 +60,7 @@ class User:
         email: Email,
         codes: Codes,
         dns: DNS,
+        rewards: Rewards,
     ) -> None:
         converter.init_vars(table, session_table)
 
@@ -68,6 +70,7 @@ class User:
         self.email: Email = email
         self.codes: Codes = codes
         self.dns: DNS = dns
+        self.rewards: Rewards = rewards
         self.captcha: Captcha = Captcha(os.getenv("TURNSTILE_KEY") or "")
 
         self.encryption: Encryption = Encryption(os.getenv("ENC_KEY"))  # type: ignore[arg-type]
@@ -86,6 +89,19 @@ class User:
             },
             status_code=200,
             tags=["account"],
+        )
+
+        self.router.add_api_route(
+            "/redeem",
+            self.redeem_code,
+            methods=["POST"],
+            responses={
+                200: {"description": "Succesfully redeemed code"},
+                412: {"description": "Invalid code"},
+                460: {"description": "Invalid session"},
+            },
+            status_code=200,
+            tags=["account", "kofi"],
         )
 
         self.router.add_api_route(
@@ -526,6 +542,13 @@ class User:
             raise HTTPException(status_code=409, detail="Referral code taken")
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid code length")
+
+    @Session.requires_auth
+    def redeem_code(
+        self, code: str, request: Request, session: Session = Depends(converter.create)
+    ):
+        if not self.rewards.use(session.user_id, code):
+            raise HTTPException(status_code=412, detail="Invalid code!")
 
     def verify_deletion(self, code: str):
         code_status: CodeStatus = self.codes.is_valid(code, "deletion")

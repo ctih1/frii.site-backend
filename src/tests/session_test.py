@@ -103,7 +103,9 @@ class TestCreation:
         assert Session(access, users, sessions).valid
 
     def test_object(self, test_session: Session, test_user: UserType, users: Users):
+        assert test_session.user_id == test_session.user_cache_data["_id"]
         assert test_session.token_result != InvalidToken
+        
         user = users.find_user({"_id": test_user["_id"]})
         assert user != None
 

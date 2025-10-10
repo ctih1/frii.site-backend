@@ -18,6 +18,7 @@ recovery_template: str
 deletion_template: str
 banned_template: str
 domain_delete_template: str
+purchase_template: str
 
 with open(os.path.join(template_path, "verify.html"), "r") as f:
     verify_template = "\n".join(f.readlines())
@@ -33,6 +34,9 @@ with open(os.path.join(template_path, "banned.html"), "r") as f:
 
 with open(os.path.join(template_path, "domain_removal.html"), "r") as f:
     domain_delete_template = "\n".join(f.readlines())
+
+with open(os.path.join(template_path, "purchase.html"), "r") as f:
+    purchase_template = "\n".join(f.readlines())
 
 logger: logging.Logger = logging.getLogger("frii.site")
 
@@ -71,6 +75,22 @@ class Email:
             )
         except resend.exceptions.ResendError as e:
             logger.error(f"Failed to send verification code {e}")
+            return False
+        return True
+
+    def send_purchase_confirmation(self, email: str, purchase_link: str) -> bool:
+        try:
+            resend.Emails.send(
+                {
+                    "from": "send@frii.site",
+                    "to": email,
+                    "subject": "Order completed",
+                    "html": purchase_template.replace("{{link}}", purchase_link),
+                    "text": f"To activate your product, go to {purchase_link} ",
+                }
+            )
+        except resend.exceptions.ResendError as e:
+            logger.error(f"Failed to purchase code {e}")
             return False
         return True
 
