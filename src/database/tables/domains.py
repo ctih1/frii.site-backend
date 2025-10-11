@@ -1,8 +1,10 @@
-from typing import Dict, List
+from typing import Dict, List, Literal, Tuple, get_args
 import logging
 from typing_extensions import NotRequired, TypedDict
 from database.tables.users import Users, UserType
 from database.exceptions import UserNotExistError
+from dns_.types import AVAILABLE_TLDS
+
 
 logger: logging.Logger = logging.getLogger("frii.site")
 
@@ -37,8 +39,30 @@ class Domains(Users):
     def clean_domain_name(input: str) -> str:
         return input.replace(".", "[dot]").lower()
 
-    def beautify_domain_name(self, input: str) -> str:
+    @staticmethod
+    def seperate_domain_into_parts(domain: str) -> Tuple[str, str]:
+        """Returns the name and TLD of the domain
+
+        :param domain: the full domain (e.g a.frii.site)
+        :type domain: str
+        :return: name, tld. NOTE: the name does not include a dot at the end, and the tld does not contain a dot at the beginning. Looks osmething like this: (a, frii.site)
+        :rtype: Tuple[str, str]
+        """
+        tld: str = "frii.site"
+
+        for available_tld in get_args(AVAILABLE_TLDS):
+            if domain.endswith(available_tld):
+                tld = available_tld
+                break
+
+        return (domain.split(tld)[0].rstrip("."), tld)
+
+    @staticmethod
+    def unclean_domain_name(input: str) -> str:
         return input.replace("[dot]", ".")
+
+    def beautify_domain_name(self, input: str) -> str:
+        return Domains.unclean_domain_name(input)
 
     def add_domain(
         self, target_user: str, domain: str, domain_data: DomainFormat
@@ -70,7 +94,7 @@ class Domains(Users):
 
         Args:
             target_user (str): ID of target user
-            domain (str): the record name (without .frii.site)
+            domain (str): the record name with the TLD attached (e.g domain.frii.site)
             value (str | None, optional): Updated record value. Defaults to current one.
             type (str | None, optional): Updated type value. Defaults to current one.
 
@@ -105,40 +129,3 @@ class Domains(Users):
         logger.info(f"Deleting domain {cleaned_domain}")
 
         return self.remove_key({"_id": target_user}, key=f"domains.{cleaned_domain}")
-
-    def repair_domains(self, domains: Dict[str, DomainFormat]) -> RepairFormat:
-        """Repairs domains with . in their name, non destructive action"""
-
-        updated_domains: Dict[str, DomainFormat] = {}
-        fixed_domains: int = 0
-        domain_offset: int = 0
-        broken_id: Dict[str, DomainFormat] = {}
-
-        for domain in domains.copy():
-            domain: str = domain  # type: ignore[no-redef]
-            logger.info(f"Fixing domain {domain}")
-
-            if domain.replace(".", "[dot]") in updated_domains:
-                domain_offset += 1
-                continue
-
-            if "." in domain:
-                updated_domains[Domains.clean_domain_name(domain)] = domains[domain]
-                fixed_domains += 1
-            else:
-                updated_domains[domain] = domains[domain]
-
-            domain_id: str | None = domains[domain]["id"]
-
-            if not domain_id:
-                broken_id[Domains.clean_domain_name(domain)] = domains[domain]
-
-        logger.info(
-            f"fixed {fixed_domains}, duplicates {domain_offset}, broken ids: {len(broken_id)}"
-        )
-        return {
-            "fixed": fixed_domains,
-            "duplicates": domain_offset,
-            "skipped": len(domains) - fixed_domains - domain_offset,
-            "broken-id": broken_id,
-        }

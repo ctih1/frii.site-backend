@@ -1,11 +1,12 @@
 import os
 import time
 import logging
-from typing import Any, List, TYPE_CHECKING, Literal
+from typing import Any, List, TYPE_CHECKING, Literal, get_args
 from typing_extensions import NotRequired, Dict, Required, TypedDict
 from pymongo import MongoClient
 from database.table import Table
 from database.tables.referrals import Referrals
+from dns_.types import AVAILABLE_TLDS
 import requests  # type: ignore[import-untyped]
 import json
 import datetime
@@ -22,11 +23,11 @@ from database.exceptions import (
 from mail.email import Email
 from security.encryption import Encryption
 from security.session import NewSessionType, OldSessionType
-from security.api import ApiType
 
 if TYPE_CHECKING:
     from database.tables.domains import DomainFormat
     from database.tables.sessions import Sessions as SessionTable
+    from security.api import ApiType
 
 
 logger: logging.Logger = logging.getLogger("frii.site")
@@ -103,7 +104,7 @@ UserType = TypedDict(
         "has-linked-google": NotRequired[bool],
         "domains": Required[Dict[str, "DomainFormat"]],
         "feature-flags": NotRequired[Dict[str, bool]],
-        "api-keys": NotRequired[Dict[str, ApiType]],
+        "api-keys": NotRequired[Dict[str, "ApiType"]],
         "credits": NotRequired[int],
         "beta-enroll": NotRequired[bool],
         "beta-updated": NotRequired[int],
@@ -115,6 +116,7 @@ UserType = TypedDict(
         "referral-code": NotRequired[str],
         "referred-by": NotRequired[str],
         "referred-count": NotRequired[int],
+        "owned-tlds": List[str]
     },
 )
 
@@ -233,6 +235,7 @@ class Users(Table):
             "registered-with": signup_method,
             "has-linked-google": signup_method == "google",
             "credits": 200,
+            "owned-tlds": ["frii.site"]
         }
 
         if refer_code:
@@ -398,10 +401,20 @@ class Users(Table):
         fixed_domains = False
 
         for domain, contents in user["domains"].items():
+            new_domain_name = domain.lower()
             if domain.lower() != domain:
                 fixed_domains = True
 
-            domains[domain.lower()] = contents
+            if (
+                not domain.lower()
+                .replace("[dot]", ".")
+                .endswith(get_args(AVAILABLE_TLDS))
+            ):
+                logger.info(f"Updated domain {domain.lower()} to have the new syntax")
+                new_domain_name = new_domain_name + "[dot]frii[dot]site"
+                fixed_domains = True
+
+            domains[new_domain_name] = contents
 
         if len(domains) != len(user["domains"]):
             logger.warning("Domain amount does not match!")
@@ -430,6 +443,10 @@ class Users(Table):
                 "accessed-from",
                 list(set(user.get("accessed-from", []))),
             )
+
+        if user.get("owned-tlds") is None:
+            logger.info("Updated owned TLDs")
+            self.modify_document({"_id": user["_id"]}, "$set", "owned-tlds", ["frii.site"])
 
         logger.debug(f"Migrations took {time.time() - start :.5f}s")
 

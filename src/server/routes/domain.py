@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, get_args
 import time
 import logging
 from fastapi import APIRouter, Request, Header, Depends, WebSocket
@@ -7,7 +7,7 @@ from threading import Thread
 import asyncio
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
-from server.routes.models.domain import DomainType
+from server.routes.models.domain import DomainType, DomainRetrieve
 from database.table import Table
 from database.tables.users import Users as UsersTable, UserType
 from database.tables.invitation import Invites as InviteTable
@@ -18,6 +18,7 @@ from security.encryption import Encryption
 from security.session import Session, SessionCreateStatus
 from security.convert import Convert
 from dns_.dns import DNS
+from dns_.types import AVAILABLE_TLDS
 from dns_.validation import Validation
 from dns_.exceptions import DNSException, DomainExistsError
 from mail.email import Email
@@ -53,6 +54,7 @@ class Domain:
             responses={
                 200: {"description": "Domain created"},
                 400: {"description": "Invalid domain name"},
+                401: {"description": "TLD not owned"},
                 403: {
                     "description": "Domain missing for subdomain (e.g: a.b.frii.site needs b.frii.site registered)"
                 },
@@ -142,6 +144,19 @@ class Domain:
 
     @Session.requires_auth
     def register(self, body: DomainType, session: Session = Depends(converter.create)):
+        domain_name = body.domain
+        if not domain_name.endswith(get_args(AVAILABLE_TLDS)):
+            logger.warning("Deprecated usage of register. Please pass the TLD!")
+            domain_name += ".frii.site"
+
+        (_, tld) = self.domains.seperate_domain_into_parts(domain_name)
+
+        if tld not in session.user_cache_data.get("owned-tlds", ["frii.site"]):
+            raise HTTPException(
+                status_code=401,
+                detail=f"User must purchase {tld} before registering this domain",
+            )
+
         can_user_register = self.dns_validation.can_user_register(
             body.domain, session.user_cache_data
         )
@@ -248,9 +263,11 @@ class Domain:
     @Session.requires_auth
     def get_domains(
         self, session: Session = Depends(converter.create)
-    ) -> Dict[str, DomainFormat]:
+    ) -> DomainRetrieve:
         domains: Dict[str, DomainFormat] = session.user_cache_data["domains"]
-        return JSONResponse({k.replace("[dot]", "."): v for k, v in domains.items()})  # type: ignore[return-value]
+        domains = {k.replace("[dot]", "."): v for k, v in domains.items()}
+
+        return JSONResponse({"domains": domains, "owned-tlds": session.user_cache_data.get("owned-tlds", ["frii.site"])})  # type: ignore[return-value]
 
     @Session.requires_auth
     def delete(self, domain: str, session: Session = Depends(converter.create)) -> None:

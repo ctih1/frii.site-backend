@@ -57,16 +57,18 @@ class DNS:
             if not success:
                 raise DNSException("DNS Modification failed", json={"success": success})
 
+        (name, tld) = Domains.seperate_domain_into_parts(domain)
+
         # PowerDNS will complain if these two are not present.
         content = sanitize(content, type)
 
         request = requests.patch(
-            f"https://vps.frii.site/api/v1/servers/localhost/zones/frii.site.",
+            f"https://vps.frii.site/api/v1/servers/localhost/zones/{tld}.",
             data=json.dumps(
                 {
                     "rrsets": [
                         {
-                            "name": domain + ".frii.site.",
+                            "name": name + f".{tld}.",
                             "type": type,
                             "ttl": ttl,
                             "changetype": "REPLACE",
@@ -100,7 +102,7 @@ class DNS:
         """
         Registers a new DNS record for the specified domain.
         Args:
-            domain (str): The name of the DNS record. NOTE: Must use the normal DNS schema (aka a.b, NOT a[dot]b)
+            domain (str): The name of the DNS record. NOTE: Must use the normal DNS schema (aka a.b.frii.site, NOT a[dot]b[dot]frii[dot]site)
             content (str): The content of the DNS record.
             type (str): The type of the DNS record (e.g., A, AAAA, CNAME, etc.).
             user_id (str): ID of the user creating the record
@@ -113,13 +115,15 @@ class DNS:
 
         content = sanitize(content, type)
 
+        (name, tld) = Domains.seperate_domain_into_parts(domain)
+
         request = requests.patch(
-            f"https://vps.frii.site/api/v1/servers/localhost/zones/frii.site.",
+            f"https://vps.frii.site/api/v1/servers/localhost/zones/{tld}.",
             data=json.dumps(
                 {
                     "rrsets": [
                         {
-                            "name": domain + ".frii.site.",
+                            "name": name + f".{tld}.",
                             "type": type,
                             "ttl": 3400,
                             "changetype": "REPLACE",
@@ -162,13 +166,15 @@ class DNS:
             ValueError: If the ID of the newly created DNS record cannot be retrieved.
         """
 
-        rrsets: List[dict] = []
+        rrsets: Dict[str, List[dict]] = {}
 
         for domain, values in domains.items():
+            (name, tld) = Domains.seperate_domain_into_parts(domain)
+
             values["ip"] = sanitize(values["ip"], values["type"])
 
             rrset = {
-                "name": domain + ".frii.site.",
+                "name": name + f".{tld}.",
                 "type": values["type"],
                 "ttl": 3400,
                 "changetype": "REPLACE",
@@ -181,42 +187,49 @@ class DNS:
                 ],
             }
 
-            rrsets.append(rrset)
+            rrsets[tld].append(rrset)
 
-        request = requests.patch(
-            f"https://vps.frii.site/api/v1/servers/localhost/zones/frii.site.",
-            data=json.dumps({"rrsets": rrsets}),
-            headers={"Content-Type": "application/json", "X-API-Key": self.key},
-        )
+        for tld, tld_rrsets in rrsets.items():
+            request = requests.patch(
+                f"https://vps.frii.site/api/v1/servers/localhost/zones/{tld}.",
+                data=json.dumps({"rrsets": tld_rrsets}),
+                headers={"Content-Type": "application/json", "X-API-Key": self.key},
+            )
 
-        if not request.ok:
-            logger.error(f"Failed to register domains. {request.json()}")
+            if not request.ok:
+                logger.error(
+                    f"Failed to register domains for TLD {tld}. {request.json()}"
+                )
 
-            if not self.key:
-                logger.critical("API key not defined!")
+                if not self.key:
+                    logger.critical("API key not defined!")
 
-            raise DNSException("Failed to register domain", request.json())
+                raise DNSException("Failed to register domain", request.json())
 
         return True
 
     def delete_domain(self, domain: str, type: str) -> bool:
+        """Deletes a domain
+
+        :param domain: the full domain (e.g. a.b.frii.site)
+        :type domain: str
+        :param type: the type of the domain (e.g. A, AAAA)
+        :type type: str
+        :return: whether was succesfull
+        :rtype: bool
         """
-        Deletes a DNS record for the specified domain ID.
-        Args:
-            domain_id (str): The ID of the domain to be deleted.
-        Returns:
-            bool: True if the domain was successfully deleted, False otherwise.
-        """
+
+        (name, tld) = Domains.seperate_domain_into_parts(domain)
 
         logger.info(f"deleting record {domain}")
 
         request = requests.patch(
-            f"https://vps.frii.site/api/v1/servers/localhost/zones/frii.site.",
+            f"https://vps.frii.site/api/v1/servers/localhost/zones/{tld}.",
             data=json.dumps(
                 {
                     "rrsets": [
                         {
-                            "name": domain + ".frii.site.",
+                            "name": name + f".{tld}.",
                             "type": type,
                             "changetype": "DELETE",
                             "records": [{}],
@@ -245,26 +258,34 @@ class DNS:
 
         logger.info(f"mass deleting records {list(domains.keys())}")
 
-        rrsets = [
-            {
-                "name": k + ".frii.site.",
-                "type": v,
-                "changetype": "DELETE",
-                "records": [{}],
-            }
-            for k, v in domains.items()
-        ]
+        rrsets: Dict[str, List[dict]] = {}
 
-        request = requests.patch(
-            f"https://vps.frii.site/api/v1/servers/localhost/zones/frii.site.",
-            data=json.dumps({"rrsets": rrsets}),
-            headers={"Content-Type": "application/json", "X-API-Key": self.key},
-        )
+        for domain, type in domains.items():
+            (name, tld) = Domains.seperate_domain_into_parts(domain)
 
-        if not request.ok:
-            logger.error(
-                f"Could not delete domains {list(domains.keys())}. {request.json()}"
+            rrsets[tld].append(
+                {
+                    "name": name + f".{tld}.",
+                    "type": type,
+                    "changetype": "DELETE",
+                    "records": [{}],
+                }
             )
-            return False
 
+        for tld, tld_rrsets in rrsets.items():
+            request = requests.patch(
+                f"https://vps.frii.site/api/v1/servers/localhost/zones/{tld}.",
+                data=json.dumps({"rrsets": tld_rrsets}),
+                headers={"Content-Type": "application/json", "X-API-Key": self.key},
+            )
+
+            if not request.ok:
+                logger.error(
+                    f"Failed to delete domains for TLD {tld}. {request.json()}"
+                )
+
+                if not self.key:
+                    logger.critical("API key not defined!")
+
+                return False
         return True

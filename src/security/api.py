@@ -15,12 +15,13 @@ from functools import wraps
 from database.table import Table
 from security.encryption import Encryption
 from database.exceptions import UserNotExistError
+from database.tables.domains import DomainFormat, Domains
+
 
 if TYPE_CHECKING:
     from database.tables.users import Users
     from database.tables.users import UserType
     from database.tables.sessions import Sessions
-    from database.tables.domains import DomainFormat
 
 
 class ApiError(Exception): ...
@@ -111,10 +112,7 @@ class Api:
 
                     logger.info(target_domain)
                     logger.info(target.affected_domains)
-                    if (
-                        target_domain.replace(".", "[dot]")
-                        not in target.affected_domains
-                    ):
+                    if target_domain not in target.affected_domains:
                         logger.warning(f"{target_domain} not in affected domain")
                         raise ApiRangeError("User cannot access this domain")
 
@@ -217,7 +215,10 @@ class Api:
         user_domains: Dict[str, "DomainFormat"] = user_data["domains"]
 
         for domain in domains:
-            if domain not in list(user_domains.keys()) and domain != "*":
+            if (
+                Domains.clean_domain_name(domain) not in list(user_domains.keys())
+                and domain != "*"
+            ):
                 logger.warning(f"Domain {domain} not in user_domain")
                 raise PermissionError(f"User does not own domain {domain}")
 

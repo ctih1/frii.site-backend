@@ -21,6 +21,8 @@ logger: logging.Logger = logging.getLogger("frii.site")
 
 PURCHASE_TYPE = Literal["Donation", "Subscription", "Commission", "Shop Order"]
 EXTRA_DOMAIN_LINK_CODE = "65a532e32b"
+ARROVH_SUBDOMAIN_LINK_CODE = "ee4b5170a6"
+PILLOVH_SUBDOMAIN_LINK_CODE = "38e30ddc66"
 
 
 class Kofi:
@@ -67,27 +69,30 @@ class Kofi:
 
         logger.info("Recieved webhook from Kofi")
 
-        increased_subdomains: int = 0
-        increased_domains: int = 0
+        mapping = {}
 
         code: str | None = None
 
         if purchase_type == "Shop Order":
             for item in jason.get("shop_items"):
+                quantity: int = item.get("quantity", 1)
+
                 if item.get("direct_link_code") == EXTRA_DOMAIN_LINK_CODE:
-                    quantity: int = item.get("quantity", 1)
                     increased_domains = 10 * quantity
                     increased_subdomains = 100 * quantity
-
-            code = self.rewards.create(
-                email,
-                {
-                    "$inc": {
-                        "permissions.max-domains": increased_domains,
-                        "permissions.max-subdomains": increased_subdomains,
+                    mapping = {
+                        "$inc": {
+                            "permissions.max-domains": increased_domains,
+                            "permissions.max-subdomains": increased_subdomains,
+                        }
                     }
-                },
-            )
+
+                elif item.get("direct_link_code") == PILLOVH_SUBDOMAIN_LINK_CODE:
+                    mapping = {"$push": {"owned-tlds": "pill.ovh"}}
+                elif item.get("direct_link_code") == ARROVH_SUBDOMAIN_LINK_CODE:
+                    mapping = {"$push": {"owned-tlds": "arr.ovh"}}
+
+            code = self.rewards.create(email, mapping)
 
         if code is None:
             raise HTTPException(
@@ -95,5 +100,5 @@ class Kofi:
             )
 
         self.emails.send_purchase_confirmation(
-            email, f"https://canary.frii.site/redeem?c={code}"
+            email, f"https://canary.frii.site/redeem/{code}", code
         )

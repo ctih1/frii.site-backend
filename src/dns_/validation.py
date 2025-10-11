@@ -1,4 +1,4 @@
-from typing import List, Dict, NamedTuple
+from typing import List, Dict, NamedTuple, Literal
 from typing import TYPE_CHECKING
 import logging
 import string
@@ -14,6 +14,8 @@ if TYPE_CHECKING:
 logger: logging.Logger = logging.getLogger("frii.site")
 
 ALLOWED_TYPES: List[str] = ["A", "AAAA", "CNAME", "TXT", "NS"]
+
+
 UserCanRegisterResult = NamedTuple(
     "UserCanRegisterResult", [("success", bool), ("comment", str)]
 )
@@ -73,7 +75,7 @@ class Validation:
         """
         Checks if a given domain name is free for registration.
         Args:
-            name (str): The domain name to check.
+            name (str): The domain to check.
             type (str): The type of DNS record.
             domains (Dict[str, DomainFormat]): A dictionary of domains owned by the user.
             raise_exceptions (bool, optional): Whether to raise exceptions on validation errors. Defaults to True.
@@ -104,13 +106,17 @@ class Validation:
             logger.info(f"User already owns domain {cleaned_domain}")
             return False
 
-        domain_parts: List[str] = cleaned_domain.split("[dot]")
+        (domain, tld) = Domains.seperate_domain_into_parts(name)
+        domain = Domains.clean_domain_name(domain)
+        logger.info(f"Checking if {domain} is subdomain")
+
+        domain_parts: List[str] = domain.split("[dot]")
         is_subdomain: bool = len(domain_parts) > 1
 
         required_domain: str = domain_parts[-1]
 
         if required_domain and is_subdomain and required_domain not in domains:
-            logger.warn(f"User does not own {required_domain}")
+            logger.warning(f"User does not own {required_domain}")
             if raise_exceptions:
                 raise SubdomainError(
                     f"User doesn't own '{required_domain}'", required_domain
@@ -124,7 +130,7 @@ class Validation:
             )
             != 0
         ):
-            logger.error(f"Domain {cleaned_domain} already exists in database")
+            logger.warning(f"Domain {cleaned_domain} already exists in database")
 
             if raise_exceptions:
                 raise DomainExistsError("Domain is already registered")
@@ -150,14 +156,25 @@ class Validation:
 
     @staticmethod
     def can_user_register(domain: str, user: UserType) -> UserCanRegisterResult:
-        """Checks whether user's domain limit is enough to register a domain"""
-        is_subdomain = "." in domain
+        """Checks whether users domain limit allows them to register a domain
+
+        :param domain: a beautified domain, eg a.b.frii.site
+        :type domain: str
+        :param user: the user who is registering
+        :type user: UserType
+        :return: whether the user can register
+        :rtype: UserCanRegisterResult
+        """
+        (name, _) = Domains.seperate_domain_into_parts(domain)
+        is_subdomain = "." in name
         subdomain_amount: int = 0
 
         user_domain_amount = 0
         subdomain_amount = 0
+
         for domain in user["domains"].keys():
-            if "[dot]" in domain:
+            (name, _) = Domains.seperate_domain_into_parts(domain)
+            if "[dot]" in name:
                 subdomain_amount += 1
             else:
                 user_domain_amount += 1
@@ -167,7 +184,7 @@ class Validation:
         )
 
         user_max_domains = user.get("permissions", {}).get("max-domains", 3)
-        user_max_subdomains = user.get("permissions", {}).get("max-subdomains", 50)
+        user_max_subdomains = user.get("permissions", {}).get("max-subdomains", 5)
 
         if not is_subdomain and user_domain_amount >= user_max_domains:
             return UserCanRegisterResult(False, "Domain limit exceeded")

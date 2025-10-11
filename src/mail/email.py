@@ -78,15 +78,19 @@ class Email:
             return False
         return True
 
-    def send_purchase_confirmation(self, email: str, purchase_link: str) -> bool:
+    def send_purchase_confirmation(
+        self, email: str, purchase_link: str, code: str
+    ) -> bool:
         try:
             resend.Emails.send(
                 {
                     "from": "send@frii.site",
                     "to": email,
                     "subject": "Order completed",
-                    "html": purchase_template.replace("{{link}}", purchase_link),
-                    "text": f"To activate your product, go to {purchase_link} ",
+                    "html": purchase_template.replace(
+                        "{{link}}", purchase_link
+                    ).replace("{{code}}", code),
+                    "text": f"To activate your product, go to {purchase_link}",
                 }
             )
         except resend.exceptions.ResendError as e:
