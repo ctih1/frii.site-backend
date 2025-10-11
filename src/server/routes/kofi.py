@@ -69,7 +69,7 @@ class Kofi:
 
         logger.info("Recieved webhook from Kofi")
 
-        mapping = {}
+        mapping: dict = {}
 
         code: str | None = None
 
