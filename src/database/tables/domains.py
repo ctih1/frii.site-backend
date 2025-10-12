@@ -51,7 +51,7 @@ class Domains(Users):
         tld: str = "frii.site"
 
         for available_tld in get_args(AVAILABLE_TLDS):
-            if domain.endswith(available_tld):
+            if Domains.unclean_domain_name(domain).endswith(available_tld):
                 tld = available_tld
                 break
 

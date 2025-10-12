@@ -113,7 +113,9 @@ class Validation:
         domain_parts: List[str] = domain.split("[dot]")
         is_subdomain: bool = len(domain_parts) > 1
 
-        required_domain: str = domain_parts[-1]
+        required_domain: str = (
+            domain_parts[-1] + "[dot]" + Domains.clean_domain_name(tld)
+        )
 
         if required_domain and is_subdomain and required_domain not in domains:
             logger.warning(f"User does not own {required_domain}")

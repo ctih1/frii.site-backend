@@ -141,7 +141,7 @@ class API:
         except SubdomainError as e:
             raise HTTPException(
                 status_code=403,
-                detail=f"You need to own {e.required_domain}.frii.site before registering {body.domain}",
+                detail=f"You need to own {e.required_domain} before registering {body.domain}",
             )
         except DomainExistsError:
             raise HTTPException(status_code=409, detail="Domain is already registered")
