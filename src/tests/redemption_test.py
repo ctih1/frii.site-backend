@@ -21,6 +21,7 @@ class TestRedeeming:
         code = rewards.create("wolf@gang.de", {"$set": {"affected": True}})
         assert not rewards.use(test_user["_id"], code.upper())
         assert rewards.use(test_user["_id"], code)
+        assert not rewards.use(test_user["_id"], code), "Code can be used twice!"
 
         new_user = users.find_user({"_id": test_user["_id"]})
         assert new_user and new_user.get("affected")
