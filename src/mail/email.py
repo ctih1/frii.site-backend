@@ -19,6 +19,7 @@ deletion_template: str
 banned_template: str
 domain_delete_template: str
 purchase_template: str
+admin_template: str
 
 with open(os.path.join(template_path, "verify.html"), "r") as f:
     verify_template = "\n".join(f.readlines())
@@ -37,6 +38,9 @@ with open(os.path.join(template_path, "domain_removal.html"), "r") as f:
 
 with open(os.path.join(template_path, "purchase.html"), "r") as f:
     purchase_template = "\n".join(f.readlines())
+
+with open(os.path.join(template_path, "admin_action.html"), "r") as f:
+    admin_template = "\n".join(f.readlines())
 
 logger: logging.Logger = logging.getLogger("frii.site")
 
@@ -184,6 +188,20 @@ class Email:
                     "html": domain_delete_template.replace(
                         "{{reason}}", reason
                     ).replace("{{domain}}", domain),
+                }
+            )
+        except resend.exceptions.ResendError as e:
+            logger.error(f"Failed to send domain email {e.suggested_action}")
+            return False
+
+    def send_admin_email(self, target_email: str, action: str):
+        try:
+            resend.Emails.send(
+                {
+                    "from": "send@frii.site",
+                    "to": target_email,
+                    "subject": "An action on your account",
+                    "html": domain_delete_template.replace("{{action}}", action),
                 }
             )
         except resend.exceptions.ResendError as e:

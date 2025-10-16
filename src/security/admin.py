@@ -15,6 +15,7 @@ from database.exceptions import UserNotExistError, FilterMatchError
 import time
 
 import logging
+import threading
 
 
 class DomainDeletionError(Exception): ...
@@ -50,6 +51,15 @@ class Admin:
         self.dns = dns
         self.email = mail
         self.sessions = sessions_table
+
+    def send_nonblocking_action_email(
+        self, email: str, actions: str
+    ) -> threading.Thread:
+        thread = threading.Thread(
+            target=self.email.send_admin_email, args=(email, actions)
+        )
+        thread.start()
+        return thread
 
     def ban_user(self, reasons: List[str], user_data: UserType) -> bool:
         if len(reasons) == 0:
@@ -94,6 +104,9 @@ class Admin:
         domains = {k.replace("[dot]", "."): v for k, v in user_data["domains"].items()}
 
         self.dns.register_multiple(domains, user_id)
+        self.send_nonblocking_action_email(
+            self.users.encryption.decrypt(user_data["email"]), "Account reinstated"
+        )
 
     def find_user_by_domain(self, domain: str) -> AccountData | None:
         user_data = self.users.find_user(
@@ -159,10 +172,18 @@ class Admin:
     ) -> bool:
         logger.info(f"Changing user permission {permission}->{new_value}")
         try:
+            user = self.get_user_details_by_id(user_id)
+            if user is None:
+                return False
+
             self.users.modify_document(
                 {"_id": user_id}, "$set", f"permissions.{permission}", new_value
             )
+            self.send_nonblocking_action_email(
+                user["email"], f"Account permission changed ({permission}: {new_value})"
+            )
             return True
+
         except FilterMatchError:
             return False
 
@@ -174,6 +195,14 @@ class Admin:
         :param tld: the tld (without the . prefix)
         :type tld: AVAILABLE_TLDS
         """
+        user = self.get_user_details_by_id(user_id)
+        if user is None:
+            logger.warning("Couldn't find user to add domain to")
+            return
+
+        self.send_nonblocking_action_email(
+            user["email"], f"New TLD added to your account. (.{tld})"
+        )
         self.users.modify_document({"_id": user_id}, "$push", "owned-tlds", tld)
 
     def remove_domain(self, user_id: str, tld: AVAILABLE_TLDS):
@@ -184,6 +213,14 @@ class Admin:
         :param tld: the tld (without . prefix)
         :type tld: AVAILABLE_TLDS
         """
+        user = self.get_user_details_by_id(user_id)
+        if user is None:
+            logger.warning("Couldn't find user to add domain to")
+            return
+
+        self.send_nonblocking_action_email(
+            user["email"], f"TLD .{tld} has been removed from your account"
+        )
         self.users.modify_document({"_id": user_id}, "$pull", "owned-tlds", tld)
 
     def verify(self, user_id: str):
