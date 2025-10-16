@@ -201,7 +201,7 @@ class Email:
                     "from": "send@frii.site",
                     "to": target_email,
                     "subject": "An action on your account",
-                    "html": domain_delete_template.replace("{{action}}", action),
+                    "html": admin_template.replace("{{action}}", action),
                 }
             )
         except resend.exceptions.ResendError as e:
