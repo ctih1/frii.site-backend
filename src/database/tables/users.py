@@ -80,6 +80,7 @@ UserPageType = TypedDict(
         "google-connected": bool,
         "referral-code": str | None,
         "referred-people": int | None,
+        "owned-tlds": List[str],
     },
 )
 
@@ -116,7 +117,7 @@ UserType = TypedDict(
         "referral-code": NotRequired[str],
         "referred-by": NotRequired[str],
         "referred-count": NotRequired[int],
-        "owned-tlds": List[str]
+        "owned-tlds": List[str],
     },
 )
 
@@ -235,7 +236,7 @@ class Users(Table):
             "registered-with": signup_method,
             "has-linked-google": signup_method == "google",
             "credits": 200,
-            "owned-tlds": ["frii.site"]
+            "owned-tlds": ["frii.site"],
         }
 
         if refer_code:
@@ -372,6 +373,7 @@ class Users(Table):
             "mfa_enabled": user_data.get("totp", {}).get("verified", False),
             "referral-code": user_data.get("referral-code"),
             "referred-people": user_data.get("referred-count"),
+            "owned-tlds": user_data.get("owned-tlds"),
         }
 
     def change_beta_enrollment(self, user_id: str, mode: bool = False) -> None:
@@ -446,7 +448,9 @@ class Users(Table):
 
         if user.get("owned-tlds") is None:
             logger.info("Updated owned TLDs")
-            self.modify_document({"_id": user["_id"]}, "$set", "owned-tlds", ["frii.site"])
+            self.modify_document(
+                {"_id": user["_id"]}, "$set", "owned-tlds", ["frii.site"]
+            )
 
         logger.debug(f"Migrations took {time.time() - start :.5f}s")
 

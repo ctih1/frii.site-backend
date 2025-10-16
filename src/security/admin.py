@@ -8,6 +8,7 @@ from database.tables.users import UserType, UserPageType
 from database.tables.domains import Domains, DomainFormat
 from database.tables.sessions import Sessions
 from dns_.dns import DNS
+from dns_.types import AVAILABLE_TLDS
 from dns_.exceptions import DNSException
 from mail.email import Email
 from database.exceptions import UserNotExistError, FilterMatchError
@@ -96,7 +97,8 @@ class Admin:
 
     def find_user_by_domain(self, domain: str) -> AccountData | None:
         user_data = self.users.find_user(
-            {f"domains.{domain}": {"$exists": True}}, find_banned=True
+            {f"domains.{Domains.clean_domain_name(domain)}": {"$exists": True}},
+            find_banned=True,
         )
 
         if not user_data:
@@ -113,7 +115,7 @@ class Admin:
         user: UserType | None = self.users.find_user(
             {
                 "$or": [
-                    {"_id": username},
+                    {"_id": Encryption.sha256(username)},
                     {"username": Encryption.sha256(username.lower())},
                 ]
             }
@@ -163,3 +165,26 @@ class Admin:
             return True
         except FilterMatchError:
             return False
+
+    def add_domain(self, user_id: str, tld: AVAILABLE_TLDS):
+        """Adds domain to TLDs
+
+        :param user_id: id of the user
+        :type user_id: str
+        :param tld: the tld (without the . prefix)
+        :type tld: AVAILABLE_TLDS
+        """
+        self.users.modify_document({"_id": user_id}, "$push", "owned-tlds", tld)
+
+    def remove_domain(self, user_id: str, tld: AVAILABLE_TLDS):
+        """Removes a TLD
+
+        :param user_id: id of the user
+        :type user_id: str
+        :param tld: the tld (without . prefix)
+        :type tld: AVAILABLE_TLDS
+        """
+        self.users.modify_document({"_id": user_id}, "$pull", "owned-tlds", tld)
+
+    def verify(self, user_id: str):
+        self.users.modify_document({"_id": user_id}, "$set", "verified", True)

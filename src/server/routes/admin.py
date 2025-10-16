@@ -1,4 +1,4 @@
-from typing import List, Annotated
+from typing import List, Annotated, get_args
 import time
 import logging
 from fastapi import APIRouter, Request, Header, Depends
@@ -11,6 +11,7 @@ from database.tables.sessions import Sessions
 from database.exceptions import UserNotExistError, InviteException
 from mail.email import Email
 from dns_.exceptions import DNSException
+from dns_.types import AVAILABLE_TLDS
 from security.session import Session
 from security.encryption import Encryption
 from security.convert import Convert
@@ -58,6 +59,38 @@ class Admin:
                 503: {"description": "Failed to recover DNS records"},
                 460: {"description": "Invalid session"},
                 461: {"description": "Invalid permissions"},
+            },
+            tags=["admin"],
+        )
+
+        self.router.add_api_route(
+            "/user/verify",
+            self.verify,
+            methods=["POST"],
+            responses={
+                200: {"description": "User verified"},
+            },
+            tags=["admin"],
+        )
+
+        self.router.add_api_route(
+            "/user/tld/add",
+            self.add_tld,
+            methods=["POST"],
+            responses={
+                200: {"description": "TLD added"},
+                412: {"description": "Invalid TLD"},
+            },
+            tags=["admin"],
+        )
+
+        self.router.add_api_route(
+            "/user/tld/remove",
+            self.remove_tld,
+            methods=["POST"],
+            responses={
+                200: {"description": "TLD added"},
+                412: {"description": "Invalid TLD"},
             },
             tags=["admin"],
         )
@@ -302,6 +335,41 @@ class Admin:
     ) -> None:
         if not self.admin_tools.change_permission(id, permission, value):
             raise HTTPException(status_code=404, detail="User not found")
+
+    @Session.requires_auth
+    @Session.requires_permission(permission="manage-permissions")
+    def add_tld(
+        self,
+        id: str,
+        tld: str,
+        session: Session = Depends(converter.create),
+    ) -> None:
+        if tld not in get_args(AVAILABLE_TLDS):
+            raise HTTPException(status_code=412, detail=f"Invalid TLD {tld}")
+
+        self.admin_tools.add_domain(id, tld)  # type: ignore
+
+    @Session.requires_auth
+    @Session.requires_permission(permission="manage-permissions")
+    def remove_tld(
+        self,
+        id: str,
+        tld: str,
+        session: Session = Depends(converter.create),
+    ) -> None:
+        if tld not in get_args(AVAILABLE_TLDS):
+            raise HTTPException(status_code=412, detail=f"Invalid TLD {tld}")
+
+        self.admin_tools.remove_domain(id, tld)  # type: ignore
+
+    @Session.requires_auth
+    @Session.requires_permission(permission="userdetails")
+    def verify(
+        self,
+        id: str,
+        session: Session = Depends(converter.create),
+    ) -> None:
+        self.admin_tools.verify(id)  # type: ignore
 
     @Session.requires_auth
     def can_access(self, session: Session = Depends(converter.create)):
