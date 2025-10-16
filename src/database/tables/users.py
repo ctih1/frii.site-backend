@@ -373,7 +373,7 @@ class Users(Table):
             "mfa_enabled": user_data.get("totp", {}).get("verified", False),
             "referral-code": user_data.get("referral-code"),
             "referred-people": user_data.get("referred-count"),
-            "owned-tlds": user_data.get("owned-tlds"),
+            "owned-tlds": user_data.get("owned-tlds", ["frii.site"]),
         }
 
     def change_beta_enrollment(self, user_id: str, mode: bool = False) -> None:
