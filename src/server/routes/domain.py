@@ -310,7 +310,7 @@ class Domain:
                 logger.info("Updating vercel verification...")
 
                 self.dns.modify_domain(
-                    user_stuff.get("value", ""),
+                    user_stuff.get("verification", None),  # type: ignore
                     "TXT",
                     "TXT",
                     f"_vercel{user_stuff.get("tld", "")}",
@@ -331,6 +331,8 @@ class Domain:
             self.verification_queue.append(session.user_id)
         else:
             logger.info("User already in queue")
+
+        logger.info(f"Joining with {value} and tld {tld}")
         self.verification_dict[session.user_id] = {"verification": value, "tld": tld}
 
     @Session.requires_auth

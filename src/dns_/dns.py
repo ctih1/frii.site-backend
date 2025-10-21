@@ -50,7 +50,6 @@ class DNS:
         Raises:
             DNSException: If the request to modify the DNS record fails.
         """
-        logger.debug(f"Modifying domain {domain}")
 
         if type != old_type:
             success = self.delete_domain(domain, old_type)
@@ -58,6 +57,8 @@ class DNS:
                 raise DNSException("DNS Modification failed", json={"success": success})
 
         (name, tld) = Domains.seperate_domain_into_parts(domain)
+
+        logger.debug(f"Modifying domain {name} tld {tld}")
 
         # PowerDNS will complain if these two are not present.
         content = sanitize(content, type)
