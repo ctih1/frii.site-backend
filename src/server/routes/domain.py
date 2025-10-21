@@ -39,7 +39,7 @@ class Domain:
         self.domains: DomainTable = domains
         self.dns_validation: Validation = Validation(domains, dns)
         self.verification_queue: deque = deque([])
-        self.verification_dict: Dict[str, str] = {}
+        self.verification_dict: Dict[str, Dict[str, str]] = {}
         self.current_queue_user: str = ""
 
         Thread(target=self.handle_deque).start()
@@ -301,16 +301,21 @@ class Domain:
         while True:
             while len(self.verification_queue) != 0:
                 user_id: str = self.verification_queue[0]
-                verification_value: str | None = self.verification_dict.get(user_id)
+                user_stuff: dict | None = self.verification_dict.get(user_id)
 
-                if verification_value is None:
+                if user_stuff is None:
                     logger.error("Verification value not found")
                     continue
 
                 logger.info("Updating vercel verification...")
 
                 self.dns.modify_domain(
-                    verification_value, "TXT", "TXT", "_vercel", user_id, 15
+                    user_stuff.get("value", ""),
+                    "TXT",
+                    "TXT",
+                    f"_vercel.{user_stuff.get("tld", "")}",
+                    user_id,
+                    15,
                 )
                 self.current_queue_user = user_id
 
@@ -320,13 +325,13 @@ class Domain:
 
     @Session.requires_auth
     def vercel_queue_join(
-        self, value: str, session: Session = Depends(converter.create)
+        self, value: str, tld: str, session: Session = Depends(converter.create)
     ):
         if session.user_id not in self.verification_queue:
             self.verification_queue.append(session.user_id)
         else:
             logger.info("User already in queue")
-        self.verification_dict[session.user_id] = value
+        self.verification_dict[session.user_id] = {"verification": value, "tld": tld}
 
     @Session.requires_auth
     def vercel_queue_get(self, session: Session = Depends(converter.create)) -> int:
