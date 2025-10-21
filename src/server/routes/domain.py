@@ -321,6 +321,7 @@ class Domain:
 
                 time.sleep(45)
                 self.verification_queue.popleft()
+                self.current_queue_user = ""
             time.sleep(1)
 
     @Session.requires_auth
