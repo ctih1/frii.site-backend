@@ -179,7 +179,7 @@ class Admin:
             self.send_nonblocking_action_email(
                 user["email"], f"Account permission changed ({permission}: {new_value})"
             )
-
+    
             self.users.modify_document(
                 {"_id": user_id}, "$set", f"permissions.{permission}", new_value
             )

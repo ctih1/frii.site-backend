@@ -313,7 +313,7 @@ class Domain:
                     user_stuff.get("value", ""),
                     "TXT",
                     "TXT",
-                    f"_vercel.{user_stuff.get("tld", "")}",
+                    f"_vercel{user_stuff.get("tld", "")}",
                     user_id,
                     15,
                 )
