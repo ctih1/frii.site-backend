@@ -11,6 +11,10 @@ from dns_.validation import Validation
 logger: logging.Logger = logging.getLogger("frii.site")
 
 
+class ConflictingDomain(Exception):
+    pass
+
+
 def sanitize(content: str, type: str) -> str:
     if (type == "CNAME" or type == "NS") and not content.rstrip().endswith("."):
         content += "."
@@ -146,6 +150,11 @@ class DNS:
 
             if not self.key:
                 logger.error("API key not defined!")
+
+            if "Conflicts" in request.json().get("error"):
+                raise ConflictingDomain(
+                    "Domain has already been registered in the database"
+                )
 
             raise DNSException("Failed to register domain", request.json())
 

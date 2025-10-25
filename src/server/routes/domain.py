@@ -17,7 +17,7 @@ from database.exceptions import UserNotExistError, InviteException, SubdomainErr
 from security.encryption import Encryption
 from security.session import Session, SessionCreateStatus
 from security.convert import Convert
-from dns_.dns import DNS
+from dns_.dns import DNS, ConflictingDomain
 from dns_.types import AVAILABLE_TLDS
 from dns_.validation import Validation
 from dns_.exceptions import DNSException, DomainExistsError
@@ -183,12 +183,15 @@ class Domain:
         if not is_domain_available:
             raise HTTPException(status_code=409, detail="Domain is not available")
 
-        success = self.dns.register_domain(
-            body.domain,
-            body.value,
-            body.type,
-            f"Registered through website user: {session.username}",
-        )
+        try:
+            success = self.dns.register_domain(
+                body.domain,
+                body.value,
+                body.type,
+                f"Registered through website user: {session.username}",
+            )
+        except ConflictingDomain:
+            raise HTTPException(status_code=409, detail="Domain is already registered")
 
         if not success:
             logger.error("DNS registration failed")
