@@ -400,8 +400,17 @@ class User:
     def verify_account(self, code: str):
         code_status: CodeStatus = self.codes.is_valid(code, "verification")
 
-        if not code_status["valid"]:
+        account: str | None = code_status.get("account")
+
+        if not code_status["valid"] and account is None:
             raise HTTPException(status_code=400, detail="Code is not valid")
+
+        if not code_status["valid"] and account is not None:
+            user: UserType | None = self.table.find_user({"_id": account})
+
+            if user and user.get("verified"):
+                logger.info("Account is already verified")
+                return
 
         try:
             self.table.modify_document(
@@ -418,7 +427,10 @@ class User:
 
             if referred_by:
                 logger.info("Using referral code")
-                self.table.referrals.use(user, referred_by)
+                try:
+                    self.table.referrals.use(user, referred_by)
+                except ValueError:
+                    logger.warning(f"Invalid referral code {referred_by}")
 
         except FilterMatchError:
             raise HTTPException(status_code=404)

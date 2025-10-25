@@ -113,7 +113,10 @@ class Codes(Table):
             return {"valid": False}
 
         if code_result["expire"] < round(time.time()):
-            return {"valid": False}
+            return {
+                "valid": False,
+                "account": self.encryption.decrypt(code_result["account"]),
+            }
 
         return {
             "valid": True,
@@ -124,7 +127,7 @@ class Codes(Table):
         logger.info(f"Deleting code {code}")
         if type == "verification":
             try:
-                del self.verification_codes[code]
+                self.verification_codes[code]["expire"] = round(time.time() - 600)
             except Exception:
                 pass
         self.table.delete_one({"_id": code})

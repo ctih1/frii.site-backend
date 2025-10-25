@@ -12,7 +12,7 @@ logger: logging.Logger = logging.getLogger("frii.site")
 
 
 def sanitize(content: str, type: str) -> str:
-    if (type == "CNAME" or type == "NS") and not content.endswith("."):
+    if (type == "CNAME" or type == "NS") and not content.rstrip().endswith("."):
         content += "."
 
     if type == "TXT" and not content.startswith('"'):
@@ -25,7 +25,6 @@ def sanitize(content: str, type: str) -> str:
 
 class DNS:
     def __init__(self, domains: Domains):
-        """Documentation for functions were created by ai."""
         self.table = domains
         self.key: str = os.getenv("PDNS_API_KEY") or ""
 

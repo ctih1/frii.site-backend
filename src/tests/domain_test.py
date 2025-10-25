@@ -9,7 +9,7 @@ from database.tables.domains import Domains
 from database.tables.domains import Domains
 from database.tables.users import Users, UserType
 from database.tables.codes import Codes
-from dns_.dns import DNS
+from dns_.dns import DNS, sanitize
 import time
 from dns_.validation import Validation
 
@@ -48,6 +48,10 @@ class TestDomainValidation:
     def test_domain_clean(self):
         assert Domains.clean_domain_name("a.b") == "a[dot]b"
         assert Domains.beautify_domain_name(None, "a[dot]b") == "a.b"  # type: ignore
+
+    def test_sanitization(self):
+        assert sanitize("test.com", "CNAME") == "test.com."
+        assert sanitize("test", "TXT") == '"test"'
 
 
 class TestDomainUser:

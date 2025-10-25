@@ -319,7 +319,7 @@ class Domain:
                 )
                 self.current_queue_user = user_id
 
-                time.sleep(45)
+                time.sleep(180)
                 self.verification_queue.popleft()
                 self.current_queue_user = ""
             time.sleep(1)
