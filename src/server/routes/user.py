@@ -406,9 +406,9 @@ class User:
             raise HTTPException(status_code=400, detail="Code is not valid")
 
         if not code_status["valid"] and account is not None:
-            user: UserType | None = self.table.find_user({"_id": account})
+            target: UserType | None = self.table.find_user({"_id": account})
 
-            if user and user.get("verified"):
+            if target and target.get("verified"):
                 logger.info("Account is already verified")
                 return
 
