@@ -7,6 +7,7 @@ from database.tables.users import Users
 from database.tables.users import UserType, UserPageType
 from database.tables.domains import Domains, DomainFormat
 from database.tables.sessions import Sessions
+from database.tables.referrals import ReferralType
 from dns_.dns import DNS
 from dns_.types import AVAILABLE_TLDS
 from dns_.exceptions import DNSException
@@ -139,6 +140,16 @@ class Admin:
 
         return self.get_user_details_by_id(user["_id"])
 
+    def find_by_referral(self, referral_code: str) -> AccountData | None:
+        referral: ReferralType | None = self.users.referrals.find_item(
+            {"_id": self.users.encryption.sha256(referral_code)}
+        )  # type: ignore[assignment]
+
+        if referral is None:
+            return None
+
+        return self.get_user_details_by_id(referral["owner"])
+
     def get_user_details_by_id(self, user_id: str) -> AccountData | None:
         user_profile: UserPageType | None = self.users.get_user_profile(
             user_id, self.sessions, True
@@ -179,7 +190,7 @@ class Admin:
             self.send_nonblocking_action_email(
                 user["email"], f"Account permission changed ({permission}: {new_value})"
             )
-    
+
             self.users.modify_document(
                 {"_id": user_id}, "$set", f"permissions.{permission}", new_value
             )

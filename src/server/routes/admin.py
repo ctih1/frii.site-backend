@@ -184,6 +184,19 @@ class Admin:
         )
 
         self.router.add_api_route(
+            "/user/get/referral",
+            self.find_user_by_referral,
+            methods=["GET"],
+            responses={
+                200: {"description": "User found"},
+                404: {"description": "User not found"},
+                460: {"description": "Invalid session"},
+                461: {"description": "Invalid permissions"},
+            },
+            tags=["admin"],
+        )
+
+        self.router.add_api_route(
             "/user/permission",
             self.change_permission,
             methods=["PATCH"],
@@ -267,6 +280,17 @@ class Admin:
         self, domain: str, session: Session = Depends(converter.create)
     ) -> AccountData:
         user_profile: AccountData | None = self.admin_tools.find_user_by_domain(domain)
+        if user_profile is None:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        return user_profile
+
+    @Session.requires_auth
+    @Session.requires_permission(permission="userdetails")
+    def find_user_by_referral(
+        self, referral: str, session: Session = Depends(converter.create)
+    ) -> AccountData:
+        user_profile: AccountData | None = self.admin_tools.find_by_referral(referral)
         if user_profile is None:
             raise HTTPException(status_code=404, detail="User not found")
 
