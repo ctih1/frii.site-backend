@@ -145,6 +145,7 @@ class Users(Table):
         self,
         country: str,
         site_variant: Literal["canary.frii.site", "www.frii.site"] | str,
+        hashed_username: str,
     ) -> None:
         start = time.time()
         requests.post(
@@ -155,7 +156,7 @@ class Users(Table):
                     "embeds": [
                         {
                             "title": "New user signup",
-                            "description": f":flag_{country.lower()}: A new user signed up on {site_variant} from {country}! :flag_{country.lower()}:",
+                            "description": f":flag_{country.lower()}: **{hashed_username}** just signed up on {site_variant} from {country}! :flag_{country.lower()}:",
                             "color": 31743,
                             "timestamp": datetime.datetime.now(datetime.timezone.utc)
                             .isoformat(timespec="milliseconds")
@@ -263,7 +264,7 @@ class Users(Table):
                 raise EmailException("Email already in use!")
 
         try:
-            self.send_discord_analytic_webhook(country["country"], target_url)
+            self.send_discord_analytic_webhook(country["country"], target_url, hashed_username)
         except Exception as e:
             logger.warning(e)
 
