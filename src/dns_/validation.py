@@ -174,7 +174,9 @@ class Validation:
         user_domain_amount = 0
         subdomain_amount = 0
 
-        for domain in user["domains"].keys():
+        for domain in [
+            Domains.clean_domain_name(domain) for domain in list(user["domains"].keys())
+        ]:
             (name, _) = Domains.seperate_domain_into_parts(domain)
             if "[dot]" in name:
                 subdomain_amount += 1

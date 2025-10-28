@@ -265,7 +265,12 @@ class DNS:
         rrsets: Dict[str, List[dict]] = {}
 
         for domain, type in domains.items():
-            (name, tld) = Domains.seperate_domain_into_parts(domain)
+            (name, tld) = Domains.seperate_domain_into_parts(
+                Domains.unclean_domain_name(domain)
+            )
+
+            if tld not in rrsets:
+                rrsets[tld] = []
 
             rrsets[tld].append(
                 {
