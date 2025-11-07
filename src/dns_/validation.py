@@ -127,7 +127,16 @@ class Validation:
 
         if (
             len(
-                self.table.find_item({f"domains.{cleaned_domain}": {"$exists": True}})
+                self.table.find_item(
+                    {
+                        "$or": [
+                            {f"domains.{cleaned_domain}": {"$exists": True}},
+                            {
+                                f"domains.{domain}": {"$exists": True}
+                            },  # for legacy domains
+                        ]
+                    }
+                )
                 or []
             )
             != 0
