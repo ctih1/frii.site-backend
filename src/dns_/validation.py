@@ -43,7 +43,7 @@ class Validation:
                 name[0] not in always_allowed or name[-1] not in always_allowed
             ):
                 valid = False
-            return valid
+        return valid
 
     @staticmethod
     def record_value_valid(value: str, type: str) -> bool:
