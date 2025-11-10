@@ -38,11 +38,12 @@ class Validation:
             allowed.append("_")
 
         valid: bool = all(char in allowed for char in name)
-        if type.upper() != "TXT" and (
-            name[0] not in always_allowed or name[-1] not in always_allowed
-        ):
-            valid = False
-        return valid
+        if type.upper() != "TXT" and name != "":
+            if (
+                name[0] not in always_allowed or name[-1] not in always_allowed
+            ):
+                valid = False
+            return valid
 
     @staticmethod
     def record_value_valid(value: str, type: str) -> bool:
