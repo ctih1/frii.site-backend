@@ -69,7 +69,7 @@ UserPageType = TypedDict(
         "username": str,
         "email": str,
         "lang": str,
-        "country": CountryType,
+        "country": CountryType | dict,
         "created": int,
         "verified": bool,
         "permissions": Dict[str, Any],
@@ -94,7 +94,7 @@ UserType = TypedDict(
         "display-name": str,
         "username": NotRequired[str],
         "lang": str,
-        "country": CountryType,
+        "country": CountryType | dict,
         "email-hash": NotRequired[str],
         "accessed-from": NotRequired[List[str]],
         "created": int,  # Epoch timestamp
@@ -264,7 +264,9 @@ class Users(Table):
                 raise EmailException("Email already in use!")
 
         try:
-            self.send_discord_analytic_webhook(country["country"], target_url, hashed_username)
+            self.send_discord_analytic_webhook(
+                country["country"], target_url, hashed_username
+            )
         except Exception as e:
             logger.warning(e)
 
