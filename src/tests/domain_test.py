@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class TestDomainValidation:
+
     def test_valid_name(self):
         assert Validation.record_name_valid("example-domain.frii.site", "A")
 
@@ -25,6 +26,7 @@ class TestDomainValidation:
 
     def test_invalid_name(self):
         assert not Validation.record_name_valid("Invälid_Recörd_Nämë.frii.site", "A")
+        assert not Validation.record_name_valid("", "A")
 
     def test_invalid_start_and_end(self):
         assert not Validation.record_name_valid("example.frii.site.", "A")
@@ -44,6 +46,8 @@ class TestDomainValidation:
 
     def test_invalid_content_for_type(self):
         assert not Validation.record_value_valid("test.cname.fi", "A")
+        assert not Validation.record_value_valid("0.0.0.0.0.0.0", "A")
+        assert not Validation.record_value_valid("1500.120.15.2", "A")
 
     def test_domain_clean(self):
         assert Domains.clean_domain_name("a.b") == "a[dot]b"
