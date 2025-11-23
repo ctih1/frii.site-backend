@@ -22,6 +22,7 @@ UserCanRegisterResult = NamedTuple(
 
 
 class Validation:
+
     def __init__(self, table: Domains, dns: "DNS"):
         self.dns = dns
         self.table = table
@@ -54,7 +55,15 @@ class Validation:
             allowed: List[str] = list(string.digits)
             allowed.append(".")
 
-            return all(char in allowed for char in value)
+            basic = all(char in allowed for char in value) and value.count(".") == 4
+            if not basic:
+                return False
+
+            for part in value.split("."):
+                if len(part) > 3:
+                    return False
+
+            return True
 
         if type.upper() == "AAAA":
             ipv6_pattern = re.compile(
