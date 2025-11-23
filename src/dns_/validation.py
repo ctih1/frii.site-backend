@@ -59,7 +59,7 @@ class Validation:
             allowed: List[str] = list(string.digits)
             allowed.append(".")
 
-            basic = all(char in allowed for char in value) and value.count(".") == 4
+            basic = all(char in allowed for char in value) and value.count(".") == 3
             if not basic:
                 return False
 
