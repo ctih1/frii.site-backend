@@ -2,12 +2,12 @@ import os
 from typing import List, Dict, Annotated, Any
 import time
 import logging
+from datetime import datetime
 import json
 from fastapi import APIRouter, Request, Depends, Header, Query
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse, RedirectResponse
 import ipinfo  # type: ignore[import-untyped]
-
 from database.exceptions import (
     ConflictingReferralCode,
     EmailException,
@@ -45,6 +45,7 @@ from server.routes.models.user import (
     SignUp,
     PasswordReset,
     ApiGetKeys,
+    YearWrapped,
 )
 
 converter: Convert = Convert()
@@ -187,6 +188,18 @@ class User:
             },
             status_code=200,
             tags=["account", "privacy"],
+        )
+
+        self.router.add_api_route(
+            "/profile/wrapped",
+            self.year_wrapped,
+            methods=["GET"],
+            responses={
+                200: {"description": "Wrapped sent"},
+                460: {"description": "Invalid session"},
+            },
+            status_code=200,
+            tags=["account", "fun"],
         )
 
         self.router.add_api_route(
@@ -452,6 +465,42 @@ class User:
 
         email: str = self.encryption.decrypt(session.user_cache_data["email"])
         self.email.send_delete_code(from_url, session.username, email)
+
+    @Session.requires_auth
+    def year_wrapped(
+        self,
+        request: Request,
+        session: Session = Depends(converter.create),
+    ) -> YearWrapped:
+        user: UserType | None = self.table.find_user({"_id": session.user_id})
+        if user is None:
+            raise HTTPException(status_code=404, detail="Account not found")
+        this_year_timestamp: float = time.mktime(
+            time.strptime(f"01/01/{datetime.now().year}", "%d/%m/%Y")
+        )
+        domains_registered: int = len(
+            [
+                x
+                for x, v in user["domains"].items()
+                if v["registered"] > this_year_timestamp
+            ]
+        )
+
+        unique_ips: int = len(user.get("accessed-from", []))
+
+        accounts_made_after: int = self.table.table.count_documents(
+            {"created": {"$gt": user["created"]}}
+        )
+
+        total_users: int = self.table.db.command("collstats", "frii.site")["count"]
+
+        return YearWrapped(
+            account_created=user["created"],
+            accounts_made_after=accounts_made_after,
+            domains_registered=domains_registered,
+            total_users=total_users,
+            unique_ips=unique_ips,
+        )
 
     @Session.requires_auth
     def create_api_token(

@@ -36,3 +36,11 @@ class ApiGetKeys(BaseModel):
 
 class ApiDeletion(BaseModel):
     hash: str
+
+
+class YearWrapped(BaseModel):
+    account_created: int
+    domains_registered: int
+    unique_ips: int
+    accounts_made_after: int
+    total_users: int

@@ -316,7 +316,7 @@ class Domain:
                     user_stuff.get("verification", None),  # type: ignore
                     "TXT",
                     "TXT",
-                    f"_vercel{user_stuff.get("tld", "")}",
+                    f"_vercel{user_stuff.get('tld', '')}",
                     user_id,
                     15,
                 )
