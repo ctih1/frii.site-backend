@@ -37,6 +37,7 @@ class Validation:
 
         if type.upper() in ["TXT", "CNAME"]:
             allowed.append("_")
+            always_allowed.append("_")
 
         valid: bool = all(char in allowed for char in name)
 
