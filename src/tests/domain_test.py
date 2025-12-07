@@ -20,6 +20,7 @@ class TestDomainValidation:
 
     def test_valid_name(self):
         assert Validation.record_name_valid("example-domain.frii.site", "A")
+        assert Validation.record_name_valid("test_dkim.frii.site", "CNAME")
 
     def test_valid_subdomain(self):
         assert Validation.record_name_valid("example.domain.frii.site", "A")

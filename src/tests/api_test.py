@@ -14,7 +14,7 @@ valid_key.affected_domains = ["test.frii.site", "affected.frii.site"]
 
 invalid_key: Api = MagicMock(spec=Api)
 invalid_key.valid = False
-
+ 
 
 @pytest.mark.order(-1)
 class TestUserApi:
