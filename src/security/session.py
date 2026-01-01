@@ -225,7 +225,7 @@ class Session:
         user_agent: str,
         success: bool,
         mfa_triggered: bool,
-        login_type: Literal["social", "password"],
+        login_type: Literal["social", "password"] | str,
         stage: Literal["password", "session"] = "session",
     ):
         if not user_data.get("discord-linked"):
