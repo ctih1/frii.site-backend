@@ -16,6 +16,7 @@ from database.exceptions import (
     InviteException,
     EmailException,
     ReferralError,
+    UserConflictError,
     UsernameException,
     UserNotExistError,
 )
@@ -62,6 +63,7 @@ class InviteType(TypedDict):
 SignupType = Literal["email", "google"]
 
 MFA = TypedDict("MFA", {"verified": bool, "key": str, "recovery": List[str]})
+EncryptedString = str
 
 UserPageType = TypedDict(
     "UserPageType",
@@ -81,6 +83,7 @@ UserPageType = TypedDict(
         "referral-code": str | None,
         "referred-people": int | None,
         "owned-tlds": List[str],
+        "discord-linked": bool,
     },
 )
 
@@ -118,6 +121,9 @@ UserType = TypedDict(
         "referred-by": NotRequired[str],
         "referred-count": NotRequired[int],
         "owned-tlds": List[str],
+        "discord-conn-code": NotRequired[str],
+        "discord-linked": NotRequired[bool],
+        "discord-id": NotRequired[EncryptedString],
     },
 )
 
@@ -238,6 +244,7 @@ class Users(Table):
             "has-linked-google": signup_method == "google",
             "credits": 200,
             "owned-tlds": ["frii.site"],
+            "discord-linked": False,
         }
 
         if refer_code:
@@ -377,6 +384,7 @@ class Users(Table):
             "referral-code": user_data.get("referral-code"),
             "referred-people": user_data.get("referred-count"),
             "owned-tlds": user_data.get("owned-tlds", ["frii.site"]),
+            "discord-linked": user_data.get("discord-linked", False),
         }
 
     def change_beta_enrollment(self, user_id: str, mode: bool = False) -> None:
@@ -458,3 +466,58 @@ class Users(Table):
         logger.debug(f"Migrations took {time.time() - start :.5f}s")
 
         return user
+
+    def create_connection_code(self, user: UserType) -> str | None:
+        """Creates a linking code for the frii.site bot
+
+        :param user: the user that the code will be created for
+        :type user: UserType
+        :return: the connection code. If user already has one, it will be returned.
+        :rtype: str
+        """
+        logger.info("Creating discord link code")
+
+        if user.get("discord-linked"):
+            logger.info("User has already linked account, giving back existing id")
+            return user.get("discord-conn-code")
+
+        code: str = self.encryption.generate_random_string(12)
+
+        self.modify_document({"_id": user["_id"]}, "$set", "discord-conn-code", code)
+        return code
+
+    def verify_discord_connection(self, connection_code: str, discord_id: int) -> None:
+        logger.info(
+            f"Connecting account to discord account with code {connection_code[:4]}..."
+        )
+        user: UserType | None = self.find_user({"discord-conn-code": connection_code})
+
+        if user is None:
+            logger.info("Code not found!")
+            raise ValueError("Invalid connection code!")
+
+        user.get("linked-discord-account")
+        if user.get("discord-linked"):
+            raise UserConflictError("User has already linked code")
+
+        self.table.update_one(
+            {"_id": user["_id"]},
+            {
+                "$set": {
+                    "discord-linked": True,
+                    "discord-id": self.encryption.encrypt(str(discord_id)),
+                }
+            },
+        )
+
+    def remove_discord_link(self, user: UserType) -> None:
+        self.table.update_one(
+            {"_id": user["_id"]},
+            {
+                "$unset": {
+                    "discord-id": "",
+                    "discord-conn-code": "",
+                },
+                "$set": {"discord-linked": False},
+            },
+        )

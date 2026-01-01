@@ -15,6 +15,7 @@ from enum import Enum
 import jwt
 from jwt import ExpiredSignatureError, InvalidSignatureError, DecodeError
 import secrets
+import requests
 
 from database.table import Table
 from security.encryption import Encryption
@@ -217,6 +218,46 @@ class Session:
             return InvalidToken.invalid
 
     @staticmethod
+    def send_notification(
+        user_data: UserType,
+        users: Users,
+        ip: str,
+        user_agent: str,
+        success: bool,
+        mfa_triggered: bool,
+        login_type: Literal["social", "password"],
+        stage: Literal["password", "session"] = "session",
+    ):
+        if not user_data.get("discord-linked"):
+            return
+
+        logger.info("Sending login notification")
+        discord_id: str = users.encryption.decrypt(user_data.get("discord-id", ""))
+        try:
+            req = requests.post(
+                f" https://fsbot.frii.site/api/notify?id={discord_id}",
+                json={
+                    "ip": ip,
+                    "user-agent": user_agent,
+                    "success": success,
+                    "mfa-triggered": mfa_triggered,
+                    "login-type": login_type,
+                    "login-stage": stage,
+                },
+                timeout=5,
+            )
+
+            if req.status_code != 204:
+                logger.info("Status code: " + str(req.status_code))
+                raise ValueError("Invalid response code from server!")
+
+        except requests.exceptions.Timeout:
+            logger.error("Failed to send notification hook! (Timeout)")
+
+        except ValueError:
+            logger.error("Failed to send notification hook!")
+
+    @staticmethod
     def refresh(
         refresh_token: str, session_table: Sessions, user_agent: str, ip: str
     ) -> tuple[str, str] | Literal[False]:
@@ -287,8 +328,21 @@ class Session:
         user_has_mfa = user_data.get("totp", {}).get("verified")
         user_mfa_key = user_data.get("totp", {}).get("key")
 
+        login_type = "social" if skip_mfa else "password"
+
+        mfa_triggered = False
         if user_has_mfa and not skip_mfa:
+            mfa_triggered = True
             if not mfa_code:
+                Session.send_notification(
+                    user_data,
+                    users,
+                    ip,
+                    user_agent,
+                    success=False,
+                    mfa_triggered=True,
+                    login_type=login_type,
+                )
                 return SessionCreateStatus(
                     success=False,
                     mfa_required=True,
@@ -305,6 +359,16 @@ class Session:
                     is_valid = True
                 else:
                     logger.warning("Invalid MFA")
+                    Session.send_notification(
+                        user_data,
+                        users,
+                        ip,
+                        user_agent,
+                        success=False,
+                        mfa_triggered=True,
+                        login_type=login_type,
+                    )
+
                     return SessionCreateStatus(
                         success=False,
                         mfa_required=True,
@@ -315,6 +379,9 @@ class Session:
         access_token, refresh_token = Session.create_session_pair(
             username, user_agent, ip, session_table
         )
+
+        user_manager = UserManager(users, ip, username)
+        user_manager.start()  # updates `last-login` and `accessed-from` fields of user
 
         if real_username and (
             not user_data.get("display-name")
@@ -331,9 +398,16 @@ class Session:
                 },
             )
 
-        UserManager(
-            users, ip, username
-        ).start()  # updates `last-login` and `accessed-from` fields of user
+        Session.send_notification(
+            user_data,
+            users,
+            ip,
+            user_agent,
+            success=True,
+            mfa_triggered=mfa_triggered,
+            login_type=login_type,
+        )
+
         return SessionCreateStatus(
             success=True,
             mfa_required=False,

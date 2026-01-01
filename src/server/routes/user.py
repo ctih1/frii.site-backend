@@ -11,6 +11,7 @@ import ipinfo  # type: ignore[import-untyped]
 from database.exceptions import (
     ConflictingReferralCode,
     EmailException,
+    UserConflictError,
     UsernameException,
     FilterMatchError,
 )
@@ -313,6 +314,44 @@ class User:
             tags=["account", "2fa"],
         )
 
+        self.router.add_api_route(
+            "/discord",
+            self.create_conn_code,
+            methods=["POST"],
+            responses={
+                400: {
+                    "description": "Account has linked discord but code isn't stored"
+                },
+                200: {"description": "Code created succesfully"},
+            },
+            status_code=200,
+            tags=["account", "discord"],
+        )
+
+        self.router.add_api_route(
+            "/discord",
+            self.remove_discord_conn,
+            methods=["DELETE"],
+            responses={
+                200: {"description": "Discord account detached"},
+            },
+            status_code=200,
+            tags=["account", "discord"],
+        )
+
+        self.router.add_api_route(
+            "/discord/link",
+            self.verify_discord_link,
+            methods=["POST"],
+            responses={
+                404: {"description": "Code does not exist"},
+                409: {"description": "Code has been linked already"},
+                200: {"description": "Code created succesfully"},
+            },
+            status_code=200,
+            tags=["account", "discord"],
+        )
+
         logger.info("Initialized")
 
     def create_mfa(
@@ -501,6 +540,36 @@ class User:
             total_users=total_users,
             unique_ips=unique_ips,
         )
+
+    @Session.requires_auth
+    def create_conn_code(
+        self,
+        request: Request,
+        session: Session = Depends(converter.create),
+    ) -> str:
+        code: str | None = self.table.create_connection_code(
+            user=session.user_cache_data
+        )
+        if code is None:
+            raise HTTPException(400, detail="User has already linked their account")
+
+        return code
+
+    def verify_discord_link(self, code: str, discord_id: int) -> None:
+        try:
+            self.table.verify_discord_connection(code, discord_id)
+        except ValueError:
+            raise HTTPException(status_code=404, detail="Code does not exist")
+        except UserConflictError:
+            raise HTTPException(
+                status_code=409, detail="User already has linked their account"
+            )
+
+    @Session.requires_auth
+    def remove_discord_conn(
+        self, request: Request, session: Session = Depends(converter.create)
+    ) -> None:
+        self.table.remove_discord_link(session.user_cache_data)
 
     @Session.requires_auth
     def create_api_token(

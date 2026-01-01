@@ -246,5 +246,5 @@ class API:
     def is_available(self, name: str):
         if not self.dns_validation.is_free(name, "A", {}, raise_exceptions=False):
             raise HTTPException(
-                status_code=409, detail=f"Domain {name}.frii.site is not available"
+                status_code=409, detail=f"Domain {name} is not available"
             )
