@@ -15,7 +15,7 @@ from enum import Enum
 import jwt
 from jwt import ExpiredSignatureError, InvalidSignatureError, DecodeError
 import secrets
-import requests
+import requests  # type: ignore[import-untyped]
 
 from database.table import Table
 from security.encryption import Encryption
