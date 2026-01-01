@@ -243,6 +243,7 @@ class Session:
                     "mfa-triggered": mfa_triggered,
                     "login-type": login_type,
                     "login-stage": stage,
+                    "confirmation": os.environ.get("DC_KEY", ""),
                 },
                 timeout=5,
             )
