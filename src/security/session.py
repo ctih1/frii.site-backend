@@ -258,6 +258,10 @@ class Session:
         except ValueError:
             logger.error("Failed to send notification hook!")
 
+        except Exception as e:
+            logger.error(f"Failed to send notification hook! {e}")
+            logging.exception("Notification hook failed")
+
     @staticmethod
     def refresh(
         refresh_token: str, session_table: Sessions, user_agent: str, ip: str
