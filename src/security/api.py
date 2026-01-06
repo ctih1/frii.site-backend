@@ -148,7 +148,9 @@ class Api:
         self.permissions: List[ApiPermission] = self.__get_permimssions()
 
         if self.key_data:
-            self.affected_domains: List[str] = self.key_data.get("domains", [])
+            self.affected_domains: List[str] = [
+                Domains.clean_domain_name(d) for d in self.key_data.get("domains", [])
+            ]
 
             if "*" in self.affected_domains:
                 logger.info(
@@ -208,7 +210,6 @@ class Api:
         permissions: List[ApiPermission],
         domains: List[str],
     ) -> str:
-
         api_key: str = "$APIV2=" + Encryption.generate_random_string(32)
         user_data: UserType | None = users.find_user({"_id": username})
         if user_data is None:
@@ -216,7 +217,8 @@ class Api:
 
         user_domains: Dict[str, "DomainFormat"] = user_data["domains"]
 
-        for domain in domains:
+        cleaned_domains: List[str] = [Domains.clean_domain_name(d) for d in domains]
+        for domain in cleaned_domains:
             if (
                 Domains.clean_domain_name(domain) not in list(user_domains.keys())
                 and domain != "*"
@@ -227,7 +229,7 @@ class Api:
         key: ApiType = {
             "string": users.encryption.encrypt(api_key),
             "perms": permissions,
-            "domains": domains,
+            "domains": cleaned_domains,
             "comment": comment,
         }
 
