@@ -6,13 +6,13 @@ from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 from server.routes.models.domain import DomainType
 from database.table import Table
-from database.tables.users import Users as UsersTable, UserType
+from database.tables.users import UserPageType, Users as UsersTable, UserType
 from database.tables.invitation import Invites as InviteTable
 from database.tables.domains import Domains as DomainTable, DomainFormat
 from database.tables.sessions import Sessions as SessionTable
 from database.exceptions import UserNotExistError, InviteException, SubdomainError
 from security.encryption import Encryption
-from security.api import Api
+from security.api import Api, ApiPermission
 from security.convert import ConvertAPI
 from dns_.dns import DNS
 from dns_.validation import Validation
@@ -24,13 +24,20 @@ logger: logging.Logger = logging.getLogger("frii.site")
 
 
 class API:
-    def __init__(self, table: UsersTable, domains: DomainTable, dns: DNS) -> None:
+    def __init__(
+        self,
+        table: UsersTable,
+        domains: DomainTable,
+        dns: DNS,
+        session_table: SessionTable,
+    ) -> None:
         converter.init_vars(table)
 
         self.table: UsersTable = table
         self.dns: DNS = dns
         self.domains: DomainTable = domains
         self.dns_validation: Validation = Validation(domains, dns)
+        self.sessions = session_table
 
         self.router = APIRouter(prefix="/api")
 
@@ -116,6 +123,29 @@ class API:
                 462: {"description": "Invalid API key permissions ('delete' needed)"},
             },
             tags=["api", "domain"],
+        )
+
+        self.router.add_api_route(
+            "/intents",
+            self.get_key_intents,
+            methods=["GET"],
+            status_code=200,
+            responses={
+                200: {"description": "Returns a list of intents which the key has"}
+            },
+        )
+
+        self.router.add_api_route(
+            "/user",
+            self.get_user_profile,
+            methods=["GET"],
+            status_code=200,
+            responses={
+                200: {"description": "User data retrieved"},
+                404: {"description": "Failed to load user data"},
+                462: {"description": "API key cannot do this ('userdetails' needed)"},
+            },
+            tags=["api", "user"],
         )
 
         logger.info("Initialized")
@@ -248,3 +278,17 @@ class API:
             raise HTTPException(
                 status_code=409, detail=f"Domain {name} is not available"
             )
+
+    @Api.requires_auth
+    @Api.requires_permission("userdetails")
+    def get_user_profile(self, api: Api = Depends(converter.create)) -> UserPageType:
+        try:
+            return self.table.get_user_profile(api.user_id, self.sessions)
+        except UserNotExistError:
+            raise HTTPException(status_code=404, detail="Could not find user")
+
+    @Api.requires_auth
+    def get_key_intents(
+        self, api: Api = Depends(converter.create)
+    ) -> List[ApiPermission]:
+        return api.permissions

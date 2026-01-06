@@ -137,11 +137,9 @@ for thread in threads.values():
 
 threads["users"].join()
 threads["domains"].join()
-app.include_router(API(v.users, v.domains, v.dns).router)
-
-
 threads["sessions"].join()
 app.include_router(Domain(v.users, v.sessions, v.domains, v.dns).router)
+app.include_router(API(v.users, v.domains, v.dns, v.sessions).router)
 
 threads["invites"].join()
 app.include_router(Invite(v.users, v.sessions, v.invites).router)

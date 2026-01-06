@@ -33,7 +33,7 @@ class ApiPermissionError(Exception): ...
 class ApiRangeError(Exception): ...
 
 
-ApiPermission = Literal["register", "modify", "delete", "list"]
+ApiPermission = Literal["register", "modify", "delete", "list", "userdetails"]
 
 ApiType = TypedDict(
     "ApiType",
@@ -110,9 +110,9 @@ class Api:
                         logger.debug(f"Args: {args}; kwargs: {kwargs}")
                         raise ValueError("Domain not specified")
 
-                    logger.info(target_domain)
-                    logger.info(target.affected_domains)
-                    if target_domain not in target.affected_domains:
+                    lookup_domain: str = Domains.clean_domain_name(target_domain)
+
+                    if lookup_domain not in target.affected_domains:
                         logger.warning(f"{target_domain} not in affected domain")
                         raise ApiRangeError("User cannot access this domain")
 
@@ -143,7 +143,9 @@ class Api:
 
         self.user_cache_data: "UserType" = self.__user_cache()
         self.username: str = self.__get_id()
-        self.permissions: list = self.__get_permimssions()
+        self.user_id: str = self.__get_id()
+
+        self.permissions: List[ApiPermission] = self.__get_permimssions()
 
         if self.key_data:
             self.affected_domains: List[str] = self.key_data.get("domains", [])
@@ -192,7 +194,7 @@ class Api:
 
         return self.user_cache_data["_id"]
 
-    def __get_permimssions(self):
+    def __get_permimssions(self) -> List[ApiPermission]:
         if not self.valid or self.key_data is None:
             return []
 
@@ -234,32 +236,3 @@ class Api:
             {"_id": username}, "$set", f"api-keys.{encrypted_api_key}", key
         )
         return api_key
-
-    def delete(self, key_id: str) -> bool:
-        """Deletes a specific API key.
-
-        Arguements:
-            self: being an instance of Session to authenticate that the person trying to delete the session actually has permissions to do so
-            id: sha256 hash of the session_id, that will be deleted
-
-        Throws:
-            SessionError: target session does not exist
-            SessionPermissionError: session does not belong to user
-        """
-        raise NotImplementedError("Implement")
-
-        if not self.valid:
-            return False
-
-        data: dict | None = self.session_table.find_item({"_id": key_id})
-
-        if data is None:
-            raise SessionError("Session does not exist")  # type: ignore
-
-        session_username: str = self.encryption.decrypt(data["username"])
-
-        if self.username != session_username:
-            raise SessionPermissonError("Invalid username for session")  # type: ignore
-
-        self.session_table.delete_document({"_id": key_id})
-        return True
