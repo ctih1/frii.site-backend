@@ -53,6 +53,23 @@ class TestDomainValidation:
     def test_domain_clean(self):
         assert Domains.clean_domain_name("a.b") == "a[dot]b"
         assert Domains.beautify_domain_name(None, "a[dot]b") == "a.b"  # type: ignore
+        assert Domains.unclean_domain_name("a[dot]b") == "a.b"
+
+    def test_separation(self):
+        assert Domains.seperate_domain_into_parts("test.frii.site") == (
+            "test",
+            "frii.site",
+        )
+
+        assert Domains.seperate_domain_into_parts("test[dot]frii[dot]site") == (
+            "test",
+            "frii.site",
+        )
+
+        assert Domains.seperate_domain_into_parts("test.pill.ovh") == (
+            "test",
+            "pill.ovh",
+        )
 
     def test_sanitization(self):
         assert sanitize("test.com", "CNAME") == "test.com."
@@ -97,6 +114,10 @@ class TestDomainUser:
     def test_domain_not_free(self, validation: Validation, domains: Domains):
         assert not validation.is_free("test.frii.site", "A", {}, False)
         assert not validation.is_free("test.unowned.frii.site", "A", {}, False)
+
+        with pytest.raises(ValueError):
+            validation.is_free("testwithouttld", "A", {})
+
         assert validation.is_free("test20.frii.site", "A", {}, False)
 
     def test_domain_limits(self, test_user: UserType, users: Users):

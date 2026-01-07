@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, get_args
 import time
 import logging
 from fastapi import APIRouter, Request, Header, Depends
@@ -18,6 +18,7 @@ from dns_.dns import DNS
 from dns_.validation import Validation
 from dns_.exceptions import DNSException, DomainExistsError
 from mail.email import Email
+from dns_.types import AVAILABLE_TLDS
 
 converter: ConvertAPI = ConvertAPI()
 logger: logging.Logger = logging.getLogger("frii.site")
