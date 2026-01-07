@@ -50,12 +50,14 @@ class Domains(Users):
         """
         tld: str = "frii.site"
 
+        beautiful_domain = Domains.unclean_domain_name(domain)
+
         for available_tld in get_args(AVAILABLE_TLDS):
-            if Domains.unclean_domain_name(domain).endswith(available_tld):
+            if beautiful_domain.endswith(available_tld):
                 tld = available_tld
                 break
 
-        return (domain.split(tld)[0].rstrip("."), tld)
+        return (beautiful_domain.split(tld)[0].rstrip("."), tld)
 
     @staticmethod
     def unclean_domain_name(input: str) -> str:

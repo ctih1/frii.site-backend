@@ -10,7 +10,7 @@ valid_key: Api = MagicMock(spec=Api)
 valid_key.valid = True
 
 valid_key.permissions = ["modify", "register", "list"]
-valid_key.affected_domains = ["test.frii.site", "affected.frii.site"]
+valid_key.affected_domains = ["test[dot]frii[dot]site", "affected[dot]frii[dot]site"]
 
 invalid_key: Api = MagicMock(spec=Api)
 invalid_key.valid = False

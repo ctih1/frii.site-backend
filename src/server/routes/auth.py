@@ -178,7 +178,18 @@ class Auth:
         ):
             raise HTTPException(status_code=400, detail="Account made with google")
 
+        ip: str = request.client.host  # type: ignore[union-attr]
         if not Encryption.check_password(password_hash, user_data["password"]):  # type: ignore
+            Session.send_notification(
+                user_data,
+                self.table,
+                ip,
+                request.headers.get("User-Agent", "Unknown"),
+                False,
+                False,
+                "password",
+                "password",
+            )
             raise HTTPException(status_code=401, detail="Invalid password")
 
         logger.info(f"Login attempt from {username_hash}")
@@ -187,7 +198,7 @@ class Auth:
             username_hash,
             x_plain_username,
             x_mfa_code,
-            request.client.host,  # type: ignore[union-attr]
+            ip,  # type: ignore[union-attr]
             request.headers.get("User-Agent", "Unknown"),
             self.table,
             self.session_table,

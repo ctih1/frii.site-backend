@@ -1,4 +1,4 @@
-from typing import List, Dict, NamedTuple, Literal
+from typing import List, Dict, NamedTuple, Literal, get_args
 from typing import TYPE_CHECKING
 import logging
 import string
@@ -7,6 +7,7 @@ from database.tables.domains import Domains, DomainFormat
 from database.tables.users import UserType
 from database.exceptions import UserNotExistError, SubdomainError
 from dns_.exceptions import DNSException, DomainExistsError
+from dns_.types import AVAILABLE_TLDS
 
 if TYPE_CHECKING:
     from dns_.dns import DNS
@@ -101,6 +102,13 @@ class Validation:
             SubdomainError: If the user doesn't own the required domain and raise_exceptions is True.
         """
 
+        if not Domains.unclean_domain_name(name).endswith(
+            tuple([f".{tld}" for tld in get_args(AVAILABLE_TLDS)])
+        ):
+            if raise_exceptions:
+                raise ValueError(f"Invalid record name '{name}' (does not include TLD)")
+            return False
+
         cleaned_domain: str = Domains.clean_domain_name(name)
 
         if not Validation.record_name_valid(name, type):
@@ -121,6 +129,7 @@ class Validation:
             return False
 
         (domain, tld) = Domains.seperate_domain_into_parts(name)
+
         domain = Domains.clean_domain_name(domain)
         logger.info(f"Checking if {domain} is subdomain")
 
