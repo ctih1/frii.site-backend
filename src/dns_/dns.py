@@ -67,7 +67,7 @@ class DNS:
         content = sanitize(content, type)
 
         request = requests.patch(
-            f"https://vps.frii.site/api/v1/servers/localhost/zones/{tld}.",
+            f"https://api.vps.frii.site/api/v1/servers/localhost/zones/{tld}.",
             data=json.dumps(
                 {
                     "rrsets": [
@@ -122,7 +122,7 @@ class DNS:
         (name, tld) = Domains.seperate_domain_into_parts(domain)
 
         request = requests.patch(
-            f"https://vps.frii.site/api/v1/servers/localhost/zones/{tld}.",
+            f"https://api.vps.frii.site/api/v1/servers/localhost/zones/{tld}.",
             data=json.dumps(
                 {
                     "rrsets": [
@@ -195,7 +195,7 @@ class DNS:
 
         for tld, tld_rrsets in rrsets.items():
             request = requests.patch(
-                f"https://vps.frii.site/api/v1/servers/localhost/zones/{tld}.",
+                f"https://api.vps.frii.site/api/v1/servers/localhost/zones/{tld}.",
                 data=json.dumps({"rrsets": tld_rrsets}),
                 headers={"Content-Type": "application/json", "X-API-Key": self.key},
             )
@@ -228,7 +228,7 @@ class DNS:
         logger.info(f"deleting record {domain}")
 
         request = requests.patch(
-            f"https://vps.frii.site/api/v1/servers/localhost/zones/{tld}.",
+            f"https://api.vps.frii.site/api/v1/servers/localhost/zones/{tld}.",
             data=json.dumps(
                 {
                     "rrsets": [
@@ -283,7 +283,7 @@ class DNS:
 
         for tld, tld_rrsets in rrsets.items():
             request = requests.patch(
-                f"https://vps.frii.site/api/v1/servers/localhost/zones/{tld}.",
+                f"https://api.vps.frii.site/api/v1/servers/localhost/zones/{tld}.",
                 data=json.dumps({"rrsets": tld_rrsets}),
                 headers={"Content-Type": "application/json", "X-API-Key": self.key},
             )
