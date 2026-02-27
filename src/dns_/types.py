@@ -1,3 +1,3 @@
 from typing import Literal
 
-AVAILABLE_TLDS = Literal["frii.site", "pill.ovh", "arr.ovh", "suomi.dev"]
+AVAILABLE_TLDS = Literal["frii.site", "pill.ovh", "arr.ovh", "suomi.dev", "expect.ovh"]
