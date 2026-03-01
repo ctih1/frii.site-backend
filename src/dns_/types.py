@@ -1,6 +1,5 @@
 from typing import Literal, TypedDict, List, get_args
 
-
 AVAILABLE_TLDS = Literal["frii.site", "pill.ovh", "arr.ovh", "suomi.dev", "expect.ovh"]
 TYPES = Literal["A", "AAAA", "CNAME", "TXT", "NS"]
 ALLOWED_TYPES: List[str] = list(get_args(TYPES))
