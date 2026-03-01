@@ -3,16 +3,16 @@ import logging
 from typing_extensions import NotRequired, TypedDict
 from database.tables.users import Users, UserType
 from database.exceptions import UserNotExistError
-from dns_.types import AVAILABLE_TLDS
+from dns_.types import TYPES, AVAILABLE_TLDS
 
 
 logger: logging.Logger = logging.getLogger("frii.site")
 
 
 class DomainFormat(TypedDict):
-    ip: str
+    ip: List[str] | str
     registered: int | float
-    type: str
+    type: TYPES
     id: str
 
 
@@ -90,7 +90,7 @@ class Domains(Users):
         target_user: str,
         domain: str,
         value: str | None = None,
-        type: str | None = None,
+        type: TYPES | None = None,
     ) -> None:
         """Modifies domain in database
 

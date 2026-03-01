@@ -413,21 +413,27 @@ class Users(Table):
         domains: Dict[str, DomainFormat] = {}
         fixed_domains = False
 
-        for domain, contents in user["domains"].items():
-            new_domain_name = domain.lower()
-            if domain.lower() != domain:
-                fixed_domains = True
+        for domain_name, domain in user["domains"].items():
+            new_domain_name: str = domain_name.lower()
 
             if (
-                not domain.lower()
+                not domain_name.lower()
                 .replace("[dot]", ".")
                 .endswith(get_args(AVAILABLE_TLDS))
             ):
-                logger.info(f"Updated domain {domain.lower()} to have the new syntax")
-                new_domain_name = new_domain_name + "[dot]frii[dot]site"
                 fixed_domains = True
+                logger.info(
+                    f"Updated domain {domain_name.lower()} to have the new syntax"
+                )
+                new_domain_name = new_domain_name + "[dot]frii[dot]site"
 
-            domains[new_domain_name] = contents
+            if type(domain["ip"]) != list:
+                fixed_domains = True
+                logger.info("Updating domain values to be a list")
+
+                domain["ip"] = [domain["ip"]]  # type: ignore[list-item]
+
+            domains[new_domain_name] = domain
 
         if len(domains) != len(user["domains"]):
             logger.warning("Domain amount does not match!")

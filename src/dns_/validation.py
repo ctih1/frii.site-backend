@@ -7,15 +7,12 @@ from database.tables.domains import Domains, DomainFormat
 from database.tables.users import UserType
 from database.exceptions import UserNotExistError, SubdomainError
 from dns_.exceptions import DNSException, DomainExistsError
-from dns_.types import AVAILABLE_TLDS
+from dns_.types import AVAILABLE_TLDS, ALLOWED_TYPES
 
 if TYPE_CHECKING:
     from dns_.dns import DNS
 
 logger: logging.Logger = logging.getLogger("frii.site")
-
-ALLOWED_TYPES: List[str] = ["A", "AAAA", "CNAME", "TXT", "NS"]
-
 
 UserCanRegisterResult = NamedTuple(
     "UserCanRegisterResult", [("success", bool), ("comment", str)]

@@ -18,7 +18,7 @@ from dns_.dns import DNS
 from dns_.validation import Validation
 from dns_.exceptions import DNSException, DomainExistsError
 from mail.email import Email
-from dns_.types import AVAILABLE_TLDS
+from dns_.types import AVAILABLE_TLDS, TYPES
 
 converter: ConvertAPI = ConvertAPI()
 logger: logging.Logger = logging.getLogger("frii.site")
@@ -183,7 +183,7 @@ class API:
         try:
             self.dns.register_domain(
                 body.domain,
-                body.value,
+                body.values[0],
                 body.type,
                 f"Registered through API user: {api.username}",
             )
@@ -197,7 +197,7 @@ class API:
             {
                 "id": "None",
                 "type": body.type,
-                "ip": body.value,
+                "ip": body.values,
                 "registered": round(time.time()),
             },
         )
@@ -205,39 +205,49 @@ class API:
     @Api.requires_auth
     @Api.requires_permission("modify")
     def modify(
-        self, domain: str, value: str, type: str, api: Api = Depends(converter.create)
+        self,
+        body: DomainType,
+        api: Api = Depends(converter.create),
     ) -> None:
-        clean_domain_name: str = self.domains.clean_domain_name(domain)
-        if not self.dns_validation.record_name_valid(domain, type):
-            raise HTTPException(status_code=412, detail=f"Invalid domain name {domain}")
-
-        if not self.dns_validation.record_value_valid(value, type):
-            raise HTTPException(status_code=412, detail=f"Invalid value {value}")
-
-        if not self.dns_validation.user_owns_domain(api.username, domain):
+        clean_domain_name: str = self.domains.clean_domain_name(body.domain)
+        if not self.dns_validation.record_name_valid(body.domain, body.type):
             raise HTTPException(
-                status_code=403, detail=f"You do not own the domain {domain}"
+                status_code=412, detail=f"Invalid domain name {body.domain}"
+            )
+
+        for value in body.values:
+            if not self.dns_validation.record_value_valid(value, body.type):
+                raise HTTPException(status_code=412, detail=f"Invalid value {value}")
+
+        if not self.dns_validation.user_owns_domain(api.username, body.domain):
+            raise HTTPException(
+                status_code=403, detail=f"You do not own the domain {body.domain}"
             )
 
         try:
             self.dns.modify_domain(
-                value,
-                type,
-                api.user_cache_data["domains"][clean_domain_name]["type"],
-                domain,
-                api.username,
+                values=body.values,
+                type=body.type,
+                old_type=api.user_cache_data["domains"][clean_domain_name]["type"],
+                domain=body.domain,
+                user_id=api.username,
             )
 
         except ValueError:  # domain id is corrupt
-            logger.error(f"Domain valueerror {domain} is corrupted")
+            logger.error(f"Domain valueerror {body.domain} is corrupted")
         except DNSException as e:
             print(e.json)
             raise HTTPException(status_code=500)
 
         self.domains.add_domain(
             api.username,
-            domain,
-            {"id": "None", "ip": value, "registered": round(time.time()), "type": type},
+            body.domain,
+            {
+                "id": "None",
+                "ip": body.values,
+                "registered": round(time.time()),
+                "type": body.type,
+            },
         )
 
     @Api.requires_auth

@@ -100,7 +100,11 @@ class Api:
                 if permission not in target.permissions:
                     raise ApiPermissionError(f"API key missing permission {permission}")
 
-                target_domain: str | None = kwargs.get("domain")
+                target_domain: str | None = kwargs.get("domain") or (
+                    None
+                    if kwargs.get("body") is None
+                    else kwargs.get("body", {}).domain
+                )
 
                 if permission == "modify" or permission == "delete":
                     if target_domain is None:

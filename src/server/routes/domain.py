@@ -145,6 +145,7 @@ class Domain:
     @Session.requires_auth
     def register(self, body: DomainType, session: Session = Depends(converter.create)):
         domain_name = body.domain
+
         if not domain_name.endswith(get_args(AVAILABLE_TLDS)):
             logger.warning("Deprecated usage of register. Please pass the TLD!")
             domain_name += ".frii.site"
@@ -186,7 +187,7 @@ class Domain:
         try:
             success = self.dns.register_domain(
                 body.domain,
-                body.value,
+                body.values[0],
                 body.type,
                 f"Registered through website user: {session.username}",
             )
@@ -203,7 +204,7 @@ class Domain:
             {
                 "id": "None",
                 "type": body.type,
-                "ip": body.value,
+                "ip": body.values,
                 "registered": round(time.time()),
             },
         )
@@ -211,13 +212,15 @@ class Domain:
     @Session.requires_auth
     def modify(self, body: DomainType, session: Session = Depends(converter.create)):
         clean_domain_name: str = self.domains.clean_domain_name(body.domain)
+
         if not self.dns_validation.record_name_valid(body.domain, body.type):
             raise HTTPException(
                 status_code=412, detail=f"Invalid domain name {body.domain}"
             )
 
-        if not self.dns_validation.record_value_valid(body.value, body.type):
-            raise HTTPException(status_code=412, detail=f"Invalid value {body.value}")
+        for value in body.values:
+            if not self.dns_validation.record_value_valid(value, body.type):
+                raise HTTPException(status_code=412, detail=f"Invalid value {value}")
 
         if not self.dns_validation.user_owns_domain(
             session.username, body.domain, session.user_cache_data
@@ -235,7 +238,7 @@ class Domain:
                 body.domain,
                 {
                     "id": "None",
-                    "ip": body.value,
+                    "ip": body.values,
                     "registered": round(time.time()),
                     "type": body.type,
                 },
@@ -245,7 +248,7 @@ class Domain:
 
         try:
             success = self.dns.modify_domain(
-                body.value,
+                body.values,
                 body.type,
                 old_type,
                 body.domain,
@@ -258,7 +261,7 @@ class Domain:
                 raise DNSException("Not succesful", {"success": success})
 
         except DNSException as e:
-            print(e.json)
+            logger.error(e)
             raise HTTPException(status_code=500)
 
         db_thread.join()
