@@ -1,4 +1,4 @@
-cryptography==45.0.5
+cryptography==46.0.6
 bcrypt==4.1.2
 requests==2.31.0
 ipinfo==5.0.1
