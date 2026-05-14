@@ -7,6 +7,7 @@ import requests  # type: ignore[import-untyped]
 from database.tables.domains import Domains, RepairFormat, DomainFormat
 from dns_.exceptions import DNSException
 from dns_.validation import Validation
+from dns_.types import RRSet, TYPES
 
 logger: logging.Logger = logging.getLogger("frii.site")
 
@@ -34,8 +35,8 @@ class DNS:
 
     def modify_domain(
         self,
-        content: str,
-        type: str,
+        values: List[str],
+        type: TYPES,
         old_type: str,
         domain: str,
         user_id: str,
@@ -44,8 +45,8 @@ class DNS:
         """
         Modifies a DNS record for a given domain.
         Args:
-            content (str): The new content for the DNS record.
-            type (str): The type of DNS record (e.g., A, CNAME, TXT, NS).
+            values (List[str]): A list of record values.
+            type (TYPES): The type of DNS record (e.g., A, CNAME, TXT, NS).
             domain (str): The domain name for the DNS record.
             user_id (str): The ID of the user registering the domain
         Returns:
@@ -64,29 +65,28 @@ class DNS:
         logger.debug(f"Modifying domain {name} tld {tld}")
 
         # PowerDNS will complain if these two are not present.
-        content = sanitize(content, type)
+
+        rrset: RRSet = {
+            "changetype": "REPLACE",
+            "name": name + f".{tld}.",
+            "ttl": ttl,
+            "type": type,
+            "records": [],
+        }
+
+        for content in values:
+            content = sanitize(content, type)
+            rrset["records"].append(
+                {
+                    "content": content,
+                    "disabled": False,
+                    "comment": f"Modified by Session based auth ({user_id})",
+                }
+            )
 
         request = requests.patch(
             f"https://api.vps.frii.site/api/v1/servers/localhost/zones/{tld}.",
-            data=json.dumps(
-                {
-                    "rrsets": [
-                        {
-                            "name": name + f".{tld}.",
-                            "type": type,
-                            "ttl": ttl,
-                            "changetype": "REPLACE",
-                            "records": [
-                                {
-                                    "content": content,
-                                    "disabled": False,
-                                    "comment": f"Modified by Session based auth ({user_id})",
-                                }
-                            ],
-                        }
-                    ]
-                }
-            ),
+            data=json.dumps({"rrsets": [rrset]}),
             headers={"Content-Type": "application/json", "X-API-Key": self.key},
         )
 
@@ -170,33 +170,34 @@ class DNS:
             ValueError: If the ID of the newly created DNS record cannot be retrieved.
         """
 
-        rrsets: Dict[str, List[dict]] = {}
+        rrsets: List[RRSet] = []
 
         for domain, values in domains.items():
             (name, tld) = Domains.seperate_domain_into_parts(domain)
 
-            values["ip"] = sanitize(values["ip"], values["type"])
-
-            rrset = {
+            rrset: RRSet = {
                 "name": name + f".{tld}.",
                 "type": values["type"],
                 "ttl": 3400,
                 "changetype": "REPLACE",
-                "records": [
+                "records": [],
+            }
+
+            for record in values["ip"]:
+                value = sanitize(record, values["type"])
+                rrset["records"].append(
                     {
-                        "content": values["ip"],
+                        "content": value,
                         "disabled": False,
                         "comment": f"Reinstated from banned user ({user_id})",
                     }
-                ],
-            }
+                )
 
-            rrsets[tld].append(rrset)
+            rrsets.append(rrset)
 
-        for tld, tld_rrsets in rrsets.items():
             request = requests.patch(
                 f"https://api.vps.frii.site/api/v1/servers/localhost/zones/{tld}.",
-                data=json.dumps({"rrsets": tld_rrsets}),
+                data=json.dumps({"rrsets": rrsets}),
                 headers={"Content-Type": "application/json", "X-API-Key": self.key},
             )
 
@@ -253,11 +254,11 @@ class DNS:
 
         return True
 
-    def delete_multiple(self, domains: Dict[str, str]):
+    def delete_multiple(self, domains: Dict[str, TYPES]):
         """Deleted multiple records at once
 
         Args:
-            domains (Dict[str,str]): A set of keys {domain: type}
+            domains (Dict[str, TYPES]): A set of keys {domain: type}
         """
 
         logger.info(f"mass deleting records {list(domains.keys())}")

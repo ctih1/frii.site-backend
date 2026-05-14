@@ -9,7 +9,7 @@ from database.tables.domains import Domains, DomainFormat
 from database.tables.sessions import Sessions
 from database.tables.referrals import ReferralType
 from dns_.dns import DNS
-from dns_.types import AVAILABLE_TLDS
+from dns_.types import AVAILABLE_TLDS, TYPES
 from dns_.exceptions import DNSException
 from mail.email import Email
 from database.exceptions import UserNotExistError, FilterMatchError
@@ -66,7 +66,7 @@ class Admin:
         if len(reasons) == 0:
             raise ValueError("You need to specify atleast one ban reason")
 
-        domains = {
+        domains: Dict[str, TYPES] = {
             k.replace("[dot]", "."): v["type"] for k, v in user_data["domains"].items()
         }
 

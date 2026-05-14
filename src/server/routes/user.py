@@ -48,6 +48,7 @@ from server.routes.models.user import (
     ApiGetKeys,
     YearWrapped,
 )
+from dns_.types import TYPES
 
 converter: Convert = Convert()
 logger: logging.Logger = logging.getLogger("frii.site")
@@ -692,7 +693,9 @@ class User:
         if user_data is None:
             raise HTTPException(status_code=404, detail="Account not found")
 
-        domains = {k: v["type"] for k, v in user_data["domains"].items()}
+        domains: Dict[str, TYPES] = {
+            k: v["type"] for k, v in user_data["domains"].items()
+        }
 
         success = self.dns.delete_multiple(domains)
         if not success:

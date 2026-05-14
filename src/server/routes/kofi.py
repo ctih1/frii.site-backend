@@ -23,6 +23,7 @@ PURCHASE_TYPE = Literal["Donation", "Subscription", "Commission", "Shop Order"]
 EXTRA_DOMAIN_LINK_CODE = "65a532e32b"
 ARROVH_SUBDOMAIN_LINK_CODE = "ee4b5170a6"
 PILLOVH_SUBDOMAIN_LINK_CODE = "38e30ddc66"
+DOMAIN_BUNDLE_LINK_CODE = "50a9f34469"
 
 
 class Kofi:
@@ -77,7 +78,9 @@ class Kofi:
             for item in jason.get("shop_items"):
                 quantity: int = item.get("quantity", 1)
 
-                if item.get("direct_link_code") == EXTRA_DOMAIN_LINK_CODE:
+                link_code: str | None = item.get("direct_link_code")
+
+                if link_code == EXTRA_DOMAIN_LINK_CODE:
                     increased_domains = 10 * quantity
                     increased_subdomains = 100 * quantity
                     mapping = {
@@ -87,10 +90,16 @@ class Kofi:
                         }
                     }
 
-                elif item.get("direct_link_code") == PILLOVH_SUBDOMAIN_LINK_CODE:
+                elif link_code == PILLOVH_SUBDOMAIN_LINK_CODE:
                     mapping = {"$push": {"owned-tlds": "pill.ovh"}}
-                elif item.get("direct_link_code") == ARROVH_SUBDOMAIN_LINK_CODE:
+                elif link_code == ARROVH_SUBDOMAIN_LINK_CODE:
                     mapping = {"$push": {"owned-tlds": "arr.ovh"}}
+                elif link_code == DOMAIN_BUNDLE_LINK_CODE:
+                    mapping = {
+                        "$push": {
+                            "owned-tlds": {"$each": ["srvr.be", "pill.ovh", "arr.ovh"]}
+                        }
+                    }
 
             code = self.rewards.create(email, mapping)
 
@@ -100,5 +109,5 @@ class Kofi:
             )
 
         self.emails.send_purchase_confirmation(
-            email, f"https://canary.frii.site/redeem/{code}", code
+            email, f"https://www.frii.site/redeem/{code}", code
         )
