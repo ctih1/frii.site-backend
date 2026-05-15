@@ -150,7 +150,25 @@ class Admin:
 
         return self.get_user_details_by_id(referral["owner"])
 
-    def get_user_details_by_id(self, user_id: str) -> AccountData | None:
+    def find_by_ips(self, ips: List[str]) -> List[AccountData] | None:
+        users = self.users.find_users({"accessed-from": {"$in": ips}})
+
+        if users is None:
+            return None
+
+        return [
+            user
+            for user in [
+                self.get_user_details_by_id(user["_id"], user)
+                for user in users
+                if user is not None
+            ]
+            if user is not None
+        ]
+
+    def get_user_details_by_id(
+        self, user_id: str, user_type: UserType | None = None
+    ) -> AccountData | None:
         user_profile: UserPageType | None = self.users.get_user_profile(
             user_id, self.sessions, True
         )
@@ -159,7 +177,9 @@ class Admin:
             logger.info("User profile did not yield results")
             return None
 
-        user_data: UserType | None = self.users.find_user({"_id": user_id}, True)
+        user_data: UserType | None = user_type or self.users.find_user(
+            {"_id": user_id}, True
+        )
 
         if user_data is None:
             raise ValueError("Could not get user from db")
@@ -173,7 +193,7 @@ class Admin:
         account_data["created"] = round(user_data.get("created", 0))
         account_data["api_key_amount"] = len(user_data.get("api-keys", []))
         account_data["accessed_from"] = list(set(user_data.get("accessed-from", [])))[
-            :50
+            :100
         ]
 
         return account_data
