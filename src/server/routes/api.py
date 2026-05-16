@@ -220,6 +220,7 @@ class API:
                 status_code=412, detail=f"Invalid value in {body.values}"
             )
 
+
         if not self.dns_validation.user_owns_domain(api.username, body.domain):
             raise HTTPException(
                 status_code=403, detail=f"You do not own the domain {body.domain}"
