@@ -45,7 +45,7 @@ class TestDomainValidation:
         assert Validation.record_value_valid(["test.cname.fi"], "CNAME")
 
     def test_duplicate_content(self):
-        assert not Validation.record_value_valid(["0.0.0.0", "0.0.0.0"], "CNAME")
+        assert not Validation.record_value_valid(["0.0.0.0", "0.0.0.0"], "A")
 
     def test_invalid_type(self):
         assert not Validation.record_value_valid(["0.0.0.0"], "C")
