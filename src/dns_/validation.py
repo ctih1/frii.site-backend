@@ -30,6 +30,7 @@ class Validation:
         always_allowed: List[str] = list(string.ascii_letters)
 
         always_allowed.extend(list(string.digits))
+        allowed_end = always_allowed.copy()
         allowed = always_allowed.copy()
         allowed.extend([".", "-"])
 
@@ -37,45 +38,67 @@ class Validation:
             allowed.append("_")
             always_allowed.append("_")
 
+        if type.upper() == "CNAME":
+            allowed_end.append(".")
+
         valid: bool = all(char in allowed for char in name)
 
         if not name:
             valid = False
 
         elif type.upper() != "TXT" and (
-            name[0] not in always_allowed or name[-1] not in always_allowed
+            name[0] not in always_allowed or name[-1] not in allowed_end
         ):
             valid = False
         return valid
 
     @staticmethod
-    def record_value_valid(value: str, type: str) -> bool:
+    def record_value_valid(values: List[str], type: str) -> bool:
         if type.upper() == "TXT":
             return True
-        if type.upper() in ["CNAME", "NS"]:
-            return Validation.record_name_valid(value, type)
-        if type.upper() == "A":
-            allowed: List[str] = list(string.digits)
-            allowed.append(".")
 
-            basic = all(char in allowed for char in value) and value.count(".") == 3
-            if not basic:
-                return False
+        all_valid: bool = True
 
-            for part in value.split("."):
-                if len(part) > 3:
-                    return False
+        if len(set(values)) != len(values):
+            logger.info("Found duplicate values in check, not valid")
+            all_valid = False
 
-            return True
+        for value in values:
+            if type.upper() in ["CNAME", "NS"]:
+                if not Validation.record_name_valid(value, type):
+                    all_valid = False
 
-        if type.upper() == "AAAA":
-            ipv6_pattern = re.compile(
-                r"(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))"
-            )
-            return re.match(string=value, pattern=ipv6_pattern) is not None
-        else:  # If type is not in checks
-            logger.error(f"Type {type} is not valid!")
-            return False
+            elif type.upper() == "A":
+                allowed: List[str] = list(string.digits)
+                allowed.append(".")
+
+                basic = all(char in allowed for char in value) and value.count(".") == 3
+                if not basic:
+                    all_valid = False
+
+                for part in value.split("."):
+                    if len(part) > 3:
+                        all_valid = False
+
+                    try:
+                        octet = int(part)
+                        if octet > 255:
+                            logger.info("Octet is too big, not valid")
+                            all_valid = False
+                    except ValueError:
+                        logger.info(f"Not a valid octet '{part}'")
+                        all_valid = False
+
+            elif type.upper() == "AAAA":
+                ipv6_pattern = re.compile(
+                    r"(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))"
+                )
+                return re.match(string=value, pattern=ipv6_pattern) is not None
+            else:  # If type is not in checks
+                logger.error(f"Type {type} is not valid!")
+                all_valid = False
+
+        return all_valid
 
     def is_free(
         self,
@@ -125,7 +148,7 @@ class Validation:
             logger.info(f"User already owns domain {cleaned_domain}")
             return False
 
-        (domain, tld) = Domains.seperate_domain_into_parts(name)
+        domain, tld = Domains.seperate_domain_into_parts(name)
 
         domain = Domains.clean_domain_name(domain)
         logger.info(f"Checking if {domain} is subdomain")
@@ -196,7 +219,7 @@ class Validation:
         :return: whether the user can register
         :rtype: UserCanRegisterResult
         """
-        (name, _) = Domains.seperate_domain_into_parts(domain)
+        name, _ = Domains.seperate_domain_into_parts(domain)
         is_subdomain = "." in name
         subdomain_amount: int = 0
 
@@ -206,7 +229,7 @@ class Validation:
         for domain in [
             Domains.clean_domain_name(domain) for domain in list(user["domains"].keys())
         ]:
-            (name, _) = Domains.seperate_domain_into_parts(domain)
+            name, _ = Domains.seperate_domain_into_parts(domain)
             if "[dot]" in name:
                 subdomain_amount += 1
             else:

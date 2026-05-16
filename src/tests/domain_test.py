@@ -40,15 +40,21 @@ class TestDomainValidation:
         assert not Validation.record_name_valid("_verification.frii.site", "A")
 
     def test_valid_content(self):
-        assert Validation.record_value_valid("1.2.3.4", "A")
+        assert Validation.record_value_valid(["1.2.3.4"], "A")
+        assert Validation.record_value_valid(["test.cname.fi."], "CNAME")
+        assert Validation.record_value_valid(["test.cname.fi"], "CNAME")
+
+    def test_duplicate_content(self):
+        assert not Validation.record_value_valid(["0.0.0.0", "0.0.0.0"], "A")
 
     def test_invalid_type(self):
-        assert not Validation.record_value_valid("0.0.0.0", "C")
+        assert not Validation.record_value_valid(["0.0.0.0"], "C")
 
     def test_invalid_content_for_type(self):
-        assert not Validation.record_value_valid("test.cname.fi", "A")
-        assert not Validation.record_value_valid("0.0.0.0.0.0.0", "A")
-        assert not Validation.record_value_valid("1500.120.15.2", "A")
+        assert not Validation.record_value_valid(["test.cname.fi"], "A")
+        assert not Validation.record_value_valid(["0.0.0.0.0.0.0"], "A")
+        assert not Validation.record_value_valid(["1500.120.15.2"], "A")
+        assert not Validation.record_value_valid(["320.120.15.2"], "A")
 
     def test_domain_clean(self):
         assert Domains.clean_domain_name("a.b") == "a[dot]b"

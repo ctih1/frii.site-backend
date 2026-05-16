@@ -16,7 +16,7 @@ from security.session import Session
 from security.encryption import Encryption
 from security.convert import Convert
 from security.admin import Admin as AdminTools, DomainDeletionError, AccountData
-from server.routes.models.admin import BanUser
+from server.routes.models.admin import BanUser, IpFind
 
 converter: Convert = Convert()
 logger: logging.Logger = logging.getLogger("frii.site")
@@ -184,6 +184,19 @@ class Admin:
         )
 
         self.router.add_api_route(
+            "/user/get/ips",
+            self.find_user_by_ips,
+            methods=["POST"],
+            responses={
+                200: {"description": "User found"},
+                404: {"description": "User not found"},
+                460: {"description": "Invalid session"},
+                461: {"description": "Invalid permissions"},
+            },
+            tags=["admin"],
+        )
+
+        self.router.add_api_route(
             "/user/get/referral",
             self.find_user_by_referral,
             methods=["GET"],
@@ -315,6 +328,17 @@ class Admin:
             raise HTTPException(status_code=404, detail="User not found (get profile)")
 
         return user_profile
+
+    @Session.requires_auth
+    @Session.requires_permission(permission="userdetails")
+    def find_user_by_ips(
+        self, body: IpFind, session: Session = Depends(converter.create)
+    ) -> List[AccountData]:
+        user_profiles: List[AccountData] | None = self.admin_tools.find_by_ips(body.ips)
+        if user_profiles is None:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        return user_profiles
 
     @Session.requires_auth
     @Session.requires_permission(permission="userdetails")

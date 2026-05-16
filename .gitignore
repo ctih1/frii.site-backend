@@ -16,3 +16,4 @@ server_key.pub
 .pytest_cach
 coverage.xml
 .coverage
+.pytest_cache

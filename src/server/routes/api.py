@@ -215,9 +215,11 @@ class API:
                 status_code=412, detail=f"Invalid domain name {body.domain}"
             )
 
-        for value in body.values:
-            if not self.dns_validation.record_value_valid(value, body.type):
-                raise HTTPException(status_code=412, detail=f"Invalid value {value}")
+        if not self.dns_validation.record_value_valid(body.values, body.type):
+            raise HTTPException(
+                status_code=412, detail=f"Invalid value in {body.values}"
+            )
+
 
         if not self.dns_validation.user_owns_domain(api.username, body.domain):
             raise HTTPException(
