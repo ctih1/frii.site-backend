@@ -337,10 +337,16 @@ class Users(Table):
         }
 
     def get_user_profile(
-        self, user_id: str, session_table: "SessionTable", find_banned: bool = False
+        self,
+        user_id: str,
+        session_table: "SessionTable",
+        find_banned: bool = False,
+        user_type: UserType | None = None,
     ) -> UserPageType:
         logger.info(f"Getting user profile for {user_id}")
-        user_data: UserType | None = self.find_user({"_id": user_id}, find_banned)
+        user_data: UserType | None = user_type or self.find_user(
+            {"_id": user_id}, find_banned
+        )
 
         if user_data is None:
             raise UserNotExistError("Invalid user")

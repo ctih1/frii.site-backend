@@ -170,7 +170,7 @@ class Admin:
         self, user_id: str, user_type: UserType | None = None
     ) -> AccountData | None:
         user_profile: UserPageType | None = self.users.get_user_profile(
-            user_id, self.sessions, True
+            user_id, self.sessions, True, user_type
         )
 
         if not user_profile:

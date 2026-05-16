@@ -150,7 +150,7 @@ class Domain:
             logger.warning("Deprecated usage of register. Please pass the TLD!")
             domain_name += ".frii.site"
 
-        (_, tld) = self.domains.seperate_domain_into_parts(domain_name)
+        _, tld = self.domains.seperate_domain_into_parts(domain_name)
 
         if tld not in session.user_cache_data.get("owned-tlds", ["frii.site"]):
             raise HTTPException(
@@ -218,9 +218,10 @@ class Domain:
                 status_code=412, detail=f"Invalid domain name {body.domain}"
             )
 
-        for value in body.values:
-            if not self.dns_validation.record_value_valid(value, body.type):
-                raise HTTPException(status_code=412, detail=f"Invalid value {value}")
+        if not self.dns_validation.record_value_valid(body.values, body.type):
+            raise HTTPException(
+                status_code=412, detail=f"Invalid value in {body.values}"
+            )
 
         if not self.dns_validation.user_owns_domain(
             session.username, body.domain, session.user_cache_data
