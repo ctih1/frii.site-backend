@@ -123,7 +123,7 @@ class Validation:
         """
 
         name = name.removesuffix(".")
-        
+
         if not Domains.unclean_domain_name(name).endswith(
             tuple([f".{tld}" for tld in get_args(AVAILABLE_TLDS)])
         ):
