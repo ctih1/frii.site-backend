@@ -123,6 +123,7 @@ class TestDomainUser:
         assert not validation.is_free("test.frii.site", "A", {}, False)
         assert not validation.is_free("test.unowned.frii.site", "A", {}, False)
         assert not validation.is_free("test.unowned.frii.site.", "A", {}, False)
+        assert not validation.is_free("test.unowned.frii.site.frii.site", "A", {}, False)
 
         with pytest.raises(ValueError):
             validation.is_free("testwithouttld", "A", {})

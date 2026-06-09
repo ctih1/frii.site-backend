@@ -160,12 +160,15 @@ class Validation:
         domain = Domains.clean_domain_name(domain)
         logger.info(f"Checking if {domain} is subdomain")
 
-        domain_parts: List[str] = domain.split("[dot]")
+        domain_parts: List[str] = Domains.clean_domain_name(name).split("[dot]")
+        logger.info(domain_parts)
         is_subdomain: bool = len(domain_parts) > 1
 
         required_domain: str = (
             domain_parts[-1] + "[dot]" + Domains.clean_domain_name(tld)
         )
+
+        logger.info(f"Required domain: {required_domain}, subdomain: {is_subdomain}")
 
         if required_domain and is_subdomain and required_domain not in domains:
             logger.warning(f"User does not own {required_domain}")
