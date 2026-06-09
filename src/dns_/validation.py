@@ -122,6 +122,8 @@ class Validation:
             SubdomainError: If the user doesn't own the required domain and raise_exceptions is True.
         """
 
+        name = name.removesuffix(".")
+        
         if not Domains.unclean_domain_name(name).endswith(
             tuple([f".{tld}" for tld in get_args(AVAILABLE_TLDS)])
         ):
