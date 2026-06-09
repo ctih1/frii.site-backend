@@ -147,8 +147,7 @@ class Domain:
         domain_name = body.domain
 
         if not domain_name.endswith(get_args(AVAILABLE_TLDS)):
-            logger.warning("Deprecated usage of register. Please pass the TLD!")
-            domain_name += ".frii.site"
+            raise HTTPException(status_code=412, detail="Deprecated usage of register. Please pass the TLD!")
 
         _, tld = self.domains.seperate_domain_into_parts(domain_name)
 
@@ -159,7 +158,7 @@ class Domain:
             )
 
         can_user_register = self.dns_validation.can_user_register(
-            body.domain, session.user_cache_data
+            domain_name, session.user_cache_data
         )
 
         if not can_user_register.success:
@@ -167,7 +166,7 @@ class Domain:
 
         try:
             is_domain_available: bool = self.dns_validation.is_free(
-                body.domain, body.type, session.user_cache_data["domains"]
+                domain_name, body.type, session.user_cache_data["domains"]
             )
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid record name")
@@ -176,7 +175,7 @@ class Domain:
         except SubdomainError as e:
             raise HTTPException(
                 status_code=403,
-                detail=f"You need to own {e.required_domain} before registering {body.domain}",
+                detail=f"You need to own {e.required_domain} before registering {domain_name}",
             )
         except DomainExistsError:
             raise HTTPException(status_code=409, detail="Domain is already registered")
@@ -186,7 +185,7 @@ class Domain:
 
         try:
             success = self.dns.register_domain(
-                body.domain,
+                domain_name,
                 body.values[0],
                 body.type,
                 f"Registered through website user: {session.username}",
@@ -200,7 +199,7 @@ class Domain:
 
         self.domains.add_domain(
             session.username,
-            body.domain,
+            domain_name,
             {
                 "id": "None",
                 "type": body.type,
@@ -301,7 +300,7 @@ class Domain:
     def is_available(self, name: str):
         if not self.dns_validation.is_free(name, "A", {}, raise_exceptions=False):
             raise HTTPException(
-                status_code=409, detail=f"Domain {name}.frii.site is not available"
+                status_code=409, detail=f"Domain {name} is not available"
             )
 
     def handle_deque(self) -> None:

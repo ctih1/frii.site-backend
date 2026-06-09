@@ -34,6 +34,11 @@ class Validation:
         allowed = always_allowed.copy()
         allowed.extend([".", "-"])
 
+        for part in name.removesuffix(".").split("."):
+            if len(part) == 0:
+                return False
+        
+
         if type.upper() in ["TXT", "CNAME"]:
             allowed.append("_")
             always_allowed.append("_")
@@ -122,6 +127,8 @@ class Validation:
             SubdomainError: If the user doesn't own the required domain and raise_exceptions is True.
         """
 
+        name = name.removesuffix(".")
+
         if not Domains.unclean_domain_name(name).endswith(
             tuple([f".{tld}" for tld in get_args(AVAILABLE_TLDS)])
         ):
@@ -153,12 +160,15 @@ class Validation:
         domain = Domains.clean_domain_name(domain)
         logger.info(f"Checking if {domain} is subdomain")
 
-        domain_parts: List[str] = domain.split("[dot]")
+        domain_parts: List[str] = Domains.clean_domain_name(domain).split("[dot]")
+        logger.info(domain_parts)
         is_subdomain: bool = len(domain_parts) > 1
 
         required_domain: str = (
             domain_parts[-1] + "[dot]" + Domains.clean_domain_name(tld)
         )
+
+        logger.info(f"Required domain: {required_domain}, subdomain: {is_subdomain}")
 
         if required_domain and is_subdomain and required_domain not in domains:
             logger.warning(f"User does not own {required_domain}")
