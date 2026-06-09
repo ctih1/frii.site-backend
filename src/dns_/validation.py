@@ -34,7 +34,7 @@ class Validation:
         allowed = always_allowed.copy()
         allowed.extend([".", "-"])
 
-        for part in name.split("."):
+        for part in name.removesuffix(".").split("."):
             if len(part) == 0:
                 return False
         
