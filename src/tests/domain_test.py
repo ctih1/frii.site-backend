@@ -27,6 +27,8 @@ class TestDomainValidation:
 
     def test_invalid_name(self):
         assert not Validation.record_name_valid("Invälid_Recörd_Nämë.frii.site", "A")
+        assert not Validation.record_name_valid("a..b.frii.site", "A")
+        assert not Validation.record_name_valid("a..frii.site", "A")
         assert not Validation.record_name_valid("", "A")
 
     def test_invalid_start_and_end(self):

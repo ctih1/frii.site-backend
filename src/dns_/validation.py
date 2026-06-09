@@ -34,6 +34,11 @@ class Validation:
         allowed = always_allowed.copy()
         allowed.extend([".", "-"])
 
+        for part in name.split("."):
+            if len(part) == 0:
+                return False
+        
+
         if type.upper() in ["TXT", "CNAME"]:
             allowed.append("_")
             always_allowed.append("_")
