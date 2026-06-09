@@ -159,7 +159,7 @@ class Domain:
             )
 
         can_user_register = self.dns_validation.can_user_register(
-            body.domain, session.user_cache_data
+            domain_name, session.user_cache_data
         )
 
         if not can_user_register.success:
@@ -167,7 +167,7 @@ class Domain:
 
         try:
             is_domain_available: bool = self.dns_validation.is_free(
-                body.domain, body.type, session.user_cache_data["domains"]
+                domain_name, body.type, session.user_cache_data["domains"]
             )
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid record name")
@@ -176,7 +176,7 @@ class Domain:
         except SubdomainError as e:
             raise HTTPException(
                 status_code=403,
-                detail=f"You need to own {e.required_domain} before registering {body.domain}",
+                detail=f"You need to own {e.required_domain} before registering {domain_name}",
             )
         except DomainExistsError:
             raise HTTPException(status_code=409, detail="Domain is already registered")
@@ -186,7 +186,7 @@ class Domain:
 
         try:
             success = self.dns.register_domain(
-                body.domain,
+                domain_name,
                 body.values[0],
                 body.type,
                 f"Registered through website user: {session.username}",
@@ -200,7 +200,7 @@ class Domain:
 
         self.domains.add_domain(
             session.username,
-            body.domain,
+            domain_name,
             {
                 "id": "None",
                 "type": body.type,
