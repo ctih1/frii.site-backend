@@ -57,7 +57,7 @@ class Domains(Users):
                 tld = available_tld
                 break
 
-        return (beautiful_domain.split(tld)[0].rstrip("."), tld)
+        return (beautiful_domain.rsplit(tld, 1)[0].rstrip("."), tld)
 
     @staticmethod
     def unclean_domain_name(input: str) -> str:

@@ -160,7 +160,7 @@ class Validation:
         domain = Domains.clean_domain_name(domain)
         logger.info(f"Checking if {domain} is subdomain")
 
-        domain_parts: List[str] = Domains.clean_domain_name(name).split("[dot]")
+        domain_parts: List[str] = Domains.clean_domain_name(domain).split("[dot]")
         logger.info(domain_parts)
         is_subdomain: bool = len(domain_parts) > 1
 
