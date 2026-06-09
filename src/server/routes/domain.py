@@ -147,7 +147,7 @@ class Domain:
         domain_name = body.domain
 
         if not domain_name.endswith(get_args(AVAILABLE_TLDS)):
-            logger.warning("Deprecated usage of register. Please pass the TLD!")
+            raise HTTPException(412, "Deprecated usage of register. Please pass the TLD!")
             domain_name += ".frii.site"
 
         _, tld = self.domains.seperate_domain_into_parts(domain_name)
