@@ -104,6 +104,31 @@ class Validation:
                 all_valid = False
 
         return all_valid
+    
+    @staticmethod
+    def find_required_domain(full_domain: str) -> str | None:
+        """Finds the highest level of the domain. E.g a.b.frii.site -> b.frii.site
+        Can be used to detect if domain is a subdomain using `is_subdomain = find_required_domain(...) != None`
+
+        :param full_domain: The full domain name, including the TLD
+        :type full_domain: str
+        :return: If is subdomain the highest level with the TLD at the end, else None
+        :rtype: str | None
+        """
+        domain, tld = Domains.seperate_domain_into_parts(full_domain)
+
+        domain = Domains.clean_domain_name(domain)
+        logger.info(f"Checking if {domain} is subdomain")
+
+        domain_parts: List[str] = Domains.clean_domain_name(domain).split("[dot]")
+        logger.info(domain_parts)
+        is_subdomain: bool = len(domain_parts) > 1
+
+        required_domain: str = (
+            domain_parts[-1] + "[dot]" + Domains.clean_domain_name(tld)
+        )
+
+        return required_domain if is_subdomain else None
 
     def is_free(
         self,
@@ -158,19 +183,10 @@ class Validation:
         domain, tld = Domains.seperate_domain_into_parts(name)
 
         domain = Domains.clean_domain_name(domain)
-        logger.info(f"Checking if {domain} is subdomain")
 
-        domain_parts: List[str] = Domains.clean_domain_name(domain).split("[dot]")
-        logger.info(domain_parts)
-        is_subdomain: bool = len(domain_parts) > 1
+        required_domain: str | None = Validation.find_required_domain(name)
 
-        required_domain: str = (
-            domain_parts[-1] + "[dot]" + Domains.clean_domain_name(tld)
-        )
-
-        logger.info(f"Required domain: {required_domain}, subdomain: {is_subdomain}")
-
-        if required_domain and is_subdomain and required_domain not in domains:
+        if required_domain and required_domain not in domains:
             logger.warning(f"User does not own {required_domain}")
             if raise_exceptions:
                 raise SubdomainError(
@@ -207,6 +223,18 @@ class Validation:
     def user_owns_domain(
         self, user_id: str, domain: str, user: UserType | None = None
     ) -> bool:
+        """Returns whether user has a specfic domain owned. Can bee passed a user_id or user. If user_id is passed, a database lookup occurs.
+
+        :param user_id: the ID of the user to check
+        :type user_id: str
+        :param domain: the full domain name
+        :type domain: str
+        :param user: the user object, if provided, no database lookup occusr, defaults to None
+        :type user: UserType | None, optional
+        :raises UserNotExistError: if the user does not exist
+        :return: whether user owns domain
+        :rtype: bool
+        """
         if not user:
             user_data: UserType | None = self.table.find_user({"_id": user_id})
         else:
@@ -230,8 +258,8 @@ class Validation:
         :rtype: UserCanRegisterResult
         """
         name, _ = Domains.seperate_domain_into_parts(domain)
-        is_subdomain = "." in name
         subdomain_amount: int = 0
+        is_subdomain = Validation.find_required_domain(domain) != None
 
         user_domain_amount = 0
         subdomain_amount = 0
@@ -239,11 +267,11 @@ class Validation:
         for domain in [
             Domains.clean_domain_name(domain) for domain in list(user["domains"].keys())
         ]:
-            name, _ = Domains.seperate_domain_into_parts(domain)
-            if "[dot]" in name:
+            if Validation.find_required_domain(name):
                 subdomain_amount += 1
             else:
                 user_domain_amount += 1
+
 
         logger.info(
             f"User has {subdomain_amount} subdomains and {user_domain_amount} domains"

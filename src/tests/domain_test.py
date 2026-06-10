@@ -130,6 +130,12 @@ class TestDomainUser:
 
         assert validation.is_free("test20.frii.site", "A", {}, False)
 
+    def test_domain_highest_detection(self, validation: Validation, domains: Domains):
+        assert Validation.find_required_domain("a.b.frii.site") == "b[dot]frii[dot]site"
+        assert Validation.find_required_domain("a[dot]b[dot]frii[dot]site") == "b[dot]frii[dot]site"
+        assert Validation.find_required_domain("a.frii.site") is None
+        assert Validation.find_required_domain("a[dot]frii[dot]site") is None
+
     def test_domain_limits(self, test_user: UserType, users: Users):
         # First test the default domain limit
         assert Validation.can_user_register("test2.frii.site", test_user)[0]
