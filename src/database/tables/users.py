@@ -191,7 +191,7 @@ class Users(Table):
         refer_code: str | None = None,
         skip_verification: bool = False,
     ) -> str:
-
+        raise Exception("Registration disabled")
         logger.info(f"Creating user with username {username}")
         original_username: str = username
 
