@@ -27,6 +27,8 @@ class TestDomainValidation:
 
     def test_invalid_name(self):
         assert not Validation.record_name_valid("Invälid_Recörd_Nämë.frii.site", "A")
+        assert not Validation.record_name_valid("a..b.frii.site", "A")
+        assert not Validation.record_name_valid("a..frii.site", "A")
         assert not Validation.record_name_valid("", "A")
 
     def test_invalid_start_and_end(self):
@@ -120,11 +122,19 @@ class TestDomainUser:
     def test_domain_not_free(self, validation: Validation, domains: Domains):
         assert not validation.is_free("test.frii.site", "A", {}, False)
         assert not validation.is_free("test.unowned.frii.site", "A", {}, False)
+        assert not validation.is_free("test.unowned.frii.site.", "A", {}, False)
+        assert not validation.is_free("test.unowned.frii.site.frii.site", "A", {}, False)
 
         with pytest.raises(ValueError):
             validation.is_free("testwithouttld", "A", {})
 
         assert validation.is_free("test20.frii.site", "A", {}, False)
+
+    def test_domain_highest_detection(self, validation: Validation, domains: Domains):
+        assert Validation.find_required_domain("a.b.frii.site") == "b[dot]frii[dot]site"
+        assert Validation.find_required_domain("a[dot]b[dot]frii[dot]site") == "b[dot]frii[dot]site"
+        assert Validation.find_required_domain("a.frii.site") is None
+        assert Validation.find_required_domain("a[dot]frii[dot]site") is None
 
     def test_domain_limits(self, test_user: UserType, users: Users):
         # First test the default domain limit

@@ -5,7 +5,6 @@ from database.tables.users import Users, UserType
 from database.exceptions import UserNotExistError
 from dns_.types import TYPES, AVAILABLE_TLDS
 
-
 logger: logging.Logger = logging.getLogger("frii.site")
 
 
@@ -13,7 +12,7 @@ class DomainFormat(TypedDict):
     ip: List[str] | str
     registered: int | float
     type: TYPES
-    id: str
+    id: str | None
 
 
 RepairFormat = TypedDict(
@@ -57,7 +56,7 @@ class Domains(Users):
                 tld = available_tld
                 break
 
-        return (beautiful_domain.split(tld)[0].rstrip("."), tld)
+        return (beautiful_domain.rsplit(tld, 1)[0].rstrip("."), tld)
 
     @staticmethod
     def unclean_domain_name(input: str) -> str:
