@@ -158,6 +158,14 @@ class API:
             body.domain, api.user_cache_data
         )
 
+        _, tld = self.domains.seperate_domain_into_parts(body.domain)
+
+        if tld not in api.user_cache_data.get("owned-tlds", ["frii.site"]):
+            raise HTTPException(
+                status_code=401,
+                detail=f"User must purchase {tld} before registering this domain",
+            )
+
         if not can_user_register.success:
             raise HTTPException(status_code=405, detail=can_user_register.comment)
 
@@ -219,7 +227,6 @@ class API:
             raise HTTPException(
                 status_code=412, detail=f"Invalid value in {body.values}"
             )
-
 
         if not self.dns_validation.user_owns_domain(api.username, body.domain):
             raise HTTPException(
